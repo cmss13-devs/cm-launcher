@@ -1,0 +1,207 @@
+use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Emitter};
+
+use super::client::OidcClient;
+pub use super::client::UserInfo;
+use super::server::CallbackServer;
+use super::storage::TokenStorage;
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct AuthState {
+    pub logged_in: bool,
+    pub user: Option<UserInfo>,
+    pub loading: bool,
+    pub error: Option<String>,
+}
+
+impl AuthState {
+    pub fn logged_out() -> Self {
+        Self::default()
+    }
+
+    #[allow(dead_code)]
+    pub fn loading() -> Self {
+        Self {
+            loading: true,
+            ..Default::default()
+        }
+    }
+
+    pub fn logged_in(user: UserInfo) -> Self {
+        Self {
+            logged_in: true,
+            user: Some(user),
+            loading: false,
+            error: None,
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn error(message: String) -> Self {
+        Self {
+            error: Some(message),
+            ..Default::default()
+        }
+    }
+}
+
+/// Start the login flow - opens browser, waits for callback
+#[tauri::command]
+pub async fn start_login(app: AppHandle) -> Result<AuthState, String> {
+    let oidc_client = OidcClient::new().await?;
+
+    let mut server = CallbackServer::start_without_state()?;
+    let redirect_uri = server.redirect_uri();
+
+    let auth_request = oidc_client.create_authorization_request(&redirect_uri)?;
+
+    server.set_expected_state(auth_request.state.clone());
+
+    open::that(&auth_request.auth_url).map_err(|e| format!("Failed to open browser: {}", e))?;
+
+    let callback_result = tokio::task::spawn_blocking(move || server.wait_for_callback())
+        .await
+        .map_err(|e| format!("Callback task failed: {}", e))??;
+
+    let token_result = oidc_client
+        .exchange_code(
+            &callback_result.code,
+            &redirect_uri,
+            auth_request.pkce_verifier,
+        )
+        .await?;
+
+    TokenStorage::store_tokens(
+        &token_result.access_token,
+        token_result.refresh_token.as_deref(),
+        token_result.id_token.as_deref().unwrap_or(""),
+        token_result.expires_at,
+    )?;
+
+    let user_info = oidc_client.get_userinfo(&token_result.access_token).await?;
+
+    let auth_state = AuthState::logged_in(user_info);
+
+    app.emit("auth-state-changed", &auth_state).ok();
+
+    Ok(auth_state)
+}
+
+/// Clear local tokens and log out
+#[tauri::command]
+pub async fn logout(app: AppHandle) -> Result<AuthState, String> {
+    TokenStorage::clear_tokens()?;
+
+    let auth_state = AuthState::logged_out();
+    app.emit("auth-state-changed", &auth_state).ok();
+
+    Ok(auth_state)
+}
+
+/// Get current auth state (checks keychain, validates tokens)
+#[tauri::command]
+pub async fn get_auth_state() -> Result<AuthState, String> {
+    let tokens = match TokenStorage::get_tokens()? {
+        Some(t) => t,
+        None => return Ok(AuthState::logged_out()),
+    };
+
+    if TokenStorage::is_expired() {
+        if let Some(refresh_token) = &tokens.refresh_token {
+            match refresh_tokens_internal(refresh_token).await {
+                Ok(state) => return Ok(state),
+                Err(_) => {
+                    TokenStorage::clear_tokens()?;
+                    return Ok(AuthState::logged_out());
+                }
+            }
+        } else {
+            TokenStorage::clear_tokens()?;
+            return Ok(AuthState::logged_out());
+        }
+    }
+
+    let oidc_client = OidcClient::new().await?;
+    match oidc_client.get_userinfo(&tokens.access_token).await {
+        Ok(user_info) => Ok(AuthState::logged_in(user_info)),
+        Err(_) => {
+            if let Some(refresh_token) = &tokens.refresh_token {
+                refresh_tokens_internal(refresh_token).await
+            } else {
+                TokenStorage::clear_tokens()?;
+                Ok(AuthState::logged_out())
+            }
+        }
+    }
+}
+
+/// Manually trigger token refresh
+#[tauri::command]
+pub async fn refresh_auth(app: AppHandle) -> Result<AuthState, String> {
+    let tokens = match TokenStorage::get_tokens()? {
+        Some(t) => t,
+        None => return Ok(AuthState::logged_out()),
+    };
+
+    let refresh_token = tokens.refresh_token.ok_or("No refresh token available")?;
+
+    let auth_state = refresh_tokens_internal(&refresh_token).await?;
+    app.emit("auth-state-changed", &auth_state).ok();
+
+    Ok(auth_state)
+}
+
+/// Get the current access token (for use in byond:// URLs)
+#[tauri::command]
+pub async fn get_access_token() -> Result<Option<String>, String> {
+    match TokenStorage::get_tokens()? {
+        Some(tokens) if !TokenStorage::is_expired() => Ok(Some(tokens.access_token)),
+        _ => Ok(None),
+    }
+}
+
+/// Internal helper to refresh tokens
+async fn refresh_tokens_internal(refresh_token: &str) -> Result<AuthState, String> {
+    let oidc_client = OidcClient::new().await?;
+
+    let token_result = oidc_client.refresh_tokens(refresh_token).await?;
+
+    TokenStorage::store_tokens(
+        &token_result.access_token,
+        token_result.refresh_token.as_deref(),
+        token_result.id_token.as_deref().unwrap_or(""),
+        token_result.expires_at,
+    )?;
+
+    let user_info = oidc_client.get_userinfo(&token_result.access_token).await?;
+
+    Ok(AuthState::logged_in(user_info))
+}
+
+pub async fn background_refresh_task(app: AppHandle) {
+    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+
+    loop {
+        if TokenStorage::should_refresh() {
+            if let Ok(Some(tokens)) = TokenStorage::get_tokens() {
+                dbg!("{}", &tokens);
+
+                if let Some(refresh_token) = &tokens.refresh_token {
+                    match refresh_tokens_internal(refresh_token).await {
+                        Ok(auth_state) => {
+                            app.emit("auth-state-changed", &auth_state).ok();
+                        }
+                        Err(e) => {
+                            eprintln!("Background token refresh failed: {}", e);
+                            TokenStorage::clear_tokens().ok();
+                            app.emit("auth-state-changed", &AuthState::logged_out())
+                                .ok();
+                        }
+                    }
+                }
+            }
+        }
+
+        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+    }
+}

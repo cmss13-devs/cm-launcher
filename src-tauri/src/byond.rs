@@ -48,7 +48,6 @@ fn get_dreamseeker_path(app: &AppHandle, version: &str) -> Result<PathBuf, Strin
 
 #[cfg(not(target_os = "windows"))]
 fn get_dreamseeker_path(_app: &AppHandle, _version: &str) -> Result<PathBuf, String> {
-    // On non-Windows, BYOND requires Wine or similar
     Err("BYOND is only natively supported on Windows".to_string())
 }
 
@@ -74,7 +73,6 @@ pub async fn check_byond_version(
 
 /// Get the download URL for a specific BYOND version
 fn get_byond_download_url(version: &str) -> Result<String, String> {
-    // BYOND version format is "major.minor" e.g., "516.1667"
     let parts: Vec<&str> = version.split('.').collect();
     if parts.len() != 2 {
         return Err(format!("Invalid BYOND version format: {}", version));
@@ -177,6 +175,7 @@ pub async fn connect_to_server(
     version: String,
     host: String,
     port: String,
+    access_token: Option<String>,
 ) -> Result<ConnectionResult, String> {
     let version_info = install_byond_version(app.clone(), version.clone()).await?;
 
@@ -186,7 +185,10 @@ pub async fn connect_to_server(
 
     let dreamseeker_path = version_info.path.ok_or("DreamSeeker path not found")?;
 
-    let connect_url = format!("byond://{}:{}", host, port);
+    let connect_url = match access_token {
+        Some(token) => format!("byond://{}:{}?access_token={}", host, port, token),
+        None => format!("byond://{}:{}", host, port),
+    };
 
     #[cfg(target_os = "windows")]
     {
@@ -197,13 +199,14 @@ pub async fn connect_to_server(
 
         Ok(ConnectionResult {
             success: true,
-            message: format!("Connecting to {} with BYOND {}", connect_url, version),
+            message: format!("Connecting to {} with BYOND {}", host, version),
         })
     }
 
     #[cfg(not(target_os = "windows"))]
     {
-        let _ = (dreamseeker_path, connect_url); // Suppress unused warnings
+        // Suppress unused warnings
+        let _ = (dreamseeker_path, connect_url);
         Err("BYOND is only natively supported on Windows".to_string())
     }
 }

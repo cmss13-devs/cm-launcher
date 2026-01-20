@@ -22,7 +22,19 @@ tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-reqwest = { version = "0.12", features = ["blocking"] }
+reqwest = { version = "0.12", features = ["blocking", "json"] }
 zip = "2"
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = ["full", "sync"] }
+oauth2 = "5"
+tiny_http = "0.12"
+aes-gcm = "0.10"
+rand = "0.8"
+dirs = "5"
+open = "5"
+url = "2"
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "2"
+uuid = { version = "1", features = ["v4"] }
+tracing = "0.1.44"
+tracing-subscriber = "0.3.22"
 
