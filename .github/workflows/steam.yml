@@ -52,7 +52,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          args: --features steam
+          args: --features steam --config src-tauri/tauri.steam.conf.json
 
       - name: Prepare Windows artifacts
         shell: pwsh
@@ -86,6 +86,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
+      - name: Install linuxdeploy
+        run: |
+          wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage
+          sudo mv linuxdeploy-x86_64.AppImage /usr/local/bin/linuxdeploy
+          sudo chmod +x /usr/local/bin/linuxdeploy
+
       - name: Download Steamworks SDK
         run: |
           curl -L "https://github.com/rlabrecque/SteamworksSDK/archive/$STEAMWORKS_SDK_COMMIT.zip" -o steamworks_sdk.zip
@@ -105,7 +112,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          args: --features steam
+          args: --features steam --config src-tauri/tauri.steam.conf.json
 
       - name: Prepare Linux artifacts
         run: |
@@ -154,7 +161,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          args: --features steam --target universal-apple-darwin
+          args: --features steam --target universal-apple-darwin --config src-tauri/tauri.steam.conf.json
 
       - name: Prepare macOS artifacts
         run: |
