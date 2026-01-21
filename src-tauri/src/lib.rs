@@ -53,6 +53,10 @@ pub fn run() {
     {
         use std::sync::Arc;
 
+        if steamworks::restart_app_if_necessary(steamworks::AppId(4313790)) {
+            std::process::exit(1);
+        }
+
         match steam::SteamState::init() {
             Ok(steam_state) => {
                 let steam_state = Arc::new(steam_state);

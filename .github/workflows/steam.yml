@@ -133,7 +133,7 @@ jobs:
           APPIMAGE_EXTRACT_AND_RUN: 1
           NO_STRIP: true
         with:
-          args: --features steam --config src-tauri/tauri.steam.conf.json
+          args: --features steam --config src-tauri/tauri.steam.conf.json --verbose
 
       - name: Prepare Linux artifacts
         run: |
