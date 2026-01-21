@@ -149,8 +149,6 @@ impl TokenStorage {
     pub fn should_refresh() -> bool {
         match Self::get_tokens() {
             Ok(Some(tokens)) => {
-                eprintln!("{}", tokens.access_token);
-
                 let now = chrono::Utc::now().timestamp();
                 tokens.expires_at <= now + 300
             }

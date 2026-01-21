@@ -717,7 +717,7 @@ function App() {
                   <button
                     type="button"
                     className="button"
-                    onClick={onLoginRequired}
+                    onClick={handleLogin}
                   >
                     Login
                   </button>
@@ -733,7 +733,8 @@ function App() {
                 >
                   <span className="relay-dropdown-label">Relay:</span>
                   <span className="relay-dropdown-value">
-                    {relays.find((r) => r.id === selectedRelay)?.name || "Select"}
+                    {relays.find((r) => r.id === selectedRelay)?.name ||
+                      "Select"}
                   </span>
                   <span className="relay-dropdown-arrow">
                     {relayDropdownOpen ? "▲" : "▼"}

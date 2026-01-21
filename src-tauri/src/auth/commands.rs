@@ -191,8 +191,7 @@ pub async fn background_refresh_task(app: AppHandle) {
                         Ok(auth_state) => {
                             app.emit("auth-state-changed", &auth_state).ok();
                         }
-                        Err(e) => {
-                            eprintln!("Background token refresh failed: {}", e);
+                        Err(_e) => {
                             TokenStorage::clear_tokens().ok();
                             app.emit("auth-state-changed", &AuthState::logged_out())
                                 .ok();

@@ -110,12 +110,6 @@ impl OidcClient {
 
         let refresh_token = token_response.refresh_token().map(|t| t.secret().clone());
 
-        eprintln!(
-            "Token exchange - has refresh_token: {}, expires_in: {:?}",
-            refresh_token.is_some(),
-            token_response.expires_in()
-        );
-
         let id_token = None;
 
         let expires_in = token_response
