@@ -455,8 +455,8 @@ interface ServerItemProps {
   isLoggedIn: boolean;
   authMode: AuthMode;
   steamAccessToken: string | null;
-  onLoginRequired: () => void;
-  onSteamAuthRequired: () => void;
+  onLoginRequired: (serverName?: string) => void;
+  onSteamAuthRequired: (serverName?: string) => void;
 }
 
 function ServerItem({
@@ -481,12 +481,12 @@ function ServerItem({
 
   const handleConnect = async () => {
     if (authMode === "cm_ss13" && !isLoggedIn) {
-      onLoginRequired();
+      onLoginRequired(server.name);
       return;
     }
 
     if (authMode === "steam" && !steamAccessToken) {
-      onSteamAuthRequired();
+      onSteamAuthRequired(server.name);
       return;
     }
 
@@ -925,7 +925,10 @@ function App() {
     showError,
   ]);
 
-  const onLoginRequired = useCallback(() => {
+  const onLoginRequired = useCallback((serverName?: string) => {
+    if (serverName) {
+      setPendingAutoConnect(serverName);
+    }
     setShowAuthModal(true);
     setAuthModalState("idle");
   }, []);
@@ -933,6 +936,8 @@ function App() {
   const onAuthModalClose = useCallback(() => {
     setShowAuthModal(false);
     setAuthModalState("idle");
+
+    setPendingAutoConnect(null);
   }, []);
 
   const handleSteamAuthenticate = useCallback(
@@ -971,14 +976,22 @@ function App() {
     [],
   );
 
-  const onSteamAuthRequired = useCallback(() => {
-    setShowSteamAuthModal(true);
-    handleSteamAuthenticate(false);
-  }, [handleSteamAuthenticate]);
+  const onSteamAuthRequired = useCallback(
+    (serverName?: string) => {
+      if (serverName) {
+        setPendingAutoConnect(serverName);
+      }
+      setShowSteamAuthModal(true);
+      handleSteamAuthenticate(false);
+    },
+    [handleSteamAuthenticate],
+  );
 
   const onSteamAuthModalClose = useCallback(async () => {
     setShowSteamAuthModal(false);
     setSteamAuthModalState("idle");
+
+    setPendingAutoConnect(null);
     try {
       await invoke("cancel_steam_auth_ticket");
     } catch {
