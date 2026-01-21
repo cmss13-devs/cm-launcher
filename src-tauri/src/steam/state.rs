@@ -54,6 +54,10 @@ impl SteamState {
         &self.client
     }
 
+    pub fn get_launch_command_line(&self) -> String {
+        self.client.apps().launch_command_line()
+    }
+
     pub fn run_callbacks(&self) {
         self.client.run_callbacks();
     }

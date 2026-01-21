@@ -15,7 +15,8 @@ use settings::{get_settings, set_auth_mode};
 
 #[cfg(feature = "steam")]
 use steam::{
-    cancel_steam_auth_ticket, get_steam_auth_ticket, get_steam_user_info, steam_authenticate,
+    cancel_steam_auth_ticket, get_steam_auth_ticket, get_steam_launch_options, get_steam_user_info,
+    steam_authenticate,
 };
 
 #[tauri::command]
@@ -77,6 +78,7 @@ pub fn run() {
             get_steam_auth_ticket,
             cancel_steam_auth_ticket,
             steam_authenticate,
+            get_steam_launch_options,
         ]);
     }
 

@@ -12,6 +12,12 @@ pub struct SteamUserInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SteamLaunchOptions {
+    pub raw: String,
+    pub server_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SteamAuthResult {
     pub success: bool,
     pub user_exists: bool,
@@ -73,15 +79,12 @@ pub async fn steam_authenticate(
     steam_state: State<'_, Arc<SteamState>>,
     create_account_if_missing: bool,
 ) -> Result<SteamAuthResult, String> {
-    // Get user info
     let steam_id = steam_state.get_steam_id().to_string();
     let display_name = steam_state.get_display_name();
 
-    // Get auth ticket
     let ticket_bytes = steam_state.get_auth_session_ticket()?;
     let ticket = hex::encode(&ticket_bytes);
 
-    // Call CM API
     let client = reqwest::Client::new();
     let request = SteamAuthRequest {
         ticket,
@@ -127,4 +130,22 @@ pub async fn steam_authenticate(
         linking_url: auth_response.linking_url,
         error: auth_response.error,
     })
+}
+
+fn parse_server_name(command_line: &str) -> Option<String> {
+    let trimmed = command_line.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    Some(trimmed.to_string())
+}
+
+#[tauri::command]
+pub async fn get_steam_launch_options(
+    steam_state: State<'_, Arc<SteamState>>,
+) -> Result<SteamLaunchOptions, String> {
+    let raw = steam_state.get_launch_command_line();
+    let server_name = parse_server_name(&raw);
+
+    Ok(SteamLaunchOptions { raw, server_name })
 }

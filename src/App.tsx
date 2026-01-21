@@ -42,6 +42,11 @@ interface SteamAuthResult {
   error: string | null;
 }
 
+interface SteamLaunchOptions {
+  raw: string;
+  server_name: string | null;
+}
+
 interface SteamAuthState {
   available: boolean;
   user: SteamUserInfo | null;
@@ -632,6 +637,12 @@ function App() {
   const [steamAuthError, setSteamAuthError] = useState<string | undefined>();
   const [steamLinkingUrl, setSteamLinkingUrl] = useState<string | undefined>();
 
+  // Auto-connect state (from Steam launch options)
+  const [pendingAutoConnect, setPendingAutoConnect] = useState<string | null>(
+    null,
+  );
+  const [autoConnecting, setAutoConnecting] = useState(false);
+
   const showError = useCallback(
     (message: string) => {
       const id = errorIdCounter;
@@ -703,6 +714,23 @@ function App() {
         setAuthMode("cm_ss13");
       }
 
+      // Check for Steam launch options (e.g., when joining via Steam friend)
+      if (steamAvailable) {
+        try {
+          const launchOptions =
+            await invoke<SteamLaunchOptions>("get_steam_launch_options");
+          if (launchOptions.server_name) {
+            console.log(
+              "Steam launch options detected, will auto-connect to:",
+              launchOptions.server_name,
+            );
+            setPendingAutoConnect(launchOptions.server_name);
+          }
+        } catch (err) {
+          console.error("Failed to get Steam launch options:", err);
+        }
+      }
+
       try {
         const state = await invoke<AuthState>("get_auth_state");
         setAuthState(state);
@@ -771,6 +799,139 @@ function App() {
     const interval = setInterval(fetchServers, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  // Auto-connect effect: triggers when we have pending auto-connect and all data is ready
+  useEffect(() => {
+    const performAutoConnect = async () => {
+      if (!pendingAutoConnect || autoConnecting) return;
+
+      // Wait for servers to be loaded
+      if (servers.length === 0 || loading) return;
+
+      // Wait for relays to be checked (at least one with a ping)
+      const readyRelay = relays.find((r) => !r.checking && r.ping !== null);
+      if (!readyRelay) return;
+
+      // Find matching server by name (case-insensitive)
+      const server = servers.find(
+        (s) => s.name.toLowerCase() === pendingAutoConnect.toLowerCase(),
+      );
+
+      if (!server) {
+        console.error(
+          `Auto-connect: Server "${pendingAutoConnect}" not found in server list`,
+        );
+        showError(`Server "${pendingAutoConnect}" not found`);
+        setPendingAutoConnect(null);
+        return;
+      }
+
+      if (server.status !== "available") {
+        console.error(
+          `Auto-connect: Server "${pendingAutoConnect}" is not available`,
+        );
+        showError(`Server "${pendingAutoConnect}" is currently unavailable`);
+        setPendingAutoConnect(null);
+        return;
+      }
+
+      const port = server.url.split(":")[1];
+      const byondVersion = server.recommended_byond_version;
+
+      if (!port || !byondVersion) {
+        console.error("Auto-connect: Missing port or BYOND version");
+        showError("Cannot auto-connect: missing server configuration");
+        setPendingAutoConnect(null);
+        return;
+      }
+
+      console.log(`Auto-connecting to ${server.name} via ${readyRelay.name}...`);
+      setAutoConnecting(true);
+      setPendingAutoConnect(null);
+
+      try {
+        // For Steam auth mode, we need to authenticate first
+        if (authMode === "steam" && !steamAuthState.access_token) {
+          // Trigger Steam authentication
+          const result = await invoke<SteamAuthResult>("steam_authenticate", {
+            createAccountIfMissing: false,
+          });
+
+          if (!result.success || !result.access_token) {
+            if (result.requires_linking) {
+              // Show the Steam auth modal for linking
+              setShowSteamAuthModal(true);
+              setSteamAuthModalState("linking");
+              setSteamLinkingUrl(result.linking_url || undefined);
+              setAutoConnecting(false);
+              return;
+            }
+            throw new Error(result.error || "Steam authentication failed");
+          }
+
+          // Update Steam auth state with the token
+          setSteamAuthState((prev) => ({
+            ...prev,
+            access_token: result.access_token,
+          }));
+
+          // Connect with the new token
+          await invoke("connect_to_server", {
+            version: byondVersion,
+            host: readyRelay.host,
+            port: port,
+            accessType: "steam",
+            accessToken: result.access_token,
+            serverName: server.name,
+          });
+        } else if (authMode === "cm_ss13") {
+          if (!authState.logged_in) {
+            // Need to login first - show modal
+            setShowAuthModal(true);
+            setAuthModalState("idle");
+            setAutoConnecting(false);
+            return;
+          }
+
+          const accessToken = await invoke<string | null>("get_access_token");
+          await invoke("connect_to_server", {
+            version: byondVersion,
+            host: readyRelay.host,
+            port: port,
+            accessType: "cm_ss13",
+            accessToken: accessToken,
+            serverName: server.name,
+          });
+        } else {
+          // BYOND auth - no token needed
+          await invoke("connect_to_server", {
+            version: byondVersion,
+            host: readyRelay.host,
+            port: port,
+            accessType: "byond",
+            accessToken: null,
+            serverName: server.name,
+          });
+        }
+      } catch (err) {
+        showError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setAutoConnecting(false);
+      }
+    };
+
+    performAutoConnect();
+  }, [
+    pendingAutoConnect,
+    autoConnecting,
+    servers,
+    loading,
+    relays,
+    authMode,
+    steamAuthState.access_token,
+    authState.logged_in,
+    showError,
+  ]);
 
   const onLoginRequired = useCallback(() => {
     setShowAuthModal(true);
