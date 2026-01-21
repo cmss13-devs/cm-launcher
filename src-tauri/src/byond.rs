@@ -192,8 +192,15 @@ pub async fn connect_to_server(
 
     #[cfg(target_os = "windows")]
     {
+        // Set a unique WebView2 user data folder to avoid conflicts with the system BYOND pager.
+        // When the BYOND pager is running, it locks the default WebView2 user data directory,
+        // preventing our DreamSeeker from using WebView2. Using a separate folder resolves this.
+        let webview2_data_dir = get_byond_base_dir(&app)?
+            .join("webview2_data");
+
         let child = Command::new(&dreamseeker_path)
             .arg(&connect_url)
+            .env("WEBVIEW2_USER_DATA_FOLDER", &webview2_data_dir)
             .spawn()
             .map_err(|e| format!("Failed to launch DreamSeeker: {}", e))?;
 
