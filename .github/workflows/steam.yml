@@ -122,6 +122,8 @@ jobs:
         run: |
           mkdir -p src-tauri/resources
           cp steamworks_sdk/redistributable_bin/linux64/libsteam_api.so src-tauri/resources/
+          # Install to system library path so linuxdeploy can find it during AppImage bundling
+          sudo ldconfig
 
       - name: Install frontend dependencies
         run: npm install
