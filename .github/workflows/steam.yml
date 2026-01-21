@@ -42,7 +42,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "src-tauri/resources"
-          Copy-Item "steamworks_sdk/sdk/redistributable_bin/win64/steam_api64.dll" -Destination "src-tauri/resources/"
+          Copy-Item "steamworks_sdk/redistributable_bin/win64/steam_api64.dll" -Destination "src-tauri/resources/"
 
       - name: Install frontend dependencies
         run: npm install
@@ -95,7 +95,7 @@ jobs:
       - name: Install Steam SDK library
         run: |
           mkdir -p src-tauri/resources
-          cp steamworks_sdk/sdk/redistributable_bin/linux64/libsteam_api.so src-tauri/resources/
+          cp steamworks_sdk/redistributable_bin/linux64/libsteam_api.so src-tauri/resources/
 
       - name: Install frontend dependencies
         run: npm install
@@ -144,7 +144,7 @@ jobs:
       - name: Install Steam SDK library
         run: |
           mkdir -p src-tauri/resources
-          cp steamworks_sdk/sdk/redistributable_bin/osx/libsteam_api.dylib src-tauri/resources/
+          cp steamworks_sdk/redistributable_bin/osx/libsteam_api.dylib src-tauri/resources/
 
       - name: Install frontend dependencies
         run: npm install
