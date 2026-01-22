@@ -1,4 +1,4 @@
-import type { AuthMode } from "../types";
+import type { AuthMode, Platform, WineStatus } from "../types";
 import { Modal, ModalCloseButton } from "./Modal";
 
 interface AuthModeOptionProps {
@@ -35,11 +35,77 @@ function AuthModeOption({
   );
 }
 
+interface WineSettingsProps {
+  platform: Platform;
+  wineStatus: WineStatus;
+  isResetting: boolean;
+  onResetPrefix: () => void;
+}
+
+function WineSettings({
+  platform,
+  wineStatus,
+  isResetting,
+  onResetPrefix,
+}: WineSettingsProps) {
+  if (platform !== "linux") {
+    return null;
+  }
+
+  return (
+    <div className="settings-section">
+      <h3>Wine Configuration</h3>
+      <div className="wine-status-info">
+        <p>
+          <strong>Wine:</strong>{" "}
+          {wineStatus.installed ? (
+            <span className="status-ok">{wineStatus.version}</span>
+          ) : (
+            <span className="status-error">Not installed</span>
+          )}
+        </p>
+        <p>
+          <strong>Prefix:</strong>{" "}
+          {wineStatus.prefix_initialized ? (
+            <span className="status-ok">Initialized</span>
+          ) : (
+            <span className="status-warning">Not initialized</span>
+          )}
+        </p>
+        <p>
+          <strong>WebView2:</strong>{" "}
+          {wineStatus.webview2_installed ? (
+            <span className="status-ok">Installed</span>
+          ) : (
+            <span className="status-warning">Not installed</span>
+          )}
+        </p>
+      </div>
+      <button
+        type="button"
+        className="button-secondary"
+        onClick={onResetPrefix}
+        disabled={isResetting}
+      >
+        {isResetting ? "Resetting..." : "Reset Wine Prefix"}
+      </button>
+      <p className="settings-hint">
+        Use this if you're experiencing issues. This will reinstall all
+        dependencies.
+      </p>
+    </div>
+  );
+}
+
 interface SettingsModalProps {
   visible: boolean;
   authMode: AuthMode;
   steamAvailable: boolean;
+  platform: Platform;
+  wineStatus: WineStatus;
+  isResettingWine: boolean;
   onAuthModeChange: (mode: AuthMode) => void;
+  onResetWinePrefix: () => void;
   onClose: () => void;
 }
 
@@ -47,7 +113,11 @@ export function SettingsModal({
   visible,
   authMode,
   steamAvailable,
+  platform,
+  wineStatus,
+  isResettingWine,
   onAuthModeChange,
+  onResetWinePrefix,
   onClose,
 }: SettingsModalProps) {
   return (
@@ -94,6 +164,12 @@ export function SettingsModal({
             />
           </div>
         </div>
+        <WineSettings
+          platform={platform}
+          wineStatus={wineStatus}
+          isResetting={isResettingWine}
+          onResetPrefix={onResetWinePrefix}
+        />
       </div>
     </Modal>
   );

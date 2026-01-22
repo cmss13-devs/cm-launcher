@@ -9,3 +9,4 @@ export { SettingsModal } from "./SettingsModal";
 export type { SteamAuthModalState } from "./SteamAuthModal";
 export { SteamAuthModal } from "./SteamAuthModal";
 export { Titlebar } from "./Titlebar";
+export { WineSetupModal } from "./WineSetupModal";

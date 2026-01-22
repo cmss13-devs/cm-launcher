@@ -807,3 +807,171 @@ body {
 .settings-button {
   padding: 8px 16px;
 }
+
+/* Wine Setup Modal & Settings */
+.wine-install-instructions {
+  text-align: left;
+  margin: 16px 0;
+}
+
+.wine-install-instructions p {
+  margin: 12px 0 4px;
+  color: var(--primary);
+}
+
+.wine-install-instructions code {
+  display: block;
+  background-color: var(--bg-highlight-faint);
+  border: 1px solid var(--primary-faint);
+  padding: 8px 12px;
+  margin: 4px 0;
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--primary-dim);
+  word-break: break-all;
+}
+
+.wine-help-link {
+  font-size: 12px;
+  color: var(--primary-dim);
+}
+
+.wine-help-link a {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.wine-help-link a:hover {
+  color: #00ff55;
+}
+
+.wine-modal-actions {
+  margin-top: 24px;
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+.wine-setup-stage {
+  color: var(--primary);
+  font-weight: bold;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.wine-setup-message {
+  color: var(--primary-dim);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.wine-progress-bar {
+  width: 100%;
+  height: 8px;
+  background-color: var(--bg-highlight-faint);
+  border: 1px solid var(--primary-faint);
+  overflow: hidden;
+}
+
+.wine-progress-fill {
+  height: 100%;
+  background-color: var(--primary);
+  box-shadow: 0 0 10px var(--primary);
+  transition: width 0.3s ease;
+}
+
+.wine-progress-percent {
+  color: var(--primary);
+  font-size: 14px;
+  font-weight: bold;
+  margin: 8px 0 16px;
+}
+
+.wine-setup-note {
+  color: var(--primary-dim);
+  font-size: 12px;
+  font-style: italic;
+  margin-top: 16px;
+}
+
+.wine-setup-list {
+  text-align: left;
+  margin: 12px 0;
+  padding-left: 24px;
+  color: var(--primary-dim);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.wine-setup-list li {
+  margin: 4px 0;
+}
+
+.wine-setup-complete {
+  margin: 16px 0;
+}
+
+.wine-check-item {
+  color: var(--primary);
+  font-size: 14px;
+  margin: 8px 0;
+}
+
+.wine-check-item::before {
+  content: "\\2713 ";
+  color: var(--primary);
+  font-weight: bold;
+}
+
+.wine-error-message {
+  color: var(--error);
+  background-color: rgba(255, 68, 68, 0.1);
+  border: 1px solid var(--error);
+  padding: 12px;
+  margin: 16px 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+/* Wine Settings Section */
+.settings-section + .settings-section {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--primary-faint);
+}
+
+.wine-status-info {
+  margin: 12px 0 16px;
+  padding: 12px;
+  background-color: var(--bg-highlight-faint);
+  border: 1px solid var(--primary-faint);
+}
+
+.wine-status-info p {
+  margin: 6px 0;
+  font-size: 13px;
+  color: var(--primary-dim);
+}
+
+.wine-status-info strong {
+  color: var(--primary);
+}
+
+.status-ok {
+  color: var(--primary);
+}
+
+.status-warning {
+  color: #ffaa00;
+}
+
+.status-error {
+  color: var(--error);
+}
+
+.settings-hint {
+  color: var(--primary-dim);
+  font-size: 11px;
+  margin-top: 8px;
+  font-style: italic;
+}

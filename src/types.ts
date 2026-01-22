@@ -78,3 +78,34 @@ export interface Server {
   data?: ServerData;
   recommended_byond_version?: string;
 }
+
+export interface WineStatus {
+  installed: boolean;
+  version: string | null;
+  meets_minimum_version: boolean;
+  winetricks_installed: boolean;
+  prefix_initialized: boolean;
+  webview2_installed: boolean;
+  error: string | null;
+}
+
+export type WineSetupStage =
+  | "checking"
+  | "creating_prefix"
+  | "installing_vcrun2022"
+  | "installing_dxtrans"
+  | "installing_corefonts"
+  | "installing_dxvk"
+  | "setting_registry"
+  | "downloading_webview2"
+  | "installing_webview2"
+  | "complete"
+  | "error";
+
+export interface WineSetupProgress {
+  stage: WineSetupStage;
+  progress: number;
+  message: string;
+}
+
+export type Platform = "windows" | "linux" | "macos" | "unknown";

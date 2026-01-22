@@ -1,0 +1,274 @@
+import type { WineSetupProgress, WineStatus } from "../types";
+import { Modal, ModalCloseButton, ModalContent, ModalSpinner } from "./Modal";
+
+interface WineSetupModalProps {
+  visible: boolean;
+  status: WineStatus;
+  progress: WineSetupProgress | null;
+  isSettingUp: boolean;
+  onSetup: () => void;
+  onClose: () => void;
+  onRetry: () => void;
+}
+
+function getStageDisplayName(stage: string): string {
+  const stageNames: Record<string, string> = {
+    checking: "Checking",
+    creating_prefix: "Creating Wine prefix",
+    installing_vcrun2022: "Installing Visual C++ 2022",
+    installing_dxtrans: "Installing DirectX Transform",
+    installing_corefonts: "Installing core fonts",
+    installing_dxvk: "Installing DXVK",
+    setting_registry: "Configuring registry",
+    downloading_webview2: "Downloading WebView2",
+    installing_webview2: "Installing WebView2",
+    complete: "Complete",
+    error: "Error",
+  };
+  return stageNames[stage] || stage;
+}
+
+function WineNotInstalledContent({
+  status,
+  onRetry,
+}: {
+  status: WineStatus;
+  onRetry: () => void;
+}) {
+  const showWinetricksError = status.installed && !status.winetricks_installed;
+  const showVersionError =
+    status.installed && !status.meets_minimum_version && status.version;
+
+  return (
+    <ModalContent
+      title={
+        showVersionError
+          ? "Wine Version Too Old"
+          : showWinetricksError
+            ? "Winetricks Required"
+            : "Wine Required"
+      }
+    >
+      {showVersionError ? (
+        <>
+          <p>
+            Wine 10.5 or newer is required to run BYOND.
+            <br />
+            Your version: <code>{status.version}</code>
+          </p>
+          <p>Please update Wine using your package manager.</p>
+        </>
+      ) : showWinetricksError ? (
+        <>
+          <p>Winetricks is required for initial setup.</p>
+          <div className="wine-install-instructions">
+            <p>
+              <strong>Ubuntu/Debian:</strong>
+            </p>
+            <code>sudo apt install winetricks</code>
+            <p>
+              <strong>Fedora:</strong>
+            </p>
+            <code>sudo dnf install winetricks</code>
+            <p>
+              <strong>Arch:</strong>
+            </p>
+            <code>sudo pacman -S winetricks</code>
+          </div>
+        </>
+      ) : (
+        <>
+          <p>Wine 10.5+ is required to run BYOND on Linux.</p>
+          <div className="wine-install-instructions">
+            <p>
+              <strong>Ubuntu/Debian:</strong>
+            </p>
+            <code>sudo dpkg --add-architecture i386</code>
+            <code>sudo apt update</code>
+            <code>sudo apt install wine wine32 wine64 winetricks</code>
+            <p>
+              <strong>Fedora:</strong>
+            </p>
+            <code>sudo dnf install wine winetricks</code>
+            <p>
+              <strong>Arch:</strong>
+            </p>
+            <code>sudo pacman -S wine wine-mono wine-gecko winetricks</code>
+          </div>
+        </>
+      )}
+      <p className="wine-help-link">
+        For help, see:{" "}
+        <a
+          href="https://github.com/kinggoldcatter/Wine-Byond-help"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Wine-Byond-help
+        </a>
+      </p>
+      <div className="wine-modal-actions">
+        <button type="button" className="button" onClick={onRetry}>
+          Retry
+        </button>
+      </div>
+    </ModalContent>
+  );
+}
+
+function SetupProgressContent({
+  progress,
+}: {
+  progress: WineSetupProgress | null;
+}) {
+  const displayProgress = progress?.progress ?? 0;
+  const displayMessage =
+    progress?.message ?? "Starting Wine environment setup...";
+  const displayStage = progress?.stage
+    ? getStageDisplayName(progress.stage)
+    : "Initializing";
+
+  return (
+    <ModalContent title="Setting Up Wine Environment">
+      <p className="wine-setup-stage">{displayStage}</p>
+      <p className="wine-setup-message">{displayMessage}</p>
+      <div className="wine-progress-bar">
+        <div
+          className="wine-progress-fill"
+          style={{ width: `${displayProgress}%` }}
+        />
+      </div>
+      <p className="wine-progress-percent">{displayProgress}%</p>
+      <p className="wine-setup-note">
+        This may take several minutes. Please do not close the launcher.
+      </p>
+      <ModalSpinner />
+    </ModalContent>
+  );
+}
+
+function SetupRequiredContent({ onSetup }: { onSetup: () => void }) {
+  return (
+    <ModalContent title="Wine Setup Required">
+      <p>
+        BYOND requires Wine to run on Linux. The launcher will now set up a Wine
+        environment with the necessary dependencies.
+      </p>
+      <p>This includes:</p>
+      <ul className="wine-setup-list">
+        <li>Visual C++ 2022 runtime</li>
+        <li>DirectX libraries</li>
+        <li>Core fonts</li>
+        <li>DXVK (Vulkan-based DirectX)</li>
+        <li>Microsoft Edge WebView2</li>
+      </ul>
+      <p className="wine-setup-note">
+        This is a one-time setup that may take 5-10 minutes.
+      </p>
+      <div className="wine-modal-actions">
+        <button type="button" className="button" onClick={onSetup}>
+          Start Setup
+        </button>
+      </div>
+    </ModalContent>
+  );
+}
+
+function SetupErrorContent({
+  error,
+  onRetry,
+}: {
+  error: string;
+  onRetry: () => void;
+}) {
+  return (
+    <ModalContent title="Setup Failed">
+      <p className="wine-error-message">{error}</p>
+      <p>You can try:</p>
+      <ul className="wine-setup-list">
+        <li>Reset the Wine prefix from Settings</li>
+        <li>Check if Wine and winetricks are properly installed</li>
+        <li>Check the logs for more details</li>
+      </ul>
+      <p className="wine-help-link">
+        For help, see:{" "}
+        <a
+          href="https://github.com/kinggoldcatter/Wine-Byond-help"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Wine-Byond-help
+        </a>
+      </p>
+      <div className="wine-modal-actions">
+        <button type="button" className="button" onClick={onRetry}>
+          Try Again
+        </button>
+      </div>
+    </ModalContent>
+  );
+}
+
+function SetupCompleteContent({ onClose }: { onClose: () => void }) {
+  return (
+    <ModalContent title="Setup Complete">
+      <div className="wine-setup-complete">
+        <p className="wine-check-item">Wine prefix created</p>
+        <p className="wine-check-item">Dependencies installed</p>
+        <p className="wine-check-item">WebView2 installed</p>
+      </div>
+      <p>You can now connect to servers!</p>
+      <div className="wine-modal-actions">
+        <button type="button" className="button" onClick={onClose}>
+          Continue
+        </button>
+      </div>
+    </ModalContent>
+  );
+}
+
+export function WineSetupModal({
+  visible,
+  status,
+  progress,
+  isSettingUp,
+  onSetup,
+  onClose,
+  onRetry,
+}: WineSetupModalProps) {
+  // Determine which state to show
+  const wineNotReady =
+    !status.installed ||
+    !status.meets_minimum_version ||
+    !status.winetricks_installed;
+  const setupComplete =
+    status.prefix_initialized &&
+    status.webview2_installed &&
+    !isSettingUp &&
+    progress?.stage === "complete";
+  const setupFailed = progress?.stage === "error";
+
+  // Don't allow closing during setup
+  const canClose = !isSettingUp;
+
+  return (
+    <Modal visible={visible} onClose={canClose ? onClose : () => {}}>
+      {canClose && <ModalCloseButton onClick={onClose} />}
+
+      {wineNotReady ? (
+        <WineNotInstalledContent status={status} onRetry={onRetry} />
+      ) : isSettingUp ? (
+        <SetupProgressContent progress={progress} />
+      ) : setupFailed ? (
+        <SetupErrorContent
+          error={progress?.message ?? "Unknown error"}
+          onRetry={onRetry}
+        />
+      ) : setupComplete ? (
+        <SetupCompleteContent onClose={onClose} />
+      ) : (
+        <SetupRequiredContent onSetup={onSetup} />
+      )}
+    </Modal>
+  );
+}

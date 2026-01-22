@@ -1,27 +1,29 @@
-import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { useCallback, useEffect, useState } from "react";
 import "./App.css";
 
-import type { SteamLaunchOptions, SteamAuthResult } from "./types";
+import {
+  AccountInfo,
+  AuthModal,
+  ErrorNotifications,
+  RelayDropdown,
+  ServerItem,
+  SettingsModal,
+  SteamAuthModal,
+  Titlebar,
+  WineSetupModal,
+} from "./components";
 import {
   ErrorProvider,
-  useError,
   useAuth,
-  useSteamAuth,
+  useError,
   useRelays,
   useServers,
   useSettings,
+  useSteamAuth,
+  useWine,
 } from "./hooks";
-import {
-  Titlebar,
-  ErrorNotifications,
-  AuthModal,
-  SteamAuthModal,
-  SettingsModal,
-  ServerItem,
-  AccountInfo,
-  RelayDropdown,
-} from "./components";
+import type { SteamAuthResult, SteamLaunchOptions } from "./types";
 
 function AppContent() {
   const { errors, dismissError, showError } = useError();
@@ -67,6 +69,17 @@ function AppContent() {
     closeSettings,
   } = useSettings();
 
+  const {
+    platform,
+    status: wineStatus,
+    setupProgress: wineSetupProgress,
+    isSettingUp: isWineSettingUp,
+    checkStatus: checkWineStatus,
+    initializePrefix: initializeWinePrefix,
+    resetPrefix: resetWinePrefix,
+  } = useWine();
+
+  const [showWineSetup, setShowWineSetup] = useState(false);
   const [pendingAutoConnect, setPendingAutoConnect] = useState<string | null>(
     null,
   );
@@ -85,7 +98,16 @@ function AppContent() {
         setAuthMode("cm_ss13");
       }
 
-      // Check for Steam launch options (e.g., when joining via Steam friend)
+      if (platform === "linux") {
+        const wineStatusResult = await checkWineStatus();
+        if (
+          !wineStatusResult.prefix_initialized ||
+          !wineStatusResult.webview2_installed
+        ) {
+          setShowWineSetup(true);
+        }
+      }
+
       if (steamAvailable) {
         try {
           const launchOptions = await invoke<SteamLaunchOptions>(
@@ -104,7 +126,7 @@ function AppContent() {
       }
     };
     loadInitialState();
-  }, [loadSettings, initializeSteam, setAuthMode]);
+  }, [loadSettings, initializeSteam, setAuthMode, platform, checkWineStatus]);
 
   useEffect(() => {
     const performAutoConnect = async () => {
@@ -271,8 +293,21 @@ function AppContent() {
         visible={showSettingsModal}
         authMode={authMode}
         steamAvailable={steamAuthState.available}
+        platform={platform}
+        wineStatus={wineStatus}
+        isResettingWine={isWineSettingUp}
         onAuthModeChange={handleAuthModeChange}
+        onResetWinePrefix={resetWinePrefix}
         onClose={closeSettings}
+      />
+      <WineSetupModal
+        visible={showWineSetup}
+        status={wineStatus}
+        progress={wineSetupProgress}
+        isSettingUp={isWineSettingUp}
+        onSetup={initializeWinePrefix}
+        onClose={() => setShowWineSetup(false)}
+        onRetry={checkWineStatus}
       />
 
       <div className="launcher">

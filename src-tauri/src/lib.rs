@@ -5,6 +5,8 @@ mod presence;
 mod settings;
 #[cfg(feature = "steam")]
 mod steam;
+#[cfg(target_os = "linux")]
+mod wine;
 
 pub const DEFAULT_STEAM_ID: u32 = 4313790;
 
@@ -18,6 +20,63 @@ use byond::{
     list_installed_byond_versions,
 };
 use settings::{get_settings, set_auth_mode};
+
+#[cfg(target_os = "linux")]
+use wine::{check_wine_status, initialize_wine_prefix, reset_wine_prefix, WineStatus};
+
+#[cfg(target_os = "linux")]
+pub use wine::get_platform;
+
+#[cfg(not(target_os = "linux"))]
+#[tauri::command]
+fn get_platform() -> String {
+    #[cfg(target_os = "windows")]
+    return "windows".to_string();
+
+    #[cfg(target_os = "macos")]
+    return "macos".to_string();
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    return "unknown".to_string();
+}
+
+#[cfg(not(target_os = "linux"))]
+#[derive(serde::Serialize)]
+struct WineStatus {
+    installed: bool,
+    version: Option<String>,
+    meets_minimum_version: bool,
+    winetricks_installed: bool,
+    prefix_initialized: bool,
+    webview2_installed: bool,
+    error: Option<String>,
+}
+
+#[cfg(not(target_os = "linux"))]
+#[tauri::command]
+async fn check_wine_status() -> Result<WineStatus, String> {
+    Ok(WineStatus {
+        installed: false,
+        version: None,
+        meets_minimum_version: false,
+        winetricks_installed: false,
+        prefix_initialized: false,
+        webview2_installed: false,
+        error: Some("Wine is only available on Linux".to_string()),
+    })
+}
+
+#[cfg(not(target_os = "linux"))]
+#[tauri::command]
+async fn initialize_wine_prefix() -> Result<(), String> {
+    Err("Wine is only available on Linux".to_string())
+}
+
+#[cfg(not(target_os = "linux"))]
+#[tauri::command]
+async fn reset_wine_prefix() -> Result<(), String> {
+    Err("Wine is only available on Linux".to_string())
+}
 
 #[cfg(feature = "steam")]
 use steam::{
@@ -62,6 +121,10 @@ pub fn run() {
             get_access_token,
             get_settings,
             set_auth_mode,
+            get_platform,
+            check_wine_status,
+            initialize_wine_prefix,
+            reset_wine_prefix,
         ]);
     }
 
@@ -86,6 +149,10 @@ pub fn run() {
             cancel_steam_auth_ticket,
             steam_authenticate,
             get_steam_launch_options,
+            get_platform,
+            check_wine_status,
+            initialize_wine_prefix,
+            reset_wine_prefix,
         ]);
     }
 

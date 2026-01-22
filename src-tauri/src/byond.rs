@@ -2,10 +2,15 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io;
 use std::path::PathBuf;
+#[cfg(target_os = "linux")]
+use std::path::Path;
 use tauri::{AppHandle, Manager};
 
 #[cfg(target_os = "windows")]
 use std::process::Command;
+
+#[cfg(target_os = "linux")]
+use crate::wine;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ByondVersionInfo {
     pub version: String,
@@ -45,9 +50,18 @@ fn get_dreamseeker_path(app: &AppHandle, version: &str) -> Result<PathBuf, Strin
         .join("dreamseeker.exe"))
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(target_os = "linux")]
+fn get_dreamseeker_path(app: &AppHandle, version: &str) -> Result<PathBuf, String> {
+    let version_dir = get_byond_version_dir(app, version)?;
+    Ok(version_dir
+        .join("byond")
+        .join("bin")
+        .join("dreamseeker.exe"))
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "linux")))]
 fn get_dreamseeker_path(_app: &AppHandle, _version: &str) -> Result<PathBuf, String> {
-    Err("BYOND is only natively supported on Windows".to_string())
+    Err("BYOND is only supported on Windows and Linux (via Wine)".to_string())
 }
 
 /// Check if a specific BYOND version is installed
@@ -167,6 +181,23 @@ pub async fn install_byond_version(
 
     fs::remove_file(&zip_path).ok();
 
+    // On Linux, run BYOND's bundled DirectX installer via Wine
+    #[cfg(target_os = "linux")]
+    {
+        let dx_installer = version_dir
+            .join("byond")
+            .join("directx")
+            .join("DXSETUP.exe");
+
+        if dx_installer.exists() {
+            tracing::info!("Running BYOND's bundled DirectX installer via Wine");
+            if let Ok(prefix) = wine::get_wine_prefix(&app) {
+                let _ = wine::launch_with_wine(&app, &dx_installer, &["/silent"], &[]);
+                tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+            }
+        }
+    }
+
     tracing::info!("BYOND version {} installed successfully", version);
 
     check_byond_version(app, version).await
@@ -232,11 +263,51 @@ pub async fn connect_to_server(
         })
     }
 
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "linux")]
+    {
+        use std::sync::Arc;
+
+        use crate::presence::PresenceManager;
+
+        let status = wine::check_prefix_status(&app).await;
+        if !status.prefix_initialized || !status.webview2_installed {
+            return Err(
+                "Wine environment not fully configured. Please complete setup first.".to_string(),
+            );
+        }
+
+        let webview2_data_dir = get_byond_base_dir(&app)?.join("webview2_data");
+
+        let child = wine::launch_with_wine(
+            &app,
+            Path::new(&dreamseeker_path),
+            &[&connect_url],
+            &[(
+                "WEBVIEW2_USER_DATA_FOLDER",
+                webview2_data_dir.to_str().unwrap(),
+            )],
+        )
+        .map_err(|e| format!("Failed to launch DreamSeeker via Wine: {}", e))?;
+
+        if let Some(manager) = app.try_state::<Arc<PresenceManager>>() {
+            manager.start_game_session(
+                server_name,
+                "https://db.cm-ss13.com/api/Round".to_string(),
+                child,
+            );
+        }
+
+        Ok(ConnectionResult {
+            success: true,
+            message: format!("Connecting to {} with BYOND {} (via Wine)", host, version),
+        })
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
     {
         // Suppress unused warnings
         let _ = (dreamseeker_path, connect_url, server_name);
-        Err("BYOND is only natively supported on Windows".to_string())
+        Err("BYOND is only supported on Windows and Linux (via Wine)".to_string())
     }
 }
 

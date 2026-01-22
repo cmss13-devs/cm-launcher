@@ -46,6 +46,7 @@ steamworks = { version = "0.12", optional = true }
 hex = "0.4"
 discord-sdk = "0.4.0"
 async-trait = "0.1"
+which = "7"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55.0"
