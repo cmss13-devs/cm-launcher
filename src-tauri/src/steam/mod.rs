@@ -10,7 +10,7 @@ pub use commands::{
 pub use presence::SteamPresence;
 pub use state::SteamState;
 
-pub const DEFAULT_STEAM_ID: u32 = 4313790;
+use crate::DEFAULT_STEAM_ID;
 
 pub fn get_steam_app_id() -> u32 {
     if let Some(env) = option_env!("STEAM_APP_ID") {

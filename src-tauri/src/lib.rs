@@ -5,6 +5,9 @@ mod presence;
 mod settings;
 #[cfg(feature = "steam")]
 mod steam;
+
+pub const DEFAULT_STEAM_ID: u32 = 4313790;
+
 mod webview2;
 
 use auth::{
@@ -125,19 +128,21 @@ pub fn run() {
         match tauri::async_runtime::block_on(discord::DiscordState::init()) {
             Ok(discord_state) => {
                 let discord_state = Arc::new(discord_state);
-                
+
                 // Wait for Discord connection before adding the provider
                 // This ensures the initial "In Launcher" presence is sent after connection
                 let connected = tauri::async_runtime::block_on(
-                    discord_state.wait_for_connection(Duration::from_secs(10))
+                    discord_state.wait_for_connection(Duration::from_secs(10)),
                 );
-                
+
                 if connected {
                     tracing::info!("Discord connection established, adding presence provider");
                 } else {
-                    tracing::warn!("Discord connection not established within timeout, adding provider anyway");
+                    tracing::warn!(
+                        "Discord connection not established within timeout, adding provider anyway"
+                    );
                 }
-                
+
                 let discord_presence = discord::DiscordPresence::new(Arc::clone(&discord_state));
                 manager.add_provider(Box::new(discord_presence));
             }
