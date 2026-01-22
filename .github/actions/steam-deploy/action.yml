@@ -14,8 +14,8 @@ inputs:
   steam_password:
     description: "Steam password"
     required: true
-  steam_shared_secret:
-    description: "Steam TOTP shared secret"
+  steam_totp:
+    description: "Steam TOTP code"
     required: true
 
 runs:
@@ -46,18 +46,12 @@ runs:
         VERSION=$(grep -m1 'version' src-tauri/Cargo.toml | sed 's/.*"\(.*\)".*/\1/')
         echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-    - name: Generate Steam TOTP
-      id: steam-totp
-      uses: andriivitiv/steam-totp@v1
-      with:
-        shared_secret: ${{ inputs.steam_shared_secret }}
-
     - name: Deploy to Steam
       uses: game-ci/steam-deploy@v3
       with:
         username: ${{ inputs.steam_username }}
         password: ${{ inputs.steam_password }}
-        totp: ${{ steps.steam-totp.outputs.code }}
+        totp: ${{ inputs.steam_totp }}
         appId: ${{ inputs.steam_app_id }}
         buildDescription: "v${{ steps.version.outputs.version }}"
         rootPath: build

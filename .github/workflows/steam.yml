@@ -208,8 +208,20 @@ jobs:
           path: steam-build/macos/
           retention-days: 1
 
-  deploy-steam-production:
+  generate-steam-totp:
     needs: [build-windows, build-linux, build-macos]
+    runs-on: ubuntu-latest
+    outputs:
+      totp: ${{ steps.steam-totp.outputs.code }}
+    steps:
+      - name: Generate Steam TOTP
+        id: steam-totp
+        uses: andriivitiv/steam-totp@v1
+        with:
+          shared_secret: ${{ secrets.STEAM_SHARED_SECRET }}
+
+  deploy-steam-production:
+    needs: [build-windows, build-linux, build-macos, generate-steam-totp]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -221,10 +233,10 @@ jobs:
           steam_app_id: "4313790"
           steam_username: ${{ secrets.STEAM_USERNAME }}
           steam_password: ${{ secrets.STEAM_PASSWORD }}
-          steam_shared_secret: ${{ secrets.STEAM_SHARED_SECRET }}
+          steam_totp: ${{ needs.generate-steam-totp.outputs.totp }}
 
   deploy-steam-playtest:
-    needs: [build-windows, build-linux, build-macos, deploy-steam-production]
+    needs: [build-windows, build-linux, build-macos, generate-steam-totp, deploy-steam-production]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -236,4 +248,4 @@ jobs:
           steam_app_id: "4313850"
           steam_username: ${{ secrets.STEAM_USERNAME }}
           steam_password: ${{ secrets.STEAM_PASSWORD }}
-          steam_shared_secret: ${{ secrets.STEAM_SHARED_SECRET }}
+          steam_totp: ${{ needs.generate-steam-totp.outputs.totp }}
