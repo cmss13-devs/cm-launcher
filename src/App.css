@@ -831,9 +831,36 @@ body {
   word-break: break-all;
 }
 
+.wine-install-instructions.compact code {
+  padding: 6px 10px;
+  margin: 3px 0;
+  font-size: 11px;
+}
+
+.wine-install-instructions.compact code strong {
+  color: var(--primary);
+  margin-right: 8px;
+}
+
 .wine-help-link {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--primary-dim);
+  margin-top: 12px;
+  margin-bottom: 0;
+}
+
+/* Tighter modal for Wine setup */
+.auth-modal:has(.wine-install-instructions) {
+  padding: 30px 40px;
+}
+
+.auth-modal:has(.wine-install-instructions) h2 {
+  margin-bottom: 12px;
+}
+
+.auth-modal:has(.wine-install-instructions) p {
+  margin-bottom: 12px;
+  font-size: 13px;
 }
 
 .wine-help-link a {

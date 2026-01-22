@@ -61,39 +61,19 @@ function WineNotInstalledContent({
       ) : showWinetricksError ? (
         <>
           <p>Winetricks is required for initial setup.</p>
-          <div className="wine-install-instructions">
-            <p>
-              <strong>Ubuntu/Debian:</strong>
-            </p>
-            <code>sudo apt install winetricks</code>
-            <p>
-              <strong>Fedora:</strong>
-            </p>
-            <code>sudo dnf install winetricks</code>
-            <p>
-              <strong>Arch:</strong>
-            </p>
-            <code>sudo pacman -S winetricks</code>
+          <div className="wine-install-instructions compact">
+            <code><strong>Ubuntu/Debian:</strong> sudo apt install winetricks</code>
+            <code><strong>Fedora:</strong> sudo dnf install winetricks</code>
+            <code><strong>Arch:</strong> sudo pacman -S winetricks</code>
           </div>
         </>
       ) : (
         <>
           <p>Wine 10.5+ is required to run BYOND on Linux.</p>
-          <div className="wine-install-instructions">
-            <p>
-              <strong>Ubuntu/Debian:</strong>
-            </p>
-            <code>sudo dpkg --add-architecture i386</code>
-            <code>sudo apt update</code>
-            <code>sudo apt install wine wine32 wine64 winetricks</code>
-            <p>
-              <strong>Fedora:</strong>
-            </p>
-            <code>sudo dnf install wine winetricks</code>
-            <p>
-              <strong>Arch:</strong>
-            </p>
-            <code>sudo pacman -S wine wine-mono wine-gecko winetricks</code>
+          <div className="wine-install-instructions compact">
+            <code><strong>Ubuntu/Debian:</strong> sudo apt install wine winetricks</code>
+            <code><strong>Fedora:</strong> sudo dnf install wine winetricks</code>
+            <code><strong>Arch:</strong> sudo pacman -S wine winetricks</code>
           </div>
         </>
       )}
