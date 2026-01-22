@@ -5,7 +5,9 @@
 >  <img src="https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white" alt="Windows download link"/>
 > </a>
 
-# CM Launcher
+# CM Launcher ![Steam Build](https://img.shields.io/github/actions/workflow/status/cmss13-devs/cm-launcher/steam.yml?style=for-the-badge&label=STEAM%20BUILD) ![GitHub Build](https://img.shields.io/github/actions/workflow/status/cmss13-devs/cm-launcher/build.yml?style=for-the-badge&label=GITHUB%20BUILD) ![Tests](https://img.shields.io/github/actions/workflow/status/cmss13-devs/cm-launcher/build.yml?style=for-the-badge&label=TESTS)
+
+
 
 A rewrite of the DreamMaker backed CMLauncher, using [Tauri](https://v2.tauri.app/) and managing BYOND versions internally.
 
