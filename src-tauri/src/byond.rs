@@ -206,6 +206,10 @@ pub async fn connect_to_server(
         // Set a unique WebView2 user data folder to avoid conflicts with the system BYOND pager.
         // When the BYOND pager is running, it locks the default WebView2 user data directory,
         // preventing our DreamSeeker from using WebView2. Using a separate folder resolves this.
+
+        use std::sync::Arc;
+
+        use crate::presence::PresenceManager;
         let webview2_data_dir = get_byond_base_dir(&app)?.join("webview2_data");
 
         let child = Command::new(&dreamseeker_path)
@@ -214,22 +218,8 @@ pub async fn connect_to_server(
             .spawn()
             .map_err(|e| format!("Failed to launch DreamSeeker: {}", e))?;
 
-        #[cfg(feature = "steam")]
-        {
-            use std::sync::Arc;
-
-            if let Some(steam_state) = app.try_state::<Arc<crate::steam::SteamState>>() {
-                steam_state.start_game_session(
-                    server_name.clone(),
-                    "https://db.cm-ss13.com/api/Round".to_string(),
-                    child,
-                );
-            }
-        }
-
-        #[cfg(not(feature = "steam"))]
-        {
-            let _ = (child, server_name);
+        if let Some(manager) = app.try_state::<Arc<PresenceManager>>() {
+            manager.start_game_session(server_name, "https://db.cm-ss13.com/api/Round".to_string(), child);
         }
 
         Ok(ConnectionResult {

@@ -33,8 +33,6 @@ impl PresenceManager {
         self.providers.push(provider);
     }
 
-    /// Start a game session
-    #[allow(dead_code)]
     pub fn start_game_session(&self, server_name: String, status_url: String, process: Child) {
         tracing::info!("Starting game session on {}", server_name);
         {

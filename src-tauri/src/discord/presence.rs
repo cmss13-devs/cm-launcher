@@ -4,12 +4,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use discord_sdk::{
-    activity::{ActivityBuilder, Assets, Button},
-    registration::{Application, LaunchCommand},
-    wheel::{UserState, Wheel},
-    Discord, Subscriptions,
+    Discord, Subscriptions, activity::{ActivityBuilder, Assets, Button}, registration::{Application, LaunchCommand}, wheel::{UserState, Wheel}
 };
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 
 use crate::{
     presence::{PresenceProvider, PresenceState},
@@ -30,6 +27,8 @@ const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 /// Manages the Discord connection and background task
 pub struct DiscordState {
     update_tx: mpsc::UnboundedSender<PresenceState>,
+    /// Watch channel to monitor connection status
+    connected_rx: watch::Receiver<bool>,
 }
 
 impl DiscordState {
@@ -48,15 +47,55 @@ impl DiscordState {
         }
 
         let (update_tx, update_rx) = mpsc::unbounded_channel();
+        let (connected_tx, connected_rx) = watch::channel(false);
 
         // Spawn background task to manage Discord connection
-        tokio::spawn(Self::run_discord_task(update_rx));
+        tokio::spawn(Self::run_discord_task(update_rx, connected_tx));
 
-        Ok(Self { update_tx })
+        Ok(Self { update_tx, connected_rx })
+    }
+
+    /// Wait for Discord to be connected, with a timeout
+    /// Returns true if connected, false if timeout or connection failed
+    pub async fn wait_for_connection(&self, timeout: Duration) -> bool {
+        let mut rx = self.connected_rx.clone();
+        
+        // Check if already connected
+        if *rx.borrow() {
+            return true;
+        }
+
+        // Wait for connection with timeout
+        match tokio::time::timeout(timeout, async {
+            loop {
+                if rx.changed().await.is_err() {
+                    // Channel closed, connection task ended
+                    return false;
+                }
+                if *rx.borrow() {
+                    return true;
+                }
+            }
+        }).await {
+            Ok(connected) => connected,
+            Err(_) => {
+                tracing::warn!("Timed out waiting for Discord connection");
+                false
+            }
+        }
+    }
+
+    /// Check if Discord is currently connected
+    #[allow(dead_code)]
+    pub fn is_connected(&self) -> bool {
+        *self.connected_rx.borrow()
     }
 
     /// Background task that maintains the Discord connection and processes presence updates
-    async fn run_discord_task(mut update_rx: mpsc::UnboundedReceiver<PresenceState>) {
+    async fn run_discord_task(
+        mut update_rx: mpsc::UnboundedReceiver<PresenceState>,
+        connected_tx: watch::Sender<bool>,
+    ) {
         let (wheel, handler) = Wheel::new(Box::new(|err| {
             tracing::warn!("Discord error: {:?}", err);
         }));
@@ -103,6 +142,11 @@ impl DiscordState {
             user.discriminator.unwrap_or(0)
         );
 
+        // Signal that we're connected
+        if connected_tx.send(true).is_err() {
+            tracing::warn!("Failed to signal Discord connection status");
+        }
+
         while let Some(state) = update_rx.recv().await {
             let result = match &state {
                 PresenceState::InLauncher => {
@@ -124,7 +168,8 @@ impl DiscordState {
                             .collect::<String>();
                     let join_url = format!("{}//{}", steam_launch_url(), encoded_server);
 
-                    let activity = ActivityBuilder::new()
+                    #[allow(unused_mut)]
+                    let mut activity = ActivityBuilder::new()
                         .state(format!("Playing on {}", server_name))
                         .details(format!("{} players online", player_count))
                         .assets(Assets::default().large("logo", Some::<&str>("Colonial Marines")))
@@ -132,13 +177,33 @@ impl DiscordState {
                             label: "Join Game".to_string(),
                             url: join_url,
                         });
+
+                    #[cfg(feature = "discord_invites")] {
+                        use discord_sdk::activity::Secrets;
+                        use serde_json::json;
+
+                        activity = activity.party(
+                            server_name,
+                            std::num::NonZeroU32::new(*player_count),
+                            std::num::NonZeroU32::new(300),
+                            discord_sdk::activity::PartyPrivacy::Public,
+                        )
+                        .secrets(Secrets {
+                            r#match: None,
+                            join:  Some(json!({"server_name": &server_name, "type": "join"}).to_string()),
+                            spectate: Some(json!({"server_name": &server_name, "type": "spectate"}).to_string()),
+                        })
+                    }
+
                     discord.update_activity(activity).await
                 }
                 PresenceState::Disconnected => discord.clear_activity().await,
             };
 
             if let Err(e) = result {
-                tracing::debug!("Failed to update Discord activity: {:?}", e);
+                tracing::warn!("Failed to update Discord activity: {:?}", e);
+            } else {
+                tracing::debug!("Discord activity updated successfully");
             }
         }
 
@@ -148,7 +213,14 @@ impl DiscordState {
 
     /// Send a presence update to the background task
     pub fn send_update(&self, state: PresenceState) {
-        let _ = self.update_tx.send(state);
+        if self.update_tx.send(state.clone()).is_err() {
+            tracing::warn!(
+                "Failed to send Discord presence update (channel closed): {:?}",
+                state
+            );
+        } else {
+            tracing::debug!("Queued Discord presence update: {:?}", state);
+        }
     }
 }
 
