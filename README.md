@@ -56,3 +56,7 @@ In order to run the Steam build in development, you will need to place a file na
 Use `tools/release.sh [semver]` to change the version in `Cargo.toml`, create a commit changing the version, and tag that commit with the semver. When this is pushed, GitHub Actions will push new builds to both GitHub Releases and Steam.
 
 Manually download the `.msi` and `.exe` and upload these to [Microsoft](https://www.microsoft.com/en-us/wdsi/filesubmission) to /try/ and avoid SmartScreen when installed via GitHub Releases.
+
+### To-Do
+
+See issues tagged with https://github.com/cmss13-devs/cm-launcher/labels/feature-request or https://github.com/cmss13-devs/cm-launcher/labels/bug as an easy place to start contributing.
