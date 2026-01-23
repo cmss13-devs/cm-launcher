@@ -5,7 +5,13 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 
 #[cfg(target_os = "windows")]
+use crate::control_server::ControlServer;
+#[cfg(target_os = "windows")]
+use crate::presence::{ConnectionParams, PresenceManager};
+#[cfg(target_os = "windows")]
 use std::process::Command;
+#[cfg(target_os = "windows")]
+use std::sync::Arc;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ByondVersionInfo {
     pub version: String,
@@ -194,22 +200,31 @@ pub async fn connect_to_server(
 
     let dreamseeker_path = version_info.path.ok_or("DreamSeeker path not found")?;
 
-    let connect_url = match (access_type, access_token) {
-        (Some(access_type), Some(token)) => {
-            format!("byond://{}:{}?{}={}", host, port, access_type, token)
-        }
-        _ => format!("byond://{}:{}", host, port),
-    };
-
     #[cfg(target_os = "windows")]
     {
+        // Get the control server port to include in the connection URL
+        let control_port = app
+            .try_state::<ControlServer>()
+            .map(|s| s.port.to_string());
+
+        // Build query parameters
+        let mut query_params = Vec::new();
+        if let (Some(access_type), Some(token)) = (&access_type, &access_token) {
+            query_params.push(format!("{}={}", access_type, token));
+        }
+        if let Some(port) = &control_port {
+            query_params.push(format!("launcher_port={}", port));
+        }
+
+        let connect_url = if query_params.is_empty() {
+            format!("byond://{}:{}", host, port)
+        } else {
+            format!("byond://{}:{}?{}", host, port, query_params.join("&"))
+        };
+
         // Set a unique WebView2 user data folder to avoid conflicts with the system BYOND pager.
         // When the BYOND pager is running, it locks the default WebView2 user data directory,
         // preventing our DreamSeeker from using WebView2. Using a separate folder resolves this.
-
-        use std::sync::Arc;
-
-        use crate::presence::PresenceManager;
         let webview2_data_dir = get_byond_base_dir(&app)?.join("webview2_data");
 
         let child = Command::new(&dreamseeker_path)
@@ -219,6 +234,16 @@ pub async fn connect_to_server(
             .map_err(|e| format!("Failed to launch DreamSeeker: {}", e))?;
 
         if let Some(manager) = app.try_state::<Arc<PresenceManager>>() {
+            // Store connection params for potential restart
+            manager.set_last_connection_params(ConnectionParams {
+                version: version.clone(),
+                host: host.clone(),
+                port: port.clone(),
+                access_type,
+                access_token,
+                server_name: server_name.clone(),
+            });
+
             manager.start_game_session(
                 server_name,
                 "https://db.cm-ss13.com/api/Round".to_string(),
@@ -235,7 +260,7 @@ pub async fn connect_to_server(
     #[cfg(not(target_os = "windows"))]
     {
         // Suppress unused warnings
-        let _ = (dreamseeker_path, connect_url, server_name);
+        let _ = (dreamseeker_path, host, port, server_name, access_type, access_token);
         Err("BYOND is only natively supported on Windows".to_string())
     }
 }

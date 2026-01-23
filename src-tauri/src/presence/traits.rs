@@ -5,6 +5,17 @@ pub struct GameSession {
     pub status_url: String,
 }
 
+/// Connection parameters needed to restart a game session
+#[derive(Debug, Clone)]
+pub struct ConnectionParams {
+    pub version: String,
+    pub host: String,
+    pub port: String,
+    pub access_type: Option<String>,
+    pub access_token: Option<String>,
+    pub server_name: String,
+}
+
 /// The current state of presence to display
 #[derive(Debug, Clone)]
 #[allow(dead_code)]

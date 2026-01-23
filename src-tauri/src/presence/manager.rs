@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use super::status::fetch_player_count;
-use super::traits::{GameSession, PresenceProvider, PresenceState};
+use super::traits::{ConnectionParams, GameSession, PresenceProvider, PresenceState};
 
 const STATUS_UPDATE_INTERVAL: Duration = Duration::from_secs(30);
 
@@ -14,6 +14,7 @@ pub struct PresenceManager {
     providers: Vec<Box<dyn PresenceProvider>>,
     game_session: Arc<Mutex<Option<GameSession>>>,
     game_process: Arc<Mutex<Option<Child>>>,
+    last_connection_params: Arc<Mutex<Option<ConnectionParams>>>,
 }
 
 impl PresenceManager {
@@ -22,6 +23,7 @@ impl PresenceManager {
             providers: Vec::new(),
             game_session: Arc::new(Mutex::new(None)),
             game_process: Arc::new(Mutex::new(None)),
+            last_connection_params: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -99,6 +101,43 @@ impl PresenceManager {
             *proc = None;
         }
         self.update_all_presence(&PresenceState::InLauncher);
+    }
+
+    /// Store connection parameters for potential restart
+    #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+    pub fn set_last_connection_params(&self, params: ConnectionParams) {
+        let mut connection_params = self.last_connection_params.lock().unwrap();
+        *connection_params = Some(params);
+    }
+
+    /// Get the last connection parameters
+    pub fn get_last_connection_params(&self) -> Option<ConnectionParams> {
+        self.last_connection_params.lock().unwrap().clone()
+    }
+
+    /// Kill the current game process
+    pub fn kill_game_process(&self) -> bool {
+        let mut proc_guard = self.game_process.lock().unwrap();
+
+        if let Some(ref mut child) = *proc_guard {
+            match child.kill() {
+                Ok(()) => {
+                    tracing::info!("Game process killed successfully");
+
+                    let _ = child.wait();
+                    drop(proc_guard);
+                    self.clear_game_session();
+                    true
+                }
+                Err(e) => {
+                    tracing::error!("Failed to kill game process: {}", e);
+                    false
+                }
+            }
+        } else {
+            tracing::debug!("No game process to kill");
+            false
+        }
     }
 
     /// Update presence on all providers

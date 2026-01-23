@@ -1,5 +1,6 @@
 mod auth;
 mod byond;
+mod control_server;
 mod discord;
 mod presence;
 mod settings;
@@ -9,6 +10,8 @@ mod steam;
 pub const DEFAULT_STEAM_ID: u32 = 4313790;
 
 mod webview2;
+
+use tauri::Manager;
 
 use auth::{
     background_refresh_task, get_access_token, get_auth_state, logout, refresh_auth, start_login,
@@ -28,6 +31,11 @@ use steam::{
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
+}
+
+#[tauri::command]
+fn get_control_server_port(control_server: tauri::State<'_, control_server::ControlServer>) -> u16 {
+    control_server.port
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -62,6 +70,7 @@ pub fn run() {
             get_access_token,
             get_settings,
             set_auth_mode,
+            get_control_server_port,
         ]);
     }
 
@@ -81,6 +90,7 @@ pub fn run() {
             get_access_token,
             get_settings,
             set_auth_mode,
+            get_control_server_port,
             get_steam_user_info,
             get_steam_auth_ticket,
             cancel_steam_auth_ticket,
@@ -159,11 +169,25 @@ pub fn run() {
         steam_poll_callback,
     );
 
-    builder = builder.manage(presence_manager);
+    builder = builder.manage(std::sync::Arc::clone(&presence_manager));
 
     builder
-        .setup(|app| {
+        .setup(move |app| {
             let handle = app.handle().clone();
+
+            match control_server::ControlServer::start(
+                handle.clone(),
+                std::sync::Arc::clone(&presence_manager),
+            ) {
+                Ok(server) => {
+                    tracing::info!("Control server running on port {}", server.port);
+                    app.manage(server);
+                }
+                Err(e) => {
+                    tracing::error!("Failed to start control server: {}", e);
+                }
+            }
+
             tauri::async_runtime::spawn(async move {
                 background_refresh_task(handle).await;
             });

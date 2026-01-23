@@ -76,9 +76,9 @@ pub async fn cancel_steam_auth_ticket(
     Ok(())
 }
 
-#[tauri::command]
-pub async fn steam_authenticate(
-    steam_state: State<'_, Arc<SteamState>>,
+/// Core Steam authentication logic that can be called without Tauri State wrapper
+pub async fn authenticate_with_steam(
+    steam_state: &Arc<SteamState>,
     create_account_if_missing: bool,
 ) -> Result<SteamAuthResult, String> {
     tracing::info!("Starting Steam authentication");
@@ -133,6 +133,14 @@ pub async fn steam_authenticate(
         linking_url: auth_response.linking_url,
         error: auth_response.error,
     })
+}
+
+#[tauri::command]
+pub async fn steam_authenticate(
+    steam_state: State<'_, Arc<SteamState>>,
+    create_account_if_missing: bool,
+) -> Result<SteamAuthResult, String> {
+    authenticate_with_steam(&steam_state, create_account_if_missing).await
 }
 
 fn parse_server_name(command_line: &str) -> Option<String> {
