@@ -108,6 +108,7 @@ export function useSteamAuth() {
     steamAuthState,
     setSteamAuthState,
     showSteamAuthModal,
+    setShowSteamAuthModal,
     steamAuthModalState,
     steamAuthError,
     steamLinkingUrl,

@@ -48,6 +48,7 @@ function AppContent() {
     steamAuthState,
     setSteamAuthState,
     showSteamAuthModal,
+    setShowSteamAuthModal,
     steamAuthModalState,
     steamAuthError,
     steamLinkingUrl,
@@ -235,11 +236,16 @@ function AppContent() {
     setPendingAutoConnect(null);
   }, [onAuthModalClose]);
 
-  const onSteamAuthRequired = useCallback((serverName?: string) => {
-    if (serverName) {
-      setPendingAutoConnect(serverName);
-    }
-  }, []);
+  const onSteamAuthRequired = useCallback(
+    (serverName?: string) => {
+      if (serverName) {
+        setPendingAutoConnect(serverName);
+      }
+      setShowSteamAuthModal(true);
+      handleSteamAuthenticate(false);
+    },
+    [setShowSteamAuthModal, handleSteamAuthenticate],
+  );
 
   const handleSteamModalClose = useCallback(async () => {
     await onSteamAuthModalClose();
