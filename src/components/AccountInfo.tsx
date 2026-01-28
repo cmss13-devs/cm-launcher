@@ -1,13 +1,4 @@
-import type { AuthMode, AuthState, SteamAuthState } from "../types";
-
-interface AccountInfoProps {
-  authMode: AuthMode;
-  authState: AuthState;
-  steamAuthState: SteamAuthState;
-  onLogin: () => void;
-  onLogout: () => void;
-  onSteamLogout: () => void;
-}
+import { useAuthStore, useSettingsStore, useSteamStore } from "../stores";
 
 interface AccountDisplayProps {
   avatar: string;
@@ -41,14 +32,22 @@ function AccountDisplay({ avatar, name, status, action }: AccountDisplayProps) {
   );
 }
 
+interface AccountInfoProps {
+  onLogin: () => void;
+  onLogout: () => void;
+  onSteamLogout: () => void;
+}
+
 export function AccountInfo({
-  authMode,
-  authState,
-  steamAuthState,
   onLogin,
   onLogout,
   onSteamLogout,
 }: AccountInfoProps) {
+  const authMode = useSettingsStore((s) => s.authMode);
+  const authState = useAuthStore((s) => s.authState);
+  const steamUser = useSteamStore((s) => s.user);
+  const steamAccessToken = useSteamStore((s) => s.accessToken);
+
   if (authMode === "byond") {
     return (
       <AccountDisplay
@@ -60,11 +59,11 @@ export function AccountInfo({
   }
 
   if (authMode === "steam") {
-    if (steamAuthState.access_token) {
+    if (steamAccessToken) {
       return (
         <AccountDisplay
           avatar="S"
-          name={steamAuthState.user?.display_name || "Steam User"}
+          name={steamUser?.display_name || "Steam User"}
           status="Logged in via Steam"
           action={{ label: "Logout", onClick: onSteamLogout }}
         />
@@ -73,7 +72,7 @@ export function AccountInfo({
     return (
       <AccountDisplay
         avatar="S"
-        name={steamAuthState.user?.display_name || "Steam"}
+        name={steamUser?.display_name || "Steam"}
         status="Click connect to authenticate"
       />
     );

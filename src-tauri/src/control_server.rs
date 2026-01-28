@@ -1,5 +1,7 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
+use tauri::Emitter;
 #[cfg(feature = "steam")]
 use tauri::Manager;
 use tiny_http::{Response, Server};
@@ -44,6 +46,9 @@ fn preflight_response() -> Response<std::io::Empty> {
 
 pub struct ControlServer {
     pub port: u16,
+
+    #[allow(dead_code)]
+    pub game_connected: Arc<AtomicBool>,
 }
 
 impl ControlServer {
@@ -62,17 +67,29 @@ impl ControlServer {
 
         tracing::info!("Control server started on port {}", port);
 
+        let game_connected = Arc::new(AtomicBool::new(false));
+        let game_connected_clone = Arc::clone(&game_connected);
+
         thread::spawn(move || {
-            Self::run_server(server, app_handle, presence_manager);
+            Self::run_server(server, app_handle, presence_manager, game_connected_clone);
         });
 
-        Ok(Self { port })
+        Ok(Self {
+            port,
+            game_connected,
+        })
+    }
+
+    #[allow(dead_code)]
+    pub fn reset_connected_flag(&self) {
+        self.game_connected.store(false, Ordering::SeqCst);
     }
 
     fn run_server(
         server: Server,
         app_handle: tauri::AppHandle,
         presence_manager: Arc<PresenceManager>,
+        game_connected: Arc<AtomicBool>,
     ) {
         for request in server.incoming_requests() {
             // Handle CORS preflight requests
@@ -93,6 +110,13 @@ impl ControlServer {
             };
 
             tracing::debug!("Control server received request: {}", url.path());
+
+            if !game_connected.swap(true, Ordering::SeqCst) {
+                tracing::info!("Game connected to control server");
+                if let Some(session) = presence_manager.get_game_session() {
+                    app_handle.emit("game-connected", &session.server_name).ok();
+                }
+            }
 
             match url.path() {
                 "/restart" => {
@@ -155,6 +179,7 @@ impl ControlServer {
                 fresh_params.access_type,
                 fresh_params.access_token,
                 fresh_params.server_name,
+                Some("control_server_restart".to_string()),
             )
             .await;
 

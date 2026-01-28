@@ -39,6 +39,11 @@ fn get_control_server_port(control_server: tauri::State<'_, control_server::Cont
     control_server.port
 }
 
+#[tauri::command]
+fn kill_game(presence_manager: tauri::State<'_, std::sync::Arc<presence::PresenceManager>>) -> bool {
+    presence_manager.kill_game_process()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tracing_subscriber::fmt::init();
@@ -72,6 +77,7 @@ pub fn run() {
             get_settings,
             set_auth_mode,
             get_control_server_port,
+            kill_game,
         ]);
     }
 
@@ -92,6 +98,7 @@ pub fn run() {
             get_settings,
             set_auth_mode,
             get_control_server_port,
+            kill_game,
             get_steam_user_info,
             get_steam_auth_ticket,
             cancel_steam_auth_ticket,
@@ -165,16 +172,17 @@ pub fn run() {
 
     let presence_manager = std::sync::Arc::new(manager);
 
-    presence::start_presence_background_task(
-        std::sync::Arc::clone(&presence_manager),
-        steam_poll_callback,
-    );
-
     builder = builder.manage(std::sync::Arc::clone(&presence_manager));
 
     builder
         .setup(move |app| {
             let handle = app.handle().clone();
+
+            presence::start_presence_background_task(
+                std::sync::Arc::clone(&presence_manager),
+                steam_poll_callback,
+                handle.clone(),
+            );
 
             match control_server::ControlServer::start(
                 handle.clone(),

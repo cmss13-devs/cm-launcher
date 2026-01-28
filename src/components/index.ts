@@ -2,6 +2,8 @@ export { AccountInfo } from "./AccountInfo";
 export type { AuthModalState } from "./AuthModal";
 export { AuthModal } from "./AuthModal";
 export { ErrorNotifications } from "./ErrorNotifications";
+export type { GameConnectionState } from "./GameConnectionModal";
+export { GameConnectionModal } from "./GameConnectionModal";
 export { Modal, ModalCloseButton, ModalContent, ModalSpinner } from "./Modal";
 export { RelayDropdown } from "./RelayDropdown";
 export { ServerItem } from "./ServerItem";

@@ -1,6 +1,3 @@
-export { useAuth } from "./useAuth";
+export { useConnect } from "./useConnect";
 export { ErrorProvider, useError } from "./useError";
-export { useRelays } from "./useRelays";
-export { useServers } from "./useServers";
-export { useSettings } from "./useSettings";
-export { useSteamAuth } from "./useSteamAuth";
+export { useGameConnection } from "./useGameConnection";
