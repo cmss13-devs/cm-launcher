@@ -461,6 +461,7 @@ function AppContent() {
                   server={server}
                   onLoginRequired={onLoginRequired}
                   onSteamAuthRequired={onSteamAuthRequired}
+                  autoConnecting={autoConnecting}
                 />
               ))}
             </div>

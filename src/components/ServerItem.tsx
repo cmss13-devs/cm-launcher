@@ -9,12 +9,14 @@ interface ServerItemProps {
   server: Server;
   onLoginRequired: (serverName?: string) => void;
   onSteamAuthRequired: (serverName?: string) => void;
+  autoConnecting?: boolean;
 }
 
 export function ServerItem({
   server,
   onLoginRequired,
   onSteamAuthRequired,
+  autoConnecting = false,
 }: ServerItemProps) {
   const [connecting, setConnecting] = useState(false);
   const { showError } = useError();
@@ -90,9 +92,9 @@ export function ServerItem({
           type="button"
           className="button"
           onClick={handleConnect}
-          disabled={!canConnect || connecting}
+          disabled={!canConnect || connecting || autoConnecting}
         >
-          {connecting ? "Connecting..." : "Connect"}
+          {connecting || autoConnecting ? "Connecting..." : "Connect"}
         </button>
       </div>
     </div>
