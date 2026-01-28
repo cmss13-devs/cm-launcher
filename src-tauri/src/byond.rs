@@ -190,8 +190,14 @@ pub async fn connect_to_server(
     access_type: Option<String>,
     access_token: Option<String>,
     server_name: String,
+    source: Option<String>,
 ) -> Result<ConnectionResult, String> {
-    tracing::info!("Connecting to server {} (BYOND {})", server_name, version);
+    tracing::info!(
+        "[connect_to_server] source={:?} server={} version={}",
+        source.as_deref().unwrap_or("unknown"),
+        server_name,
+        version
+    );
     let version_info = install_byond_version(app.clone(), version.clone()).await?;
 
     if !version_info.installed {

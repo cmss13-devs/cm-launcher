@@ -55,6 +55,7 @@ export function ServerItem({
         host: relay.host,
         port: port,
         serverName: server.name,
+        source: "ServerItem.handleConnect",
       });
     } catch (err) {
       showError(err instanceof Error ? err.message : String(err));

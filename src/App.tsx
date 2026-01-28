@@ -262,6 +262,7 @@ function AppContent() {
           host: readyRelay.host,
           port: port,
           serverName: server.name,
+          source: "App.autoConnect",
         });
       } catch (err) {
         showError(err instanceof Error ? err.message : String(err));

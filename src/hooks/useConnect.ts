@@ -7,6 +7,7 @@ interface ConnectParams {
   host: string;
   port: string;
   serverName: string;
+  source: string;
 }
 
 export function useConnect() {
@@ -15,6 +16,8 @@ export function useConnect() {
 
   const connect = useCallback(
     async (params: ConnectParams) => {
+      console.log(`[useConnect] connect called, source=${params.source}`);
+
       let accessToken: string | null = null;
 
       if (authMode === "cm_ss13") {
@@ -31,6 +34,7 @@ export function useConnect() {
         accessType: authMode,
         accessToken,
         serverName: params.serverName,
+        source: params.source,
       });
     },
     [authMode, steamAccessToken]

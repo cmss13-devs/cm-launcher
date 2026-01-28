@@ -179,6 +179,7 @@ impl ControlServer {
                 fresh_params.access_type,
                 fresh_params.access_token,
                 fresh_params.server_name,
+                Some("control_server_restart".to_string()),
             )
             .await;
 
