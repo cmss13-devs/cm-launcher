@@ -173,6 +173,7 @@ pub fn start_presence_background_task(
 
     tauri::async_runtime::spawn(async move {
         let poll_interval = Duration::from_millis(100);
+        let mut was_game_running = false;
         let mut last_player_count: Option<u32> = None;
         let mut last_status_fetch = std::time::Instant::now() - STATUS_UPDATE_INTERVAL;
 
@@ -182,7 +183,11 @@ pub fn start_presence_background_task(
                 callback();
             }
 
-            if presence_manager.check_game_running() {
+            let game_running = presence_manager.check_game_running();
+
+            if game_running {
+                was_game_running = true;
+
                 if let Some(session) = presence_manager.get_game_session() {
                     let now = std::time::Instant::now();
                     if now.duration_since(last_status_fetch) >= STATUS_UPDATE_INTERVAL {
@@ -201,7 +206,8 @@ pub fn start_presence_background_task(
                         }
                     }
                 }
-            } else if last_player_count.is_some() {
+            } else if was_game_running {
+                was_game_running = false;
                 last_player_count = None;
                 presence_manager.update_all_presence(&PresenceState::InLauncher);
                 app_handle.emit("game-closed", ()).ok();
