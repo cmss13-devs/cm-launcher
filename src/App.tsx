@@ -183,7 +183,6 @@ function AppContent() {
         `Auto-connecting to ${server.name} via ${readyRelay.name}...`
       );
       setAutoConnecting(true);
-      setPendingAutoConnect(null);
 
       try {
         if (authMode === "steam" && !steamAuthState.access_token) {
@@ -215,6 +214,7 @@ function AppContent() {
           return;
         }
 
+        setPendingAutoConnect(null);
         await connect({
           version: byondVersion,
           host: readyRelay.host,
