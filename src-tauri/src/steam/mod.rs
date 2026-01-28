@@ -10,12 +10,20 @@ pub use commands::{
 pub use presence::SteamPresence;
 pub use state::SteamState;
 
-use crate::DEFAULT_STEAM_ID;
+use crate::{DEFAULT_STEAM_ID, DEFAULT_STEAM_NAME};
 
 pub fn get_steam_app_id() -> u32 {
     if let Some(env) = option_env!("STEAM_APP_ID") {
         env.parse().expect("invalid STEAM_APP_ID")
     } else {
         DEFAULT_STEAM_ID
+    }
+}
+
+pub fn get_steam_app_name() -> String {
+    if let Some(env) = option_env!("STEAM_APP_NAME") {
+        env.to_string()
+    } else {
+        DEFAULT_STEAM_NAME.to_string()
     }
 }

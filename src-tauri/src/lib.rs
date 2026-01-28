@@ -8,6 +8,7 @@ mod settings;
 mod steam;
 
 pub const DEFAULT_STEAM_ID: u32 = 4313790;
+pub const DEFAULT_STEAM_NAME: &str = "production";
 
 mod webview2;
 

@@ -3,6 +3,8 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
+use crate::steam::get_steam_app_name;
+
 use super::SteamState;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,6 +33,7 @@ pub struct SteamAuthResult {
 struct SteamAuthRequest {
     ticket: String,
     steam_id: String,
+    instance: String,
     display_name: String,
     create_account_if_missing: bool,
 }
@@ -92,6 +95,7 @@ pub async fn authenticate_with_steam(
     let request = SteamAuthRequest {
         ticket,
         steam_id,
+        instance: get_steam_app_name(),
         display_name,
         create_account_if_missing,
     };
