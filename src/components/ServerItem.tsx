@@ -1,7 +1,6 @@
-import { invoke } from "@tauri-apps/api/core";
 import { useState } from "react";
 import { GAME_STATES } from "../constants";
-import { useError } from "../hooks/useError";
+import { useConnectToServer, useError } from "../hooks";
 import type { AuthMode, RelayWithPing, Server } from "../types";
 import { formatDuration } from "../utils";
 
@@ -28,6 +27,7 @@ export function ServerItem({
 }: ServerItemProps) {
   const [connecting, setConnecting] = useState(false);
   const { showError } = useError();
+  const { connect } = useConnectToServer(authMode, steamAccessToken);
 
   const relay = relays.find((r) => r.id === selectedRelay);
   const port = server.url.split(":")[1];
@@ -51,19 +51,10 @@ export function ServerItem({
     setConnecting(true);
 
     try {
-      let accessToken: string | null = null;
-      if (authMode === "cm_ss13") {
-        accessToken = await invoke<string | null>("get_access_token");
-      } else if (authMode === "steam") {
-        accessToken = steamAccessToken;
-      }
-
-      await invoke("connect_to_server", {
+      await connect({
         version: byondVersion,
         host: relay.host,
         port: port,
-        accessType: authMode,
-        accessToken: accessToken,
         serverName: server.name,
       });
     } catch (err) {

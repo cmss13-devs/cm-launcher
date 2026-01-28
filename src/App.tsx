@@ -16,6 +16,7 @@ import {
 import {
   ErrorProvider,
   useAuth,
+  useConnectToServer,
   useError,
   useGameConnection,
   useRelays,
@@ -76,6 +77,8 @@ function AppContent() {
     closeGameConnectionModal,
     showGameConnectionModal,
   } = useGameConnection();
+
+  const { connect } = useConnectToServer(authMode, steamAuthState.access_token);
 
   const [pendingAutoConnect, setPendingAutoConnect] = useState<string | null>(
     null,
@@ -162,70 +165,46 @@ function AppContent() {
       setPendingAutoConnect(null);
 
       try {
-        if (authMode === "steam") {
-          let accessToken = steamAuthState.access_token;
-
-          if (!accessToken) {
-            // If the Steam auth modal is already showing, let it handle authentication
-            // to avoid duplicate steam_authenticate calls
-            if (showSteamAuthModal) {
-              return;
-            }
-
-            // No modal showing - authenticate ourselves (e.g., Steam launch auto-connect)
-            const result = await invoke<SteamAuthResult>("steam_authenticate", {
-              createAccountIfMissing: false,
-            });
-
-            if (!result.success || !result.access_token) {
-              if (result.requires_linking) {
-                // Show the Steam auth modal to handle linking
-                setShowSteamAuthModal(true);
-                setSteamAuthState((prev) => ({ ...prev, loading: false }));
-                return;
-              }
-              throw new Error(result.error || "Steam authentication failed");
-            }
-
-            accessToken = result.access_token;
-            setSteamAuthState((prev) => ({
-              ...prev,
-              access_token: result.access_token,
-            }));
-          }
-
-          await invoke("connect_to_server", {
-            version: byondVersion,
-            host: readyRelay.host,
-            port: port,
-            accessType: "steam",
-            accessToken: accessToken,
-            serverName: server.name,
-          });
-        } else if (authMode === "cm_ss13") {
-          if (!authState.logged_in) {
+        if (authMode === "steam" && !steamAuthState.access_token) {
+          // If the Steam auth modal is already showing, let it handle authentication
+          // to avoid duplicate steam_authenticate calls
+          if (showSteamAuthModal) {
             return;
           }
 
-          const accessToken = await invoke<string | null>("get_access_token");
-          await invoke("connect_to_server", {
-            version: byondVersion,
-            host: readyRelay.host,
-            port: port,
-            accessType: "cm_ss13",
-            accessToken: accessToken,
-            serverName: server.name,
+          // No modal showing - authenticate ourselves (e.g., Steam launch auto-connect)
+          const result = await invoke<SteamAuthResult>("steam_authenticate", {
+            createAccountIfMissing: false,
           });
-        } else {
-          await invoke("connect_to_server", {
-            version: byondVersion,
-            host: readyRelay.host,
-            port: port,
-            accessType: "byond",
-            accessToken: null,
-            serverName: server.name,
-          });
+
+          if (!result.success || !result.access_token) {
+            if (result.requires_linking) {
+              // Show the Steam auth modal to handle linking
+              setShowSteamAuthModal(true);
+              setSteamAuthState((prev) => ({ ...prev, loading: false }));
+              return;
+            }
+            throw new Error(result.error || "Steam authentication failed");
+          }
+
+          setSteamAuthState((prev) => ({
+            ...prev,
+            access_token: result.access_token,
+          }));
+          // Return and let the next effect iteration connect with the token
+          return;
         }
+
+        if (authMode === "cm_ss13" && !authState.logged_in) {
+          return;
+        }
+
+        await connect({
+          version: byondVersion,
+          host: readyRelay.host,
+          port: port,
+          serverName: server.name,
+        });
       } catch (err) {
         showError(err instanceof Error ? err.message : String(err));
       } finally {
@@ -247,6 +226,7 @@ function AppContent() {
     showSteamAuthModal,
     setShowSteamAuthModal,
     setSteamAuthState,
+    connect,
   ]);
 
   const onLoginRequired = useCallback((serverName?: string) => {
