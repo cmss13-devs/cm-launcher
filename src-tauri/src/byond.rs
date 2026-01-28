@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, Manager};
 
 #[cfg(target_os = "windows")]
@@ -14,6 +15,8 @@ use std::process::Command;
 use std::sync::Arc;
 #[cfg(target_os = "windows")]
 use tauri::Emitter;
+
+static CONNECTING: AtomicBool = AtomicBool::new(false);
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ByondVersionInfo {
     pub version: String,
@@ -192,12 +195,52 @@ pub async fn connect_to_server(
     server_name: String,
     source: Option<String>,
 ) -> Result<ConnectionResult, String> {
+    let source_str = source.as_deref().unwrap_or("unknown");
+
+    // Prevent duplicate simultaneous connections
+    if CONNECTING.swap(true, Ordering::SeqCst) {
+        tracing::warn!(
+            "[connect_to_server] BLOCKED duplicate connection attempt, source={} server={}",
+            source_str,
+            server_name
+        );
+        return Ok(ConnectionResult {
+            success: false,
+            message: "Connection already in progress".to_string(),
+        });
+    }
+
     tracing::info!(
-        "[connect_to_server] source={:?} server={} version={}",
-        source.as_deref().unwrap_or("unknown"),
+        "[connect_to_server] source={} server={} version={}",
+        source_str,
         server_name,
         version
     );
+
+    let result = connect_to_server_inner(
+        app,
+        version,
+        host,
+        port,
+        access_type,
+        access_token,
+        server_name,
+    )
+    .await;
+
+    CONNECTING.store(false, Ordering::SeqCst);
+    result
+}
+
+async fn connect_to_server_inner(
+    app: AppHandle,
+    version: String,
+    host: String,
+    port: String,
+    access_type: Option<String>,
+    access_token: Option<String>,
+    server_name: String,
+) -> Result<ConnectionResult, String> {
     let version_info = install_byond_version(app.clone(), version.clone()).await?;
 
     if !version_info.installed {
