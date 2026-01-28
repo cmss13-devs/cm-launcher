@@ -166,12 +166,22 @@ function AppContent() {
           let accessToken = steamAuthState.access_token;
 
           if (!accessToken) {
+            // If the Steam auth modal is already showing, let it handle authentication
+            // to avoid duplicate steam_authenticate calls
+            if (showSteamAuthModal) {
+              return;
+            }
+
+            // No modal showing - authenticate ourselves (e.g., Steam launch auto-connect)
             const result = await invoke<SteamAuthResult>("steam_authenticate", {
               createAccountIfMissing: false,
             });
 
             if (!result.success || !result.access_token) {
               if (result.requires_linking) {
+                // Show the Steam auth modal to handle linking
+                setShowSteamAuthModal(true);
+                setSteamAuthState((prev) => ({ ...prev, loading: false }));
                 return;
               }
               throw new Error(result.error || "Steam authentication failed");
@@ -234,6 +244,8 @@ function AppContent() {
     steamAuthState.access_token,
     authState.logged_in,
     showError,
+    showSteamAuthModal,
+    setShowSteamAuthModal,
     setSteamAuthState,
   ]);
 
