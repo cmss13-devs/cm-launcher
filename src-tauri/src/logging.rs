@@ -33,7 +33,6 @@ pub fn init_logging() -> WorkerGuard {
     tracing::info!("Logging initialized, log directory: {}", log_dir.display());
     tracing::info!("CM Launcher version: {}", env!("CARGO_PKG_VERSION"));
 
-    // Clean up old log files (keep last 7 days)
     cleanup_old_logs(&log_dir, 7);
 
     guard

@@ -2,7 +2,6 @@ use steamworks::Client;
 
 use crate::presence::{PresenceProvider, PresenceState};
 
-/// Steam-specific presence provider
 pub struct SteamPresence {
     client: Client,
 }

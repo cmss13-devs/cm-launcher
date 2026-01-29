@@ -27,7 +27,6 @@ impl PresenceManager {
         }
     }
 
-    /// Add a presence provider
     #[allow(dead_code)]
     pub fn add_provider(&mut self, provider: Box<dyn PresenceProvider>) {
         tracing::info!("Adding presence provider: {}", provider.name());
@@ -50,14 +49,12 @@ impl PresenceManager {
             *proc = Some(process);
         }
 
-        // Initial presence update
         self.update_all_presence(&PresenceState::Playing {
             server_name,
             player_count: 0,
         });
     }
 
-    /// Check if the game is still running
     pub fn check_game_running(&self) -> bool {
         let mut proc_guard = self.game_process.lock().unwrap();
 
@@ -85,12 +82,10 @@ impl PresenceManager {
         }
     }
 
-    /// Get the current game session
     pub fn get_game_session(&self) -> Option<GameSession> {
         self.game_session.lock().unwrap().clone()
     }
 
-    /// Clear the game session
     pub fn clear_game_session(&self) {
         {
             let mut session = self.game_session.lock().unwrap();
@@ -103,19 +98,16 @@ impl PresenceManager {
         self.update_all_presence(&PresenceState::InLauncher);
     }
 
-    /// Store connection parameters for potential restart
     #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
     pub fn set_last_connection_params(&self, params: ConnectionParams) {
         let mut connection_params = self.last_connection_params.lock().unwrap();
         *connection_params = Some(params);
     }
 
-    /// Get the last connection parameters
     pub fn get_last_connection_params(&self) -> Option<ConnectionParams> {
         self.last_connection_params.lock().unwrap().clone()
     }
 
-    /// Kill the current game process
     pub fn kill_game_process(&self) -> bool {
         let mut proc_guard = self.game_process.lock().unwrap();
 
@@ -140,7 +132,6 @@ impl PresenceManager {
         }
     }
 
-    /// Update presence on all providers
     pub fn update_all_presence(&self, state: &PresenceState) {
         tracing::debug!("Updating presence: {:?}", state);
         for provider in &self.providers {
@@ -148,7 +139,6 @@ impl PresenceManager {
         }
     }
 
-    /// Clear presence on all providers
     #[allow(dead_code)]
     pub fn clear_all_presence(&self) {
         for provider in &self.providers {
@@ -163,7 +153,6 @@ impl Default for PresenceManager {
     }
 }
 
-/// Start the background task that updates presence based on game state
 pub fn start_presence_background_task(
     presence_manager: Arc<PresenceManager>,
     poll_callback: Option<Box<dyn Fn() + Send + Sync>>,
@@ -178,7 +167,6 @@ pub fn start_presence_background_task(
         let mut last_status_fetch = std::time::Instant::now() - STATUS_UPDATE_INTERVAL;
 
         loop {
-            // Run any poll callbacks (e.g., Steam callbacks)
             if let Some(ref callback) = poll_callback {
                 callback();
             }

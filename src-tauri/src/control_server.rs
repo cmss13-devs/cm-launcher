@@ -9,7 +9,6 @@ use url::Url;
 
 use crate::presence::{ConnectionParams, PresenceManager};
 
-/// CORS headers to allow cross-origin requests from the game's embedded browser
 fn cors_headers() -> Vec<tiny_http::Header> {
     vec![
         tiny_http::Header::from_bytes(&b"Access-Control-Allow-Origin"[..], &b"*"[..]).unwrap(),
@@ -20,7 +19,6 @@ fn cors_headers() -> Vec<tiny_http::Header> {
     ]
 }
 
-/// Helper to create a JSON response with CORS headers
 fn json_response(status: u16, body: serde_json::Value) -> Response<std::io::Cursor<Vec<u8>>> {
     let mut response = Response::from_string(body.to_string())
         .with_header(
@@ -35,7 +33,6 @@ fn json_response(status: u16, body: serde_json::Value) -> Response<std::io::Curs
     response
 }
 
-/// Helper to create an empty response for OPTIONS preflight requests
 fn preflight_response() -> Response<std::io::Empty> {
     let mut response = Response::empty(204);
     for header in cors_headers() {
@@ -113,7 +110,6 @@ impl ControlServer {
         game_connected: Arc<AtomicBool>,
     ) {
         for request in server.incoming_requests() {
-            // Handle CORS preflight requests
             if request.method() == &tiny_http::Method::Options {
                 request.respond(preflight_response()).ok();
                 continue;
@@ -229,9 +225,6 @@ impl ControlServer {
     }
 }
 
-/// Refresh authentication token if needed based on auth type.
-/// Steam tokens expire after 30 minutes, so we need to re-authenticate.
-/// CM-SS13 tokens are refreshed in the background, so we need to fetch the current one.
 async fn refresh_auth_token(
     #[allow(unused_variables)] app_handle: &tauri::AppHandle,
     mut params: ConnectionParams,

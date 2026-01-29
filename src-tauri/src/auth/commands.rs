@@ -45,7 +45,6 @@ impl AuthState {
     }
 }
 
-/// Start the login flow - opens browser, waits for callback
 #[tauri::command]
 pub async fn start_login(app: AppHandle) -> Result<AuthState, String> {
     tracing::info!("Starting login flow");
@@ -90,7 +89,6 @@ pub async fn start_login(app: AppHandle) -> Result<AuthState, String> {
     Ok(auth_state)
 }
 
-/// Clear local tokens and log out
 #[tauri::command]
 pub async fn logout(app: AppHandle) -> Result<AuthState, String> {
     tracing::info!("Logging out");
@@ -102,7 +100,6 @@ pub async fn logout(app: AppHandle) -> Result<AuthState, String> {
     Ok(auth_state)
 }
 
-/// Get current auth state (checks keychain, validates tokens)
 #[tauri::command]
 pub async fn get_auth_state() -> Result<AuthState, String> {
     let tokens = match TokenStorage::get_tokens()? {
@@ -139,7 +136,6 @@ pub async fn get_auth_state() -> Result<AuthState, String> {
     }
 }
 
-/// Manually trigger token refresh
 #[tauri::command]
 pub async fn refresh_auth(app: AppHandle) -> Result<AuthState, String> {
     tracing::info!("Manually refreshing auth");
@@ -156,7 +152,6 @@ pub async fn refresh_auth(app: AppHandle) -> Result<AuthState, String> {
     Ok(auth_state)
 }
 
-/// Get the current access token (for use in byond:// URLs)
 #[tauri::command]
 pub async fn get_access_token() -> Result<Option<String>, String> {
     match TokenStorage::get_tokens()? {
@@ -165,7 +160,6 @@ pub async fn get_access_token() -> Result<Option<String>, String> {
     }
 }
 
-/// Internal helper to refresh tokens
 async fn refresh_tokens_internal(refresh_token: &str) -> Result<AuthState, String> {
     let oidc_client = OidcClient::new().await?;
 
@@ -189,8 +183,6 @@ pub async fn background_refresh_task(app: AppHandle) {
     loop {
         if TokenStorage::should_refresh() {
             if let Ok(Some(tokens)) = TokenStorage::get_tokens() {
-                // dbg!("{}", &tokens);
-
                 if let Some(refresh_token) = &tokens.refresh_token {
                     tracing::info!("Background refreshing tokens");
                     match refresh_tokens_internal(refresh_token).await {

@@ -45,7 +45,6 @@ export const useServerStore = create<ServerStore>()((set, get) => ({
       console.error("Failed to get initial servers:", err);
     }
 
-    // Listen for updates from background task
     const unlistenUpdate = await listen<ServerUpdateEvent>(
       "servers-updated",
       (event) => {

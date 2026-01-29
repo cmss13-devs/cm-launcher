@@ -18,11 +18,9 @@ use crate::{
     DEFAULT_STEAM_ID,
 };
 
-/// Discord Application ID for CM Launcher
 const DISCORD_APP_ID: i64 = 1383904378154651768;
 
 #[cfg(feature = "steam")]
-/// Steam URL to launch the game
 fn steam_launch_url() -> String {
     use crate::steam::get_steam_app_id;
 
@@ -34,24 +32,15 @@ fn steam_launch_url() -> String {
     String::new()
 }
 
-/// Timeout for waiting for Discord handshake
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Manages the Discord connection and background task
 pub struct DiscordState {
     update_tx: mpsc::UnboundedSender<PresenceState>,
-    /// Watch channel to monitor connection status
     connected_rx: watch::Receiver<bool>,
 }
 
 impl DiscordState {
-    /// Initialize Discord integration
-    ///
-    /// This registers the application with Discord and spawns a background task
-    /// to manage the Discord connection and presence updates.
     pub async fn init() -> Result<Self, discord_sdk::Error> {
-        // Register app with Discord (allows Discord to launch via Steam)
-
         #[allow(unused_assignments, unused_mut)]
         let mut app_id: Option<u32> = None;
 
@@ -71,7 +60,6 @@ impl DiscordState {
         let (update_tx, update_rx) = mpsc::unbounded_channel();
         let (connected_tx, connected_rx) = watch::channel(false);
 
-        // Spawn background task to manage Discord connection
         tokio::spawn(Self::run_discord_task(update_rx, connected_tx));
 
         Ok(Self {
@@ -80,21 +68,16 @@ impl DiscordState {
         })
     }
 
-    /// Wait for Discord to be connected, with a timeout
-    /// Returns true if connected, false if timeout or connection failed
     pub async fn wait_for_connection(&self, timeout: Duration) -> bool {
         let mut rx = self.connected_rx.clone();
 
-        // Check if already connected
         if *rx.borrow() {
             return true;
         }
 
-        // Wait for connection with timeout
         match tokio::time::timeout(timeout, async {
             loop {
                 if rx.changed().await.is_err() {
-                    // Channel closed, connection task ended
                     return false;
                 }
                 if *rx.borrow() {
@@ -112,7 +95,6 @@ impl DiscordState {
         }
     }
 
-    /// Check if Discord is currently connected
     #[allow(dead_code)]
     pub fn is_connected(&self) -> bool {
         *self.connected_rx.borrow()
@@ -169,7 +151,6 @@ impl DiscordState {
             user.discriminator.unwrap_or(0)
         );
 
-        // Signal that we're connected
         if connected_tx.send(true).is_err() {
             tracing::warn!("Failed to signal Discord connection status");
         }
@@ -246,7 +227,6 @@ impl DiscordState {
         tracing::info!("Discord Rich Presence disconnected");
     }
 
-    /// Send a presence update to the background task
     pub fn send_update(&self, state: PresenceState) {
         if self.update_tx.send(state.clone()).is_err() {
             tracing::warn!(
@@ -259,13 +239,11 @@ impl DiscordState {
     }
 }
 
-/// Discord presence provider implementing the generic PresenceProvider trait
 pub struct DiscordPresence {
     state: Arc<DiscordState>,
 }
 
 impl DiscordPresence {
-    /// Create a new Discord presence provider
     pub fn new(state: Arc<DiscordState>) -> Self {
         Self { state }
     }

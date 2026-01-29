@@ -42,7 +42,11 @@ interface AutoConnectEvent {
 function AppContent() {
   const { errors, dismissError, showError } = useError();
 
-  const { login, logout, initListener: initAuthListener } = useAuthStore(
+  const {
+    login,
+    logout,
+    initListener: initAuthListener,
+  } = useAuthStore(
     useShallow((s) => ({
       login: s.login,
       logout: s.logout,
@@ -106,7 +110,6 @@ function AppContent() {
     })),
   );
 
-  // Local modal state
   const [authModal, setAuthModal] = useState<{
     visible: boolean;
     state: AuthModalState;
@@ -137,12 +140,10 @@ function AppContent() {
 
   const [autoConnecting, setAutoConnecting] = useState(false);
 
-  // Apply theme class to document root
   useEffect(() => {
     document.documentElement.className = `theme-${theme}`;
   }, [theme]);
 
-  // Initialize stores on mount
   useEffect(() => {
     const unlistenAuthPromise = initAuthListener();
     const unlistenServerPromise = initServerListener();
@@ -154,7 +155,6 @@ function AppContent() {
     };
   }, [initAuthListener, initServerListener, initRelays]);
 
-  // Load initial settings and Steam
   useEffect(() => {
     const loadInitialState = async () => {
       const settings = await loadSettings();
@@ -171,7 +171,6 @@ function AppContent() {
     loadInitialState();
   }, [loadSettings, initializeSteam, setAuthMode]);
 
-  // Listen for auto-connect events from backend
   useEffect(() => {
     let unlisten: UnlistenFn | undefined;
 
@@ -190,13 +189,11 @@ function AppContent() {
               break;
 
             case "auth_required":
-              // CM-SS13 auth required - show login modal
               setAutoConnecting(false);
               setAuthModal({ visible: true, state: "idle", error: undefined });
               break;
 
             case "steam_linking_required":
-              // Steam linking required - show linking modal
               setAutoConnecting(false);
               setSteamModal({
                 visible: true,

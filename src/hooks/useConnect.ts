@@ -25,7 +25,6 @@ export function useConnect() {
       } else if (authMode === "steam") {
         accessToken = steamAccessToken;
       }
-      // byond mode: accessToken stays null
 
       await invoke("connect_to_server", {
         version: params.version,

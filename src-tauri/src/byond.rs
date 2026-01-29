@@ -3,7 +3,7 @@ use std::fs;
 use std::io;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 #[cfg(target_os = "windows")]
 use crate::control_server::ControlServer;
@@ -14,7 +14,7 @@ use std::process::Command;
 #[cfg(target_os = "windows")]
 use std::sync::Arc;
 #[cfg(target_os = "windows")]
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 
 static CONNECTING: AtomicBool = AtomicBool::new(false);
 #[derive(Debug, Serialize, Deserialize)]
@@ -38,13 +38,11 @@ fn get_byond_base_dir(_app: &AppHandle) -> Result<PathBuf, String> {
     Ok(local_data.join("byond"))
 }
 
-/// Get the directory for a specific BYOND version
 fn get_byond_version_dir(app: &AppHandle, version: &str) -> Result<PathBuf, String> {
     let base = get_byond_base_dir(app)?;
     Ok(base.join(version))
 }
 
-/// Get the path to DreamSeeker executable for a specific version
 #[cfg(target_os = "windows")]
 fn get_dreamseeker_path(app: &AppHandle, version: &str) -> Result<PathBuf, String> {
     let version_dir = get_byond_version_dir(app, version)?;
@@ -59,7 +57,6 @@ fn get_dreamseeker_path(_app: &AppHandle, _version: &str) -> Result<PathBuf, Str
     Err("BYOND is only natively supported on Windows".to_string())
 }
 
-/// Check if a specific BYOND version is installed
 #[tauri::command]
 pub async fn check_byond_version(
     app: AppHandle,
@@ -80,7 +77,6 @@ pub async fn check_byond_version(
     })
 }
 
-/// Get the download URL for a specific BYOND version
 fn get_byond_download_url(version: &str) -> Result<String, String> {
     let parts: Vec<&str> = version.split('.').collect();
     if parts.len() != 2 {
@@ -95,7 +91,6 @@ fn get_byond_download_url(version: &str) -> Result<String, String> {
     ))
 }
 
-/// Download and install a specific BYOND version
 #[tauri::command]
 pub async fn install_byond_version(
     app: AppHandle,
@@ -181,7 +176,6 @@ pub async fn install_byond_version(
     check_byond_version(app, version).await
 }
 
-/// Connect to a server using a specific BYOND version
 #[tauri::command]
 pub async fn connect_to_server(
     app: AppHandle,
@@ -195,7 +189,6 @@ pub async fn connect_to_server(
 ) -> Result<ConnectionResult, String> {
     let source_str = source.as_deref().unwrap_or("unknown");
 
-    // Prevent duplicate simultaneous connections
     if CONNECTING.swap(true, Ordering::SeqCst) {
         tracing::warn!(
             "[connect_to_server] BLOCKED duplicate connection attempt, source={} server={}",
@@ -259,7 +252,6 @@ async fn connect_to_server_inner(
 
         let control_port = app.try_state::<ControlServer>().map(|s| s.port.to_string());
 
-        // Build query parameters
         let mut query_params = Vec::new();
         if let (Some(access_type), Some(token)) = (&access_type, &access_token) {
             query_params.push(format!("{}={}", access_type, token));
@@ -286,7 +278,6 @@ async fn connect_to_server_inner(
             .map_err(|e| format!("Failed to launch DreamSeeker: {}", e))?;
 
         if let Some(manager) = app.try_state::<Arc<PresenceManager>>() {
-            // Store connection params for potential restart
             manager.set_last_connection_params(ConnectionParams {
                 version: version.clone(),
                 host: host.clone(),
@@ -324,7 +315,6 @@ async fn connect_to_server_inner(
     }
 }
 
-/// List all installed BYOND versions
 #[tauri::command]
 pub async fn list_installed_byond_versions(
     app: AppHandle,
@@ -357,7 +347,6 @@ pub async fn list_installed_byond_versions(
     Ok(versions)
 }
 
-/// Delete a specific BYOND version
 #[tauri::command]
 pub async fn delete_byond_version(app: AppHandle, version: String) -> Result<bool, String> {
     let version_dir = get_byond_version_dir(&app, &version)?;

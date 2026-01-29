@@ -116,7 +116,6 @@ impl TokenStorage {
         let decrypted = match Self::decrypt(&encrypted) {
             Ok(data) => data,
             Err(_) => {
-                // If decryption fails, the file may be corrupted - remove it
                 fs::remove_file(&path).ok();
                 return Ok(None);
             }

@@ -79,7 +79,6 @@ pub async fn cancel_steam_auth_ticket(
     Ok(())
 }
 
-/// Core Steam authentication logic that can be called without Tauri State wrapper
 pub async fn authenticate_with_steam(
     steam_state: &Arc<SteamState>,
     create_account_if_missing: bool,
@@ -110,7 +109,7 @@ pub async fn authenticate_with_steam(
     if !response.status().is_success() {
         let status = response.status();
         let body = response.text().await.unwrap_or_default();
-        // Cancel the ticket since auth failed
+
         steam_state.cancel_auth_ticket();
         return Err(format!("Auth server error ({}): {}", status, body));
     }
@@ -120,7 +119,6 @@ pub async fn authenticate_with_steam(
         .await
         .map_err(|e| format!("Failed to parse auth response: {}", e))?;
 
-    // Cancel ticket if auth wasn't successful (we don't need to keep it alive)
     if !auth_response.success {
         steam_state.cancel_auth_ticket();
     }
