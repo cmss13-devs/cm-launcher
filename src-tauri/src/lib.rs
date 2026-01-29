@@ -1,4 +1,5 @@
 mod auth;
+mod autoconnect;
 mod byond;
 mod control_server;
 mod discord;
@@ -224,9 +225,12 @@ pub fn run() {
                 servers::init_servers(&server_state_init).await;
             });
 
+            let handle_for_server_task = handle.clone();
             tauri::async_runtime::spawn(async move {
-                servers::server_fetch_background_task(handle, server_state).await;
+                servers::server_fetch_background_task(handle_for_server_task, server_state).await;
             });
+
+            autoconnect::check_and_start_autoconnect(handle);
 
             Ok(())
         })

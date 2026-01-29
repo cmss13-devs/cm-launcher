@@ -7,8 +7,8 @@ import { formatDuration } from "../utils";
 
 interface ServerItemProps {
   server: Server;
-  onLoginRequired: (serverName?: string) => void;
-  onSteamAuthRequired: (serverName?: string) => void;
+  onLoginRequired: () => void;
+  onSteamAuthRequired: () => void;
   autoConnecting?: boolean;
 }
 
@@ -36,12 +36,12 @@ export function ServerItem({
 
   const handleConnect = async () => {
     if (authMode === "cm_ss13" && !isLoggedIn) {
-      onLoginRequired(server.name);
+      onLoginRequired();
       return;
     }
 
     if (authMode === "steam" && !steamAccessToken) {
-      onSteamAuthRequired(server.name);
+      onSteamAuthRequired();
       return;
     }
 

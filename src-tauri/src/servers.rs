@@ -51,6 +51,11 @@ impl ServerState {
     pub fn new() -> Self {
         Self::default()
     }
+
+    #[cfg(feature = "steam")]
+    pub async fn get_servers(&self) -> Vec<Server> {
+        self.servers.read().await.clone()
+    }
 }
 
 async fn fetch_servers_internal() -> Result<Vec<Server>, String> {

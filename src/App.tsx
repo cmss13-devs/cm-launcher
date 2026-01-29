@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 
@@ -15,31 +15,35 @@ import {
 } from "./components";
 import type { AuthModalState } from "./components/AuthModal";
 import type { SteamAuthModalState } from "./components/SteamAuthModal";
-import {
-  ErrorProvider,
-  useConnect,
-  useError,
-  useGameConnection,
-} from "./hooks";
+import { ErrorProvider, useError, useGameConnection } from "./hooks";
 import {
   useAuthStore,
   useServerStore,
   useSettingsStore,
   useSteamStore,
 } from "./stores";
-import type { SteamLaunchOptions } from "./types";
+
+interface AutoConnectEvent {
+  status:
+    | "starting"
+    | "waiting_for_servers"
+    | "server_not_found"
+    | "server_unavailable"
+    | "auth_required"
+    | "steam_linking_required"
+    | "connecting"
+    | "connected"
+    | "error";
+  server_name: string;
+  message: string | null;
+  linking_url: string | null;
+}
 
 function AppContent() {
   const { errors, dismissError, showError } = useError();
 
-  const {
-    authState,
-    login,
-    logout,
-    initListener: initAuthListener,
-  } = useAuthStore(
+  const { login, logout, initListener: initAuthListener } = useAuthStore(
     useShallow((s) => ({
-      authState: s.authState,
       login: s.login,
       logout: s.logout,
       initListener: s.initListener,
@@ -48,7 +52,6 @@ function AppContent() {
 
   const {
     available: steamAvailable,
-    accessToken: steamAccessToken,
     initialize: initializeSteam,
     authenticate: authenticateSteam,
     logout: steamLogout,
@@ -56,7 +59,6 @@ function AppContent() {
   } = useSteamStore(
     useShallow((s) => ({
       available: s.available,
-      accessToken: s.accessToken,
       initialize: s.initialize,
       authenticate: s.authenticate,
       logout: s.logout,
@@ -133,11 +135,6 @@ function AppContent() {
     showGameConnectionModal,
   } = useGameConnection();
 
-  const { connect } = useConnect();
-
-  const [pendingAutoConnect, setPendingAutoConnect] = useState<string | null>(
-    null,
-  );
   const [autoConnecting, setAutoConnecting] = useState(false);
 
   // Apply theme class to document root
@@ -170,132 +167,70 @@ function AppContent() {
       } else {
         setAuthMode("cm_ss13");
       }
-
-      if (steamAvail) {
-        try {
-          const launchOptions = await invoke<SteamLaunchOptions>(
-            "get_steam_launch_options",
-          );
-          if (launchOptions.server_name) {
-            console.log(
-              "Steam launch options detected, will auto-connect to:",
-              launchOptions.server_name,
-            );
-            setPendingAutoConnect(launchOptions.server_name);
-          }
-        } catch (err) {
-          console.error("Failed to get Steam launch options:", err);
-        }
-      }
     };
     loadInitialState();
   }, [loadSettings, initializeSteam, setAuthMode]);
 
-  // Auto-connect effect
+  // Listen for auto-connect events from backend
   useEffect(() => {
-    const performAutoConnect = async () => {
-      if (!pendingAutoConnect || autoConnecting) return;
-      if (servers.length === 0 || serversLoading) return;
+    let unlisten: UnlistenFn | undefined;
 
-      const readyRelay = relays.find((r) => !r.checking && r.ping !== null);
-      if (!readyRelay) return;
+    const setupListener = async () => {
+      unlisten = await listen<AutoConnectEvent>(
+        "autoconnect-status",
+        (event) => {
+          const { status, server_name, message, linking_url } = event.payload;
+          console.log(`[autoconnect] status=${status} server=${server_name}`);
 
-      const server = servers.find(
-        (s) =>
-          s.name.toLowerCase() ===
-          pendingAutoConnect.replace("+", " ").toLowerCase(),
-      );
+          switch (status) {
+            case "starting":
+            case "waiting_for_servers":
+            case "connecting":
+              setAutoConnecting(true);
+              break;
 
-      if (!server) {
-        console.error(
-          `Auto-connect: Server "${pendingAutoConnect}" not found in server list`,
-        );
-        showError(`Server "${pendingAutoConnect}" not found`);
-        setPendingAutoConnect(null);
-        return;
-      }
+            case "auth_required":
+              // CM-SS13 auth required - show login modal
+              setAutoConnecting(false);
+              setAuthModal({ visible: true, state: "idle", error: undefined });
+              break;
 
-      if (server.status !== "available") {
-        console.error(
-          `Auto-connect: Server "${pendingAutoConnect}" is not available`,
-        );
-        showError(`Server "${pendingAutoConnect}" is currently unavailable`);
-        setPendingAutoConnect(null);
-        return;
-      }
-
-      const port = server.url.split(":")[1];
-      const byondVersion = server.recommended_byond_version;
-
-      if (!port || !byondVersion) {
-        console.error("Auto-connect: Missing port or BYOND version");
-        showError("Cannot auto-connect: missing server configuration");
-        setPendingAutoConnect(null);
-        return;
-      }
-
-      console.log(
-        `Auto-connecting to ${server.name} via ${readyRelay.name}...`,
-      );
-      setAutoConnecting(true);
-
-      try {
-        if (authMode === "steam" && !steamAccessToken) {
-          if (steamModal.visible) {
-            return;
-          }
-
-          const result = await authenticateSteam(false);
-
-          if (!result?.success || !result.access_token) {
-            if (result?.requires_linking) {
+            case "steam_linking_required":
+              // Steam linking required - show linking modal
+              setAutoConnecting(false);
               setSteamModal({
                 visible: true,
                 state: "linking",
-                linkingUrl: result.linking_url || undefined,
+                error: undefined,
+                linkingUrl: linking_url || undefined,
               });
-              return;
-            }
-            throw new Error(result?.error || "Steam authentication failed");
+              break;
+
+            case "server_not_found":
+            case "server_unavailable":
+            case "error":
+              setAutoConnecting(false);
+              if (message) {
+                showError(message);
+              }
+              break;
+
+            case "connected":
+              setAutoConnecting(false);
+              break;
           }
-
-          return;
-        }
-
-        if (authMode === "cm_ss13" && !authState.logged_in) {
-          return;
-        }
-
-        setPendingAutoConnect(null);
-        await connect({
-          version: byondVersion,
-          host: readyRelay.host,
-          port: port,
-          serverName: server.name,
-          source: "App.autoConnect",
-        });
-      } catch (err) {
-        showError(err instanceof Error ? err.message : String(err));
-      } finally {
-        setAutoConnecting(false);
-      }
+        },
+      );
     };
 
-    performAutoConnect();
-  }, [
-    pendingAutoConnect,
-    autoConnecting,
-    servers,
-    serversLoading,
-    relays,
-    authMode,
-    steamAccessToken,
-    authState.logged_in,
-    showError,
-    steamModal.visible,
-    authenticateSteam,
-    connect,
-  ]);
+    setupListener();
+
+    return () => {
+      if (unlisten) {
+        unlisten();
+      }
+    };
+  }, [showError]);
 
   // Auth handlers
   const handleLogin = useCallback(async () => {
@@ -318,13 +253,10 @@ function AppContent() {
 
   const handleAuthModalClose = useCallback(() => {
     setAuthModal({ visible: false, state: "idle", error: undefined });
-    setPendingAutoConnect(null);
   }, []);
 
-  const onLoginRequired = useCallback((serverName?: string) => {
-    if (serverName) {
-      setPendingAutoConnect(serverName);
-    }
+  const onLoginRequired = useCallback(() => {
+    setAuthModal({ visible: true, state: "idle", error: undefined });
   }, []);
 
   // Steam handlers
@@ -375,7 +307,6 @@ function AppContent() {
       error: undefined,
       linkingUrl: undefined,
     });
-    setPendingAutoConnect(null);
     await cancelSteamAuthTicket();
   }, [cancelSteamAuthTicket]);
 
@@ -383,21 +314,15 @@ function AppContent() {
     steamLogout();
   }, [steamLogout]);
 
-  const onSteamAuthRequired = useCallback(
-    (serverName?: string) => {
-      if (serverName) {
-        setPendingAutoConnect(serverName);
-      }
-      setSteamModal({
-        visible: true,
-        state: "idle",
-        error: undefined,
-        linkingUrl: undefined,
-      });
-      handleSteamAuthenticate(false);
-    },
-    [handleSteamAuthenticate],
-  );
+  const onSteamAuthRequired = useCallback(() => {
+    setSteamModal({
+      visible: true,
+      state: "idle",
+      error: undefined,
+      linkingUrl: undefined,
+    });
+    handleSteamAuthenticate(false);
+  }, [handleSteamAuthenticate]);
 
   // Settings handlers
   const handleAuthModeChange = useCallback(
