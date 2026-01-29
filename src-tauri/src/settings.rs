@@ -14,15 +14,26 @@ pub enum AuthMode {
     Steam,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum Theme {
+    #[default]
+    Default,
+    Ntos,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppSettings {
     pub auth_mode: AuthMode,
+    #[serde(default)]
+    pub theme: Theme,
 }
 
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
             auth_mode: AuthMode::CmSs13,
+            theme: Theme::Default,
         }
     }
 }
@@ -72,6 +83,14 @@ pub async fn get_settings(app: AppHandle) -> Result<AppSettings, String> {
 pub async fn set_auth_mode(app: AppHandle, mode: AuthMode) -> Result<AppSettings, String> {
     let mut settings = load_settings(&app)?;
     settings.auth_mode = mode;
+    save_settings(&app, &settings)?;
+    Ok(settings)
+}
+
+#[tauri::command]
+pub async fn set_theme(app: AppHandle, theme: Theme) -> Result<AppSettings, String> {
+    let mut settings = load_settings(&app)?;
+    settings.theme = theme;
     save_settings(&app, &settings)?;
     Ok(settings)
 }

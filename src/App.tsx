@@ -1,7 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import "./App.css";
 
 import {
   AccountInfo,
@@ -90,14 +89,18 @@ function AppContent() {
   const {
     authMode,
     setAuthMode,
+    theme,
     load: loadSettings,
-    save: saveSettings,
+    saveAuthMode,
+    saveTheme,
   } = useSettingsStore(
     useShallow((s) => ({
       authMode: s.authMode,
       setAuthMode: s.setAuthMode,
+      theme: s.theme,
       load: s.load,
-      save: s.save,
+      saveAuthMode: s.saveAuthMode,
+      saveTheme: s.saveTheme,
     })),
   );
 
@@ -136,6 +139,11 @@ function AppContent() {
     null,
   );
   const [autoConnecting, setAutoConnecting] = useState(false);
+
+  // Apply theme class to document root
+  useEffect(() => {
+    document.documentElement.className = `theme-${theme}`;
+  }, [theme]);
 
   // Initialize stores on mount
   useEffect(() => {
@@ -393,13 +401,24 @@ function AppContent() {
   const handleAuthModeChange = useCallback(
     async (mode: typeof authMode) => {
       try {
-        await saveSettings(mode);
+        await saveAuthMode(mode);
         setSettingsVisible(false);
       } catch (err) {
         showError(err instanceof Error ? err.message : String(err));
       }
     },
-    [saveSettings, showError],
+    [saveAuthMode, showError],
+  );
+
+  const handleThemeChange = useCallback(
+    async (newTheme: typeof theme) => {
+      try {
+        await saveTheme(newTheme);
+      } catch (err) {
+        showError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [saveTheme, showError],
   );
 
   // Relay handlers
@@ -433,8 +452,10 @@ function AppContent() {
       <SettingsModal
         visible={settingsVisible}
         authMode={authMode}
+        theme={theme}
         steamAvailable={steamAvailable}
         onAuthModeChange={handleAuthModeChange}
+        onThemeChange={handleThemeChange}
         onClose={() => setSettingsVisible(false)}
       />
       <GameConnectionModal

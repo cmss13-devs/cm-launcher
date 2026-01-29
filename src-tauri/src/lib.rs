@@ -21,7 +21,7 @@ use byond::{
     check_byond_version, connect_to_server, delete_byond_version, install_byond_version,
     list_installed_byond_versions,
 };
-use settings::{get_settings, set_auth_mode};
+use settings::{get_settings, set_auth_mode, set_theme};
 
 #[cfg(feature = "steam")]
 use steam::{
@@ -76,6 +76,7 @@ pub fn run() {
             get_access_token,
             get_settings,
             set_auth_mode,
+            set_theme,
             get_control_server_port,
             kill_game,
         ]);
@@ -97,6 +98,7 @@ pub fn run() {
             get_access_token,
             get_settings,
             set_auth_mode,
+            set_theme,
             get_control_server_port,
             kill_game,
             get_steam_user_info,
