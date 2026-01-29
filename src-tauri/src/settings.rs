@@ -30,6 +30,15 @@ pub struct AppSettings {
 }
 
 impl Default for AppSettings {
+    #[cfg(feature = "steam")]
+    fn default() -> Self {
+        Self {
+            auth_mode: AuthMode::Steam,
+            theme: Theme::Default,
+        }
+    }
+
+    #[cfg(not(feature = "steam"))]
     fn default() -> Self {
         Self {
             auth_mode: AuthMode::CmSs13,
@@ -58,10 +67,26 @@ pub fn load_settings(app: &AppHandle) -> Result<AppSettings, String> {
         return Ok(AppSettings::default());
     }
 
-    let contents =
-        fs::read_to_string(&path).map_err(|e| format!("Failed to read settings file: {}", e))?;
+    let contents = match fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!("Failed to read settings file, using defaults: {}", e);
+            return Ok(AppSettings::default());
+        }
+    };
 
-    serde_json::from_str(&contents).map_err(|e| format!("Failed to parse settings: {}", e))
+    if contents.trim().is_empty() {
+        tracing::warn!("Settings file is empty, using defaults");
+        return Ok(AppSettings::default());
+    }
+
+    match serde_json::from_str(&contents) {
+        Ok(settings) => Ok(settings),
+        Err(e) => {
+            tracing::warn!("Failed to parse settings file, using defaults: {}", e);
+            Ok(AppSettings::default())
+        }
+    }
 }
 
 pub fn save_settings(app: &AppHandle, settings: &AppSettings) -> Result<(), String> {
