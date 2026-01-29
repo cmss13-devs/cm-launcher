@@ -201,7 +201,9 @@ function AppContent() {
       if (!readyRelay) return;
 
       const server = servers.find(
-        (s) => s.name.toLowerCase() === pendingAutoConnect.toLowerCase(),
+        (s) =>
+          s.name.toLowerCase() ===
+          pendingAutoConnect.replace("+", " ").toLowerCase(),
       );
 
       if (!server) {
