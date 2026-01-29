@@ -30,14 +30,12 @@ pub struct ConnectionResult {
     pub message: String,
 }
 
-/// Get the base directory for BYOND installations within the app's data directory
-fn get_byond_base_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    let app_data = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("Failed to get app data directory: {}", e))?;
+fn get_byond_base_dir(_app: &AppHandle) -> Result<PathBuf, String> {
+    let local_data = dirs::data_local_dir()
+        .ok_or("Failed to get local data directory")?
+        .join("com.cm-ss13.launcher");
 
-    Ok(app_data.join("byond"))
+    Ok(local_data.join("byond"))
 }
 
 /// Get the directory for a specific BYOND version
