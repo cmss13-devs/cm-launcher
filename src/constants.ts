@@ -23,5 +23,3 @@ export const RELAYS: Relay[] = [
 export const PING_PORT = 4000;
 export const PING_COUNT = 10;
 export const PING_TIMEOUT_MS = 5000;
-export const SERVER_FETCH_INTERVAL_MS = 30000;
-export const SERVER_API_URL = "https://db.cm-ss13.com/api/Round";

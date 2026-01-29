@@ -71,7 +71,7 @@ function AppContent() {
     relays,
     selectedRelay,
     setSelectedRelay,
-    startFetching,
+    initListener: initServerListener,
     initRelays,
   } = useServerStore(
     useShallow((s) => ({
@@ -81,7 +81,7 @@ function AppContent() {
       relays: s.relays,
       selectedRelay: s.selectedRelay,
       setSelectedRelay: s.setSelectedRelay,
-      startFetching: s.startFetching,
+      initListener: s.initListener,
       initRelays: s.initRelays,
     })),
   );
@@ -147,15 +147,15 @@ function AppContent() {
 
   // Initialize stores on mount
   useEffect(() => {
-    const unlistenPromise = initAuthListener();
+    const unlistenAuthPromise = initAuthListener();
+    const unlistenServerPromise = initServerListener();
     initRelays();
-    const cleanupServers = startFetching();
 
     return () => {
-      unlistenPromise.then((unlisten) => unlisten());
-      cleanupServers();
+      unlistenAuthPromise.then((unlisten) => unlisten());
+      unlistenServerPromise.then((unlisten) => unlisten());
     };
-  }, [initAuthListener, initRelays, startFetching]);
+  }, [initAuthListener, initServerListener, initRelays]);
 
   // Load initial settings and Steam
   useEffect(() => {

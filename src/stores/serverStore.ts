@@ -1,7 +1,17 @@
+import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { create } from "zustand";
-import { RELAYS, SERVER_API_URL, SERVER_FETCH_INTERVAL_MS } from "../constants";
+import { RELAYS } from "../constants";
 import type { RelayWithPing, Server } from "../types";
 import { pingRelay } from "../utils";
+
+interface ServerUpdateEvent {
+  servers: Server[];
+}
+
+interface ServerErrorEvent {
+  error: string;
+}
 
 interface ServerStore {
   servers: Server[];
@@ -11,7 +21,7 @@ interface ServerStore {
   selectedRelay: string;
 
   setSelectedRelay: (id: string) => void;
-  startFetching: () => () => void;
+  initListener: () => Promise<UnlistenFn>;
   initRelays: () => Promise<void>;
 }
 
@@ -24,26 +34,36 @@ export const useServerStore = create<ServerStore>()((set, get) => ({
 
   setSelectedRelay: (selectedRelay) => set({ selectedRelay }),
 
-  startFetching: () => {
-    const fetchServers = async () => {
-      try {
-        set({ loading: true });
-        const response = await fetch(SERVER_API_URL);
-        if (!response.ok) {
-          throw new Error(`HTTP error: ${response.status}`);
-        }
-        const data = await response.json();
-        set({ servers: data.servers || [], error: null });
-      } catch (err) {
-        set({ error: err instanceof Error ? err.message : "Unknown error" });
-      } finally {
-        set({ loading: false });
+  initListener: async () => {
+    // Fetch initial data immediately
+    try {
+      const servers = await invoke<Server[]>("get_servers");
+      if (servers.length > 0) {
+        set({ servers, loading: false, error: null });
       }
-    };
+    } catch (err) {
+      console.error("Failed to get initial servers:", err);
+    }
 
-    fetchServers();
-    const interval = setInterval(fetchServers, SERVER_FETCH_INTERVAL_MS);
-    return () => clearInterval(interval);
+    // Listen for updates from background task
+    const unlistenUpdate = await listen<ServerUpdateEvent>(
+      "servers-updated",
+      (event) => {
+        set({ servers: event.payload.servers, loading: false, error: null });
+      }
+    );
+
+    const unlistenError = await listen<ServerErrorEvent>(
+      "servers-error",
+      (event) => {
+        set({ error: event.payload.error, loading: false });
+      }
+    );
+
+    return () => {
+      unlistenUpdate();
+      unlistenError();
+    };
   },
 
   initRelays: async () => {

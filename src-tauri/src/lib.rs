@@ -4,6 +4,7 @@ mod control_server;
 mod discord;
 mod logging;
 mod presence;
+mod servers;
 mod settings;
 #[cfg(feature = "steam")]
 mod steam;
@@ -22,6 +23,7 @@ use byond::{
     check_byond_version, connect_to_server, delete_byond_version, install_byond_version,
     list_installed_byond_versions,
 };
+use servers::get_servers;
 use settings::{get_settings, set_auth_mode, set_theme};
 
 #[cfg(feature = "steam")]
@@ -41,7 +43,9 @@ fn get_control_server_port(control_server: tauri::State<'_, control_server::Cont
 }
 
 #[tauri::command]
-fn kill_game(presence_manager: tauri::State<'_, std::sync::Arc<presence::PresenceManager>>) -> bool {
+fn kill_game(
+    presence_manager: tauri::State<'_, std::sync::Arc<presence::PresenceManager>>,
+) -> bool {
     presence_manager.kill_game_process()
 }
 
@@ -80,6 +84,7 @@ pub fn run() {
             set_theme,
             get_control_server_port,
             kill_game,
+            get_servers,
         ]);
     }
 
@@ -102,6 +107,7 @@ pub fn run() {
             set_theme,
             get_control_server_port,
             kill_game,
+            get_servers,
             get_steam_user_info,
             get_steam_auth_ticket,
             cancel_steam_auth_ticket,
@@ -174,8 +180,11 @@ pub fn run() {
     }
 
     let presence_manager = std::sync::Arc::new(manager);
+    let server_state = std::sync::Arc::new(servers::ServerState::new());
 
-    builder = builder.manage(std::sync::Arc::clone(&presence_manager));
+    builder = builder
+        .manage(std::sync::Arc::clone(&presence_manager))
+        .manage(std::sync::Arc::clone(&server_state));
 
     builder
         .setup(move |app| {
@@ -200,9 +209,25 @@ pub fn run() {
                 }
             }
 
+            let handle_for_auth = handle.clone();
             tauri::async_runtime::spawn(async move {
-                background_refresh_task(handle).await;
+                background_refresh_task(handle_for_auth).await;
             });
+
+            let server_state = app
+                .state::<std::sync::Arc<servers::ServerState>>()
+                .inner()
+                .clone();
+
+            let server_state_init = server_state.clone();
+            tauri::async_runtime::block_on(async {
+                servers::init_servers(&server_state_init).await;
+            });
+
+            tauri::async_runtime::spawn(async move {
+                servers::server_fetch_background_task(handle, server_state).await;
+            });
+
             Ok(())
         })
         .run(tauri::generate_context!())
