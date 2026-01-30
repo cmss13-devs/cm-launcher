@@ -136,6 +136,7 @@ function AppContent() {
   const {
     gameConnectionState,
     connectedServerName,
+    restartReason,
     closeGameConnectionModal,
     showGameConnectionModal,
   } = useGameConnection();
@@ -391,6 +392,7 @@ function AppContent() {
         visible={showGameConnectionModal}
         state={gameConnectionState}
         serverName={connectedServerName}
+        restartReason={restartReason}
         onClose={closeGameConnectionModal}
       />
 

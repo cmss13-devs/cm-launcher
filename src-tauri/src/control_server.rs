@@ -137,7 +137,7 @@ impl ControlServer {
 
             match url.path() {
                 "/restart" => {
-                    Self::handle_restart(request, &app_handle, &presence_manager);
+                    Self::handle_restart(request, &url, &app_handle, &presence_manager);
                 }
                 "/status" => {
                     Self::handle_status(request, &presence_manager);
@@ -152,10 +152,16 @@ impl ControlServer {
 
     fn handle_restart(
         request: tiny_http::Request,
+        url: &Url,
         app_handle: &tauri::AppHandle,
         presence_manager: &Arc<PresenceManager>,
     ) {
-        tracing::info!("Restart command received");
+        let reason = url
+            .query_pairs()
+            .find(|(key, _)| key == "reason")
+            .map(|(_, value)| value.into_owned());
+
+        tracing::info!("Restart command received with reason: {:?}", reason);
 
         let connection_params = presence_manager.get_last_connection_params();
 
@@ -173,6 +179,16 @@ impl ControlServer {
         if presence_manager.kill_game_process() {
             tracing::info!("Killed existing game process");
         }
+
+        app_handle
+            .emit(
+                "game-restarting",
+                serde_json::json!({
+                    "server_name": params.server_name,
+                    "reason": reason,
+                }),
+            )
+            .ok();
 
         let app_handle = app_handle.clone();
         let server_name = params.server_name.clone();

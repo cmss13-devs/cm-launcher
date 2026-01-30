@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useState, useEffect } from "react";
 
-export type GameConnectionState = "idle" | "connecting" | "connected";
+export type GameConnectionState = "idle" | "connecting" | "connected" | "restarting";
 
 const CONNECTION_TIMEOUT_SECONDS = 30;
 
@@ -9,6 +9,7 @@ interface GameConnectionModalProps {
   visible: boolean;
   state: GameConnectionState;
   serverName: string | null;
+  restartReason?: string | null;
   onClose: () => void;
 }
 
@@ -16,13 +17,14 @@ export function GameConnectionModal({
   visible,
   state,
   serverName,
+  restartReason,
   onClose,
 }: GameConnectionModalProps) {
   const [closing, setClosing] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(CONNECTION_TIMEOUT_SECONDS);
 
   useEffect(() => {
-    if (state === "connecting") {
+    if (state === "connecting" || state === "restarting") {
       setTimeRemaining(CONNECTION_TIMEOUT_SECONDS);
       const interval = setInterval(() => {
         setTimeRemaining((prev) => (prev > 0 ? prev - 1 : 0));
@@ -45,20 +47,30 @@ export function GameConnectionModal({
     }
   };
 
-  const statusText =
-    state === "connecting"
-      ? `Connecting to ${serverName}...`
-      : `Connected to ${serverName}`;
+  const getStatusText = () => {
+    switch (state) {
+      case "restarting":
+        return `Restarting ${serverName}...`;
+      case "connecting":
+        return `Connecting to ${serverName}...`;
+      default:
+        return `Connected to ${serverName}`;
+    }
+  };
 
+  const showSpinner = state === "connecting" || state === "restarting";
   const progressPercent = ((CONNECTION_TIMEOUT_SECONDS - timeRemaining) / CONNECTION_TIMEOUT_SECONDS) * 100;
 
   return (
     <div className="game-connection-overlay">
       <div className="game-connection-modal">
         <div className="game-connection-status">
-          {state === "connecting" && <div className="game-connection-spinner" />}
-          <h2>{statusText}</h2>
-          {state === "connecting" && (
+          {showSpinner && <div className="game-connection-spinner" />}
+          <h2>{getStatusText()}</h2>
+          {state === "restarting" && restartReason && (
+            <p className="game-connection-reason">{restartReason}</p>
+          )}
+          {showSpinner && (
             <div className="game-connection-progress">
               <div
                 className="game-connection-progress-bar"

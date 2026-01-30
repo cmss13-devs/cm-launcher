@@ -915,6 +915,14 @@ body {
   }
 }
 
+.game-connection-reason {
+  color: var(--text);
+  margin: 0;
+  font-size: 14px;
+  max-width: 400px;
+  line-height: 1.4;
+}
+
 .game-connection-spinner {
   width: 60px;
   height: 60px;
