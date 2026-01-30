@@ -5,6 +5,7 @@ import type { AppSettings, AuthMode, Theme } from "../types";
 interface SettingsStore {
   authMode: AuthMode;
   theme: Theme;
+  devMode: boolean;
 
   setAuthMode: (mode: AuthMode) => void;
   setTheme: (theme: Theme) => void;
@@ -16,14 +17,18 @@ interface SettingsStore {
 export const useSettingsStore = create<SettingsStore>()((set) => ({
   authMode: "cm_ss13",
   theme: "default",
+  devMode: false,
 
   setAuthMode: (authMode) => set({ authMode }),
   setTheme: (theme) => set({ theme }),
 
   load: async () => {
     try {
-      const settings = await invoke<AppSettings>("get_settings");
-      set({ authMode: settings.auth_mode, theme: settings.theme });
+      const [settings, devMode] = await Promise.all([
+        invoke<AppSettings>("get_settings"),
+        invoke<boolean>("is_dev_mode"),
+      ]);
+      set({ authMode: settings.auth_mode, theme: settings.theme, devMode });
       return settings;
     } catch (err) {
       console.error("Failed to load settings:", err);

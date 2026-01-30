@@ -96,6 +96,7 @@ function AppContent() {
     authMode,
     setAuthMode,
     theme,
+    devMode,
     load: loadSettings,
     saveAuthMode,
     saveTheme,
@@ -104,6 +105,7 @@ function AppContent() {
       authMode: s.authMode,
       setAuthMode: s.setAuthMode,
       theme: s.theme,
+      devMode: s.devMode,
       load: s.load,
       saveAuthMode: s.saveAuthMode,
       saveTheme: s.saveTheme,
@@ -378,8 +380,11 @@ function AppContent() {
         authMode={authMode}
         theme={theme}
         steamAvailable={steamAvailable}
+        devMode={devMode}
         onAuthModeChange={handleAuthModeChange}
         onThemeChange={handleThemeChange}
+        onLoginRequired={onLoginRequired}
+        onSteamAuthRequired={onSteamAuthRequired}
         onClose={() => setSettingsVisible(false)}
       />
       <GameConnectionModal

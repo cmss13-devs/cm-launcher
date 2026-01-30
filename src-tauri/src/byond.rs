@@ -548,3 +548,65 @@ pub async fn is_byond_pager_running() -> Result<bool, String> {
         Ok(false)
     }
 }
+#[tauri::command]
+pub fn is_dev_mode() -> bool {
+    cfg!(feature = "dev")
+}
+
+#[tauri::command]
+pub async fn connect_to_url(
+    app: AppHandle,
+    url: String,
+    version: String,
+    source: Option<String>,
+) -> Result<ConnectionResult, String> {
+    #[cfg(not(feature = "dev"))]
+    {
+        let _ = (app, url, version, source);
+        return Err("Dev mode is not enabled".to_string());
+    }
+
+    #[cfg(feature = "dev")]
+    {
+        let url = url.strip_prefix("byond://").unwrap_or(&url).to_string();
+
+        let parts: Vec<&str> = url.split(':').collect();
+        if parts.len() != 2 {
+            return Err("Invalid URL format. Expected 'host:port'".to_string());
+        }
+
+        let host = parts[0].to_string();
+        let port = parts[1].to_string();
+
+        // Get auth
+        let (access_type, access_token) = match get_auth_for_connection(&app).await {
+            Ok((t, tok)) => (t, tok),
+            Err(auth_error) => {
+                return Ok(ConnectionResult {
+                    success: false,
+                    message: auth_error.message.clone(),
+                    auth_error: Some(auth_error),
+                });
+            }
+        };
+
+        tracing::info!(
+            "[connect_to_url] dev mode connection to {}:{} version={}",
+            host,
+            port,
+            version
+        );
+
+        connect_to_server_internal(
+            app,
+            version,
+            host,
+            port,
+            access_type,
+            access_token,
+            format!("Dev Server ({})", url),
+            source,
+        )
+        .await
+    }
+}

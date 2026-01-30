@@ -9,6 +9,7 @@ edition = "2021"
 
 [features]
 default = []
+dev = []
 discord_invites = []
 steam = ["steamworks"]
 

@@ -823,6 +823,55 @@ body {
   line-height: 1.4;
 }
 
+// Dev connect section
+.dev-section {
+  border-top: 1px dashed var(--primary-dim);
+  padding-top: 16px;
+}
+
+.dev-connect-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dev-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  label {
+    font-size: 12px;
+    color: var(--primary-dim);
+  }
+
+  input {
+    padding: 8px 12px;
+    border: 1px solid var(--primary-dim);
+    background: transparent;
+    color: var(--primary);
+    font-family: inherit;
+    font-size: 14px;
+
+    &:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+  }
+}
+
+.dev-error {
+  padding: 8px 12px;
+  border: 1px solid var(--error);
+  background-color: rgba(255, 0, 0, 0.1);
+  color: var(--error);
+  font-size: 12px;
+}
+
+.dev-connect-button {
+  align-self: flex-start;
+}
+
 // Settings button in footer
 .settings-button {
   padding: 8px 16px;

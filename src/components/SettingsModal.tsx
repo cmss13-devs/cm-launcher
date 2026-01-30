@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useState } from "react";
+import type { ConnectionResult } from "../hooks/useConnect";
 import type { AuthMode, Theme } from "../types";
 import { Modal, ModalCloseButton } from "./Modal";
 
@@ -72,13 +73,94 @@ function ThemeOption({
   );
 }
 
+interface DevConnectSectionProps {
+  onLoginRequired: () => void;
+  onSteamAuthRequired: () => void;
+}
+
+function DevConnectSection({
+  onLoginRequired,
+  onSteamAuthRequired,
+}: DevConnectSectionProps) {
+  const [url, setUrl] = useState("localhost:1337");
+  const [version, setVersion] = useState("516.1667");
+  const [connecting, setConnecting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleConnect = async () => {
+    setConnecting(true);
+    setError(null);
+
+    try {
+      const result = await invoke<ConnectionResult>("connect_to_url", {
+        url,
+        version,
+        source: "DevConnectSection",
+      });
+
+      if (!result.success && result.auth_error) {
+        if (result.auth_error.code === "auth_required") {
+          onLoginRequired();
+        } else if (result.auth_error.code === "steam_linking_required") {
+          onSteamAuthRequired();
+        } else {
+          setError(result.auth_error.message);
+        }
+      } else if (!result.success) {
+        setError(result.message);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  return (
+    <div className="dev-connect-section">
+      <div className="dev-input-group">
+        <label htmlFor="dev-url">Server URL</label>
+        <input
+          id="dev-url"
+          type="text"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="localhost:1337"
+        />
+      </div>
+      <div className="dev-input-group">
+        <label htmlFor="dev-version">BYOND Version</label>
+        <input
+          id="dev-version"
+          type="text"
+          value={version}
+          onChange={(e) => setVersion(e.target.value)}
+          placeholder="516.1667"
+        />
+      </div>
+      {error && <div className="dev-error">{error}</div>}
+      <button
+        type="button"
+        className="button dev-connect-button"
+        onClick={handleConnect}
+        disabled={connecting || !url || !version}
+      >
+        {connecting ? "Connecting..." : "Connect"}
+      </button>
+    </div>
+  );
+}
+
 interface SettingsModalProps {
   visible: boolean;
   authMode: AuthMode;
   theme: Theme;
   steamAvailable: boolean;
+  devMode: boolean;
   onAuthModeChange: (mode: AuthMode) => void;
   onThemeChange: (theme: Theme) => void;
+  onLoginRequired: () => void;
+  onSteamAuthRequired: () => void;
   onClose: () => void;
 }
 
@@ -87,8 +169,11 @@ export function SettingsModal({
   authMode,
   theme,
   steamAvailable,
+  devMode,
   onAuthModeChange,
   onThemeChange,
+  onLoginRequired,
+  onSteamAuthRequired,
   onClose,
 }: SettingsModalProps) {
   const [byondPagerRunning, setByondPagerRunning] = useState<boolean | null>(
@@ -186,6 +271,19 @@ export function SettingsModal({
             />
           </div>
         </div>
+
+        {devMode && (
+          <div className="settings-section dev-section">
+            <h3>Developer Options</h3>
+            <p className="settings-description">
+              Connect to a local development server.
+            </p>
+            <DevConnectSection
+              onLoginRequired={onLoginRequired}
+              onSteamAuthRequired={onSteamAuthRequired}
+            />
+          </div>
+        )}
       </div>
     </Modal>
   );
