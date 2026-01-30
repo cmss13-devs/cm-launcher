@@ -233,6 +233,7 @@ pub async fn connect_to_server_internal(
         access_type,
         access_token,
         server_name,
+        source,
     )
     .await;
 
@@ -405,6 +406,7 @@ async fn connect_to_server_impl(
     access_type: Option<String>,
     access_token: Option<String>,
     server_name: String,
+    source: Option<String>,
 ) -> Result<ConnectionResult, String> {
     let version_info = install_byond_version(app.clone(), version.clone()).await?;
 
@@ -422,7 +424,9 @@ async fn connect_to_server_impl(
             control_server.reset_connected_flag();
         }
 
-        app.emit("game-connecting", &server_name).ok();
+        if source.as_deref() != Some("control_server_restart") {
+            app.emit("game-connecting", &server_name).ok();
+        }
 
         let control_port = app.try_state::<ControlServer>().map(|s| s.port.to_string());
 
@@ -485,6 +489,7 @@ async fn connect_to_server_impl(
             server_name,
             access_type,
             access_token,
+            source,
         );
         Err("BYOND is only natively supported on Windows".to_string())
     }
