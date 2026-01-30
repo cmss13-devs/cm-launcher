@@ -3,7 +3,13 @@ use std::fs;
 use std::io;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use tauri::AppHandle;
+use std::sync::Arc;
+use tauri::{AppHandle, Manager};
+
+use crate::auth::TokenStorage;
+use crate::relays::RelayState;
+use crate::servers::ServerState;
+use crate::settings::{load_settings, AuthMode};
 
 #[cfg(target_os = "windows")]
 use crate::control_server::ControlServer;
@@ -12,9 +18,10 @@ use crate::presence::{ConnectionParams, PresenceManager};
 #[cfg(target_os = "windows")]
 use std::process::Command;
 #[cfg(target_os = "windows")]
-use std::sync::Arc;
-#[cfg(target_os = "windows")]
-use tauri::{Emitter, Manager};
+use tauri::Emitter;
+
+#[cfg(feature = "steam")]
+use crate::steam::{authenticate_with_steam, SteamState};
 
 static CONNECTING: AtomicBool = AtomicBool::new(false);
 #[derive(Debug, Serialize, Deserialize)]
@@ -24,10 +31,18 @@ pub struct ByondVersionInfo {
     pub path: Option<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AuthError {
+    pub code: String,
+    pub message: String,
+    pub linking_url: Option<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ConnectionResult {
     pub success: bool,
     pub message: String,
+    pub auth_error: Option<AuthError>,
 }
 
 fn get_byond_base_dir(_app: &AppHandle) -> Result<PathBuf, String> {
@@ -176,8 +191,9 @@ pub async fn install_byond_version(
     check_byond_version(app, version).await
 }
 
-#[tauri::command]
-pub async fn connect_to_server(
+/// Internal function for connecting with explicit auth params.
+/// Used by autoconnect and the simplified connect_to_server command.
+pub async fn connect_to_server_internal(
     app: AppHandle,
     version: String,
     host: String,
@@ -198,6 +214,7 @@ pub async fn connect_to_server(
         return Ok(ConnectionResult {
             success: false,
             message: "Connection already in progress".to_string(),
+            auth_error: None,
         });
     }
 
@@ -208,7 +225,7 @@ pub async fn connect_to_server(
         version
     );
 
-    let result = connect_to_server_inner(
+    let result = connect_to_server_impl(
         app,
         version,
         host,
@@ -223,7 +240,155 @@ pub async fn connect_to_server(
     result
 }
 
-async fn connect_to_server_inner(
+async fn get_auth_for_connection(
+    app: &AppHandle,
+) -> Result<(Option<String>, Option<String>), AuthError> {
+    let settings = load_settings(app).map_err(|e| AuthError {
+        code: "settings_error".to_string(),
+        message: e,
+        linking_url: None,
+    })?;
+
+    match settings.auth_mode {
+        AuthMode::CmSs13 => {
+            let tokens = TokenStorage::get_tokens().map_err(|e| AuthError {
+                code: "token_error".to_string(),
+                message: e,
+                linking_url: None,
+            })?;
+
+            match tokens {
+                Some(t) if !TokenStorage::is_expired() => {
+                    Ok((Some("cm_ss13".to_string()), Some(t.access_token)))
+                }
+                _ => Err(AuthError {
+                    code: "auth_required".to_string(),
+                    message: "Please log in to CM-SS13".to_string(),
+                    linking_url: None,
+                }),
+            }
+        }
+        AuthMode::Steam => {
+            #[cfg(feature = "steam")]
+            {
+                let steam_state = app
+                    .try_state::<Arc<SteamState>>()
+                    .ok_or_else(|| AuthError {
+                        code: "steam_unavailable".to_string(),
+                        message: "Steam is not available".to_string(),
+                        linking_url: None,
+                    })?;
+
+                let result = authenticate_with_steam(&steam_state, false)
+                    .await
+                    .map_err(|e| AuthError {
+                        code: "steam_error".to_string(),
+                        message: e,
+                        linking_url: None,
+                    })?;
+
+                if result.success {
+                    Ok((Some("steam".to_string()), result.access_token))
+                } else if result.requires_linking {
+                    Err(AuthError {
+                        code: "steam_linking_required".to_string(),
+                        message: "Steam account linking required".to_string(),
+                        linking_url: result.linking_url,
+                    })
+                } else {
+                    Err(AuthError {
+                        code: "steam_auth_failed".to_string(),
+                        message: result
+                            .error
+                            .unwrap_or_else(|| "Steam authentication failed".to_string()),
+                        linking_url: None,
+                    })
+                }
+            }
+
+            #[cfg(not(feature = "steam"))]
+            {
+                Err(AuthError {
+                    code: "steam_unavailable".to_string(),
+                    message: "Steam support not compiled".to_string(),
+                    linking_url: None,
+                })
+            }
+        }
+        AuthMode::Byond => Ok((Some("byond".to_string()), None)),
+    }
+}
+
+#[tauri::command]
+pub async fn connect_to_server(
+    app: AppHandle,
+    server_name: String,
+    source: Option<String>,
+) -> Result<ConnectionResult, String> {
+    let source_str = source.as_deref().unwrap_or("unknown");
+
+    let server_state = app
+        .try_state::<Arc<ServerState>>()
+        .ok_or("Server state not available")?;
+    let servers = server_state.get_servers().await;
+    let server = servers
+        .iter()
+        .find(|s| s.name == server_name)
+        .ok_or_else(|| format!("Server '{}' not found", server_name))?
+        .clone();
+
+    let version = server
+        .recommended_byond_version
+        .ok_or("Server has no recommended BYOND version")?;
+
+    let port = server
+        .url
+        .split(':')
+        .nth(1)
+        .ok_or("Invalid server URL format")?
+        .to_string();
+
+    let relay_state = app
+        .try_state::<Arc<RelayState>>()
+        .ok_or("Relay state not available")?;
+    let host = relay_state
+        .get_selected_host()
+        .await
+        .ok_or("No relay selected")?;
+
+    let (access_type, access_token) = match get_auth_for_connection(&app).await {
+        Ok((t, tok)) => (t, tok),
+        Err(auth_error) => {
+            return Ok(ConnectionResult {
+                success: false,
+                message: auth_error.message.clone(),
+                auth_error: Some(auth_error),
+            });
+        }
+    };
+
+    tracing::info!(
+        "[connect_to_server] source={} server={} version={} host={}",
+        source_str,
+        server_name,
+        version,
+        host
+    );
+
+    connect_to_server_internal(
+        app,
+        version,
+        host,
+        port,
+        access_type,
+        access_token,
+        server_name,
+        source,
+    )
+    .await
+}
+
+async fn connect_to_server_impl(
     app: AppHandle,
     version: String,
     host: String,
@@ -297,6 +462,7 @@ async fn connect_to_server_inner(
         Ok(ConnectionResult {
             success: true,
             message: format!("Connecting to {} with BYOND {}", host, version),
+            auth_error: None,
         })
     }
 

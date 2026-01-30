@@ -1,13 +1,7 @@
-import { invoke } from "@tauri-apps/api/core";
 import { useState } from "react";
 import { GAME_STATES } from "../constants";
 import { useConnect, useError } from "../hooks";
-import {
-  useServerStore,
-  useSettingsStore,
-  useAuthStore,
-  useSteamStore,
-} from "../stores";
+import { useServerStore } from "../stores";
 import type { Server } from "../types";
 import { formatDuration } from "../utils";
 
@@ -28,56 +22,28 @@ export function ServerItem({
   const { showError } = useError();
   const { connect } = useConnect();
 
-  const authMode = useSettingsStore((s) => s.authMode);
-  const isLoggedIn = useAuthStore((s) => s.authState.logged_in);
-  const steamAccessToken = useSteamStore((s) => s.accessToken);
-  const relays = useServerStore((s) => s.relays);
-  const selectedRelay = useServerStore((s) => s.selectedRelay);
   const relaysReady = useServerStore((s) => s.relaysReady);
 
-  const relay = relays.find((r) => r.id === selectedRelay);
-  const port = server.url.split(":")[1];
   const isOnline = server.status === "available";
   const data = server.data;
-  const byondVersion = server.recommended_byond_version;
 
   const handleConnect = async () => {
-    if (authMode === "cm_ss13" && !isLoggedIn) {
-      onLoginRequired();
-      return;
-    }
-
-    if (authMode === "steam" && !steamAccessToken) {
-      onSteamAuthRequired();
-      return;
-    }
-
-    if (authMode === "byond") {
-      try {
-        const pagerRunning = await invoke<boolean>("is_byond_pager_running");
-        if (!pagerRunning) {
-          showError(
-            "BYOND pager is not running. Please open BYOND and log in before connecting.",
-          );
-          return;
-        }
-      } catch {
-        // If we can't check, proceed anyway (e.g., on non-Windows)
-      }
-    }
-
-    if (!relay || !byondVersion || !port) return;
-
     setConnecting(true);
 
     try {
-      await connect({
-        version: byondVersion,
-        host: relay.host,
-        port: port,
-        serverName: server.name,
-        source: "ServerItem.handleConnect",
-      });
+      const result = await connect(server.name, "ServerItem.handleConnect");
+
+      if (!result.success && result.auth_error) {
+        if (result.auth_error.code === "auth_required") {
+          onLoginRequired();
+        } else if (result.auth_error.code === "steam_linking_required") {
+          onSteamAuthRequired();
+        } else {
+          showError(result.auth_error.message);
+        }
+      } else if (!result.success) {
+        showError(result.message);
+      }
     } catch (err) {
       showError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -85,7 +51,7 @@ export function ServerItem({
     }
   };
 
-  const canConnect = isOnline && relay && byondVersion && port && relaysReady;
+  const canConnect = isOnline && relaysReady;
 
   return (
     <div className="server-item">

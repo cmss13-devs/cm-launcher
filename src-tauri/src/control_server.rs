@@ -188,7 +188,7 @@ impl ControlServer {
                 }
             };
 
-            let result = crate::byond::connect_to_server(
+            let result = crate::byond::connect_to_server_internal(
                 app_handle,
                 fresh_params.version,
                 fresh_params.host,

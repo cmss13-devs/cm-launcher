@@ -1,42 +1,29 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback } from "react";
-import { useSettingsStore, useSteamStore } from "../stores";
 
-interface ConnectParams {
-  version: string;
-  host: string;
-  port: string;
-  serverName: string;
-  source: string;
+export interface AuthError {
+  code: string;
+  message: string;
+  linking_url: string | null;
+}
+
+export interface ConnectionResult {
+  success: boolean;
+  message: string;
+  auth_error: AuthError | null;
 }
 
 export function useConnect() {
-  const authMode = useSettingsStore((s) => s.authMode);
-  const steamAccessToken = useSteamStore((s) => s.accessToken);
-
   const connect = useCallback(
-    async (params: ConnectParams) => {
-      console.log(`[useConnect] connect called, source=${params.source}`);
+    async (serverName: string, source: string): Promise<ConnectionResult> => {
+      console.log(`[useConnect] connect called, source=${source}`);
 
-      let accessToken: string | null = null;
-
-      if (authMode === "cm_ss13") {
-        accessToken = await invoke<string | null>("get_access_token");
-      } else if (authMode === "steam") {
-        accessToken = steamAccessToken;
-      }
-
-      await invoke("connect_to_server", {
-        version: params.version,
-        host: params.host,
-        port: params.port,
-        accessType: authMode,
-        accessToken,
-        serverName: params.serverName,
-        source: params.source,
+      return await invoke<ConnectionResult>("connect_to_server", {
+        serverName,
+        source,
       });
     },
-    [authMode, steamAccessToken]
+    [],
   );
 
   return { connect };

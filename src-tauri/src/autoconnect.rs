@@ -5,7 +5,7 @@ mod implementation {
     use tauri::{AppHandle, Emitter, Manager};
 
     use crate::auth::TokenStorage;
-    use crate::byond::connect_to_server;
+    use crate::byond::connect_to_server_internal;
     use crate::relays::RelayState;
     use crate::servers::{Server, ServerState};
     use crate::settings::{load_settings, AuthMode};
@@ -333,7 +333,7 @@ mod implementation {
             None,
         );
 
-        match connect_to_server(
+        match connect_to_server_internal(
             handle.clone(),
             version,
             relay_host,
