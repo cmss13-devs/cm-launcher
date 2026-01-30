@@ -6,17 +6,17 @@ mod implementation {
 
     use crate::auth::TokenStorage;
     use crate::byond::connect_to_server;
+    use crate::relays::RelayState;
     use crate::servers::{Server, ServerState};
     use crate::settings::{load_settings, AuthMode};
     use crate::steam::{authenticate_with_steam, SteamState};
-
-    const DEFAULT_RELAY_HOST: &str = "direct.cm-ss13.com";
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     #[serde(rename_all = "snake_case")]
     pub enum AutoConnectStatus {
         Starting,
         WaitingForServers,
+        WaitingForRelays,
         ServerNotFound,
         ServerUnavailable,
         AuthRequired,
@@ -269,7 +269,62 @@ mod implementation {
                 }
             };
 
-        tracing::info!("Connecting to {} via {}", server_name, DEFAULT_RELAY_HOST);
+        let relay_state = match handle.try_state::<Arc<RelayState>>() {
+            Some(state) => state.inner().clone(),
+            None => {
+                tracing::error!("RelayState not available");
+                emit_status(
+                    &handle,
+                    &server_name,
+                    AutoConnectStatus::Error,
+                    Some("Relay state not available".to_string()),
+                    None,
+                );
+                return;
+            }
+        };
+
+        emit_status(
+            &handle,
+            &server_name,
+            AutoConnectStatus::WaitingForRelays,
+            None,
+            None,
+        );
+
+        let mut attempts = 0;
+        while !relay_state.all_relays_pinged().await {
+            attempts += 1;
+            if attempts >= 60 {
+                tracing::error!("Timed out waiting for relays to be pinged");
+                emit_status(
+                    &handle,
+                    &server_name,
+                    AutoConnectStatus::Error,
+                    Some("Timed out waiting for relays".to_string()),
+                    None,
+                );
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        }
+
+        let relay_host = match relay_state.get_selected_host().await {
+            Some(host) => host,
+            None => {
+                tracing::error!("No relay selected after pinging");
+                emit_status(
+                    &handle,
+                    &server_name,
+                    AutoConnectStatus::Error,
+                    Some("No relay available".to_string()),
+                    None,
+                );
+                return;
+            }
+        };
+
+        tracing::info!("Connecting to {} via {}", server_name, relay_host);
         emit_status(
             &handle,
             &server_name,
@@ -281,7 +336,7 @@ mod implementation {
         match connect_to_server(
             handle.clone(),
             version,
-            DEFAULT_RELAY_HOST.to_string(),
+            relay_host,
             port,
             access_type,
             access_token,

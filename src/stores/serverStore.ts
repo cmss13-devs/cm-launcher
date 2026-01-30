@@ -1,9 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { create } from "zustand";
-import { RELAYS } from "../constants";
 import type { RelayWithPing, Server } from "../types";
-import { pingRelay } from "../utils";
 
 interface ServerUpdateEvent {
   servers: Server[];
@@ -19,20 +17,29 @@ interface ServerStore {
   error: string | null;
   relays: RelayWithPing[];
   selectedRelay: string;
+  relaysReady: boolean;
 
   setSelectedRelay: (id: string) => void;
   initListener: () => Promise<UnlistenFn>;
-  initRelays: () => Promise<void>;
+  initRelays: () => Promise<UnlistenFn>;
 }
 
-export const useServerStore = create<ServerStore>()((set, get) => ({
+function hasValidPing(relays: RelayWithPing[]): boolean {
+  return relays.some((r) => r.ping !== null && !r.checking);
+}
+
+export const useServerStore = create<ServerStore>()((set) => ({
   servers: [],
   loading: true,
   error: null,
-  relays: RELAYS.map((r) => ({ ...r, ping: null, checking: true })),
-  selectedRelay: "direct",
+  relays: [],
+  selectedRelay: "",
+  relaysReady: false,
 
-  setSelectedRelay: (selectedRelay) => set({ selectedRelay }),
+  setSelectedRelay: async (selectedRelay) => {
+    set({ selectedRelay });
+    await invoke("set_selected_relay", { id: selectedRelay });
+  },
 
   initListener: async () => {
     // Fetch initial data immediately
@@ -66,25 +73,39 @@ export const useServerStore = create<ServerStore>()((set, get) => ({
   },
 
   initRelays: async () => {
-    const results = await Promise.all(
-      RELAYS.map(async (relay) => {
-        const ping = await pingRelay(relay.host);
-        return { ...relay, ping, checking: false };
-      })
+    // Fetch initial relay data
+    try {
+      const relays = await invoke<RelayWithPing[]>("get_relays");
+      const ready = hasValidPing(relays);
+      set({ relays, relaysReady: ready });
+
+      const selectedRelay = await invoke<string>("get_selected_relay");
+      set({ selectedRelay });
+    } catch (err) {
+      console.error("Failed to get initial relays:", err);
+    }
+
+    // Listen for relay updates from backend
+    const unlistenRelaysUpdated = await listen<RelayWithPing[]>(
+      "relays-updated",
+      (event) => {
+        const relays = event.payload;
+        const isReady = hasValidPing(relays);
+        set({ relays, relaysReady: isReady });
+      }
     );
 
-    results.sort((a, b) => {
-      if (a.ping === null && b.ping === null) return 0;
-      if (a.ping === null) return 1;
-      if (b.ping === null) return -1;
-      return a.ping - b.ping;
-    });
+    // Backend handles auto-selection and emits this event
+    const unlistenRelaySelected = await listen<string>(
+      "relay-selected",
+      (event) => {
+        set({ selectedRelay: event.payload, relaysReady: true });
+      }
+    );
 
-    set({ relays: results });
-
-    const bestRelay = results.find((r) => r.ping !== null);
-    if (bestRelay) {
-      get().setSelectedRelay(bestRelay.id);
-    }
+    return () => {
+      unlistenRelaysUpdated();
+      unlistenRelaySelected();
+    };
   },
 }));

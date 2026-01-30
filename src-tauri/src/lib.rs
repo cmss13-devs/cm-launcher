@@ -5,6 +5,7 @@ mod control_server;
 mod discord;
 mod logging;
 mod presence;
+mod relays;
 mod servers;
 mod settings;
 #[cfg(feature = "steam")]
@@ -24,6 +25,7 @@ use byond::{
     check_byond_version, connect_to_server, delete_byond_version, install_byond_version,
     is_byond_pager_running, list_installed_byond_versions,
 };
+use relays::{get_relays, get_selected_relay, set_selected_relay};
 use servers::get_servers;
 use settings::{get_settings, set_auth_mode, set_theme};
 
@@ -87,6 +89,9 @@ pub fn run() {
             get_control_server_port,
             kill_game,
             get_servers,
+            get_relays,
+            get_selected_relay,
+            set_selected_relay,
         ]);
     }
 
@@ -111,6 +116,9 @@ pub fn run() {
             get_control_server_port,
             kill_game,
             get_servers,
+            get_relays,
+            get_selected_relay,
+            set_selected_relay,
             get_steam_user_info,
             get_steam_auth_ticket,
             cancel_steam_auth_ticket,
@@ -184,10 +192,12 @@ pub fn run() {
 
     let presence_manager = std::sync::Arc::new(manager);
     let server_state = std::sync::Arc::new(servers::ServerState::new());
+    let relay_state = std::sync::Arc::new(relays::RelayState::new());
 
     builder = builder
         .manage(std::sync::Arc::clone(&presence_manager))
-        .manage(std::sync::Arc::clone(&server_state));
+        .manage(std::sync::Arc::clone(&server_state))
+        .manage(std::sync::Arc::clone(&relay_state));
 
     builder
         .setup(move |app| {
@@ -230,6 +240,17 @@ pub fn run() {
             let handle_for_server_task = handle.clone();
             tauri::async_runtime::spawn(async move {
                 servers::server_fetch_background_task(handle_for_server_task, server_state).await;
+            });
+
+            let relay_state = app
+                .state::<std::sync::Arc<relays::RelayState>>()
+                .inner()
+                .clone();
+
+            let relay_state_init = relay_state.clone();
+            let handle_for_relay_init = handle.clone();
+            tauri::async_runtime::spawn(async move {
+                relays::init_relays(&relay_state_init, &handle_for_relay_init).await;
             });
 
             autoconnect::check_and_start_autoconnect(handle);

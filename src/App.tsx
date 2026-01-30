@@ -147,11 +147,12 @@ function AppContent() {
   useEffect(() => {
     const unlistenAuthPromise = initAuthListener();
     const unlistenServerPromise = initServerListener();
-    initRelays();
+    const unlistenRelaysPromise = initRelays();
 
     return () => {
       unlistenAuthPromise.then((unlisten) => unlisten());
       unlistenServerPromise.then((unlisten) => unlisten());
+      unlistenRelaysPromise.then((unlisten) => unlisten());
     };
   }, [initAuthListener, initServerListener, initRelays]);
 

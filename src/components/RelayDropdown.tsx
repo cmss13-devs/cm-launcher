@@ -15,8 +15,17 @@ export function RelayDropdown({
   onToggle,
   onSelect,
 }: RelayDropdownProps) {
-  const selectedRelayName =
-    relays.find((r) => r.id === selectedRelay)?.name || "Select";
+  const allChecking = relays.length > 0 && relays.every((r) => r.checking);
+  const selectedRelayData = relays.find((r) => r.id === selectedRelay);
+
+  let selectedRelayName: string;
+  if (allChecking) {
+    selectedRelayName = "PINGING...";
+  } else if (selectedRelayData) {
+    selectedRelayName = selectedRelayData.name;
+  } else {
+    selectedRelayName = "Select";
+  }
 
   return (
     <div className="relay-dropdown">
@@ -24,6 +33,7 @@ export function RelayDropdown({
         type="button"
         className="relay-dropdown-button"
         onClick={onToggle}
+        disabled={allChecking}
       >
         <span className="relay-dropdown-label">Relay:</span>
         <span className="relay-dropdown-value">{selectedRelayName}</span>
@@ -33,7 +43,15 @@ export function RelayDropdown({
       </button>
       {isOpen && (
         <div className="relay-dropdown-menu">
-          {relays.map((relay) => {
+          {[...relays]
+            .sort((a, b) => {
+              // Sort by ping ascending, null/checking at the end
+              if (a.ping === null && b.ping === null) return 0;
+              if (a.ping === null) return 1;
+              if (b.ping === null) return -1;
+              return a.ping - b.ping;
+            })
+            .map((relay) => {
             const isDisabled = relay.ping === null && !relay.checking;
             const isSelected = selectedRelay === relay.id;
 

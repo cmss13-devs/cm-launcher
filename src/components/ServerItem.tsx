@@ -33,6 +33,7 @@ export function ServerItem({
   const steamAccessToken = useSteamStore((s) => s.accessToken);
   const relays = useServerStore((s) => s.relays);
   const selectedRelay = useServerStore((s) => s.selectedRelay);
+  const relaysReady = useServerStore((s) => s.relaysReady);
 
   const relay = relays.find((r) => r.id === selectedRelay);
   const port = server.url.split(":")[1];
@@ -84,7 +85,7 @@ export function ServerItem({
     }
   };
 
-  const canConnect = isOnline && relay && byondVersion && port;
+  const canConnect = isOnline && relay && byondVersion && port && relaysReady;
 
   return (
     <div className="server-item">
