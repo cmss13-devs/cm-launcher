@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_notification::NotificationExt;
 use tokio::sync::RwLock;
 
@@ -196,13 +196,20 @@ async fn check_and_send_notifications(
         prev.round_id = current_round_id;
 
         if should_notify {
-            if let Err(e) = handle
+            let mut builder = handle
                 .notification()
                 .builder()
                 .title(&notification_title)
-                .body(&notification_body)
-                .show()
-            {
+                .body(&notification_body);
+
+            if let Ok(resource_path) = handle.path().resource_dir() {
+                let icon_path = resource_path.join("icons").join("icon.png");
+                if icon_path.exists() {
+                    builder = builder.icon(icon_path.to_string_lossy().to_string());
+                }
+            }
+
+            if let Err(e) = builder.show() {
                 tracing::warn!("Failed to send notification: {}", e);
             } else {
                 tracing::info!(

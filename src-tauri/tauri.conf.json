@@ -26,6 +26,9 @@
     }
   },
   "bundle": {
+    "resources": [
+      "icons/icon.png"
+    ],
     "publisher": "CM-SS13",
     "copyright": "Copyright © 2026 CM-SS13",
     "category": "Game",
