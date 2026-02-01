@@ -1,3 +1,4 @@
+import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useState } from "react";
@@ -179,6 +180,11 @@ export function SettingsModal({
   const [byondPagerRunning, setByondPagerRunning] = useState<boolean | null>(
     null,
   );
+  const [appVersion, setAppVersion] = useState<string>("");
+
+  useEffect(() => {
+    getVersion().then(setAppVersion);
+  }, []);
 
   useEffect(() => {
     if (visible && authMode === "byond") {
@@ -284,6 +290,9 @@ export function SettingsModal({
             />
           </div>
         )}
+      </div>
+      <div className="settings-modal-footer">
+        <span className="version-info">v{appVersion}</span>
       </div>
     </Modal>
   );
