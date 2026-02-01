@@ -132,6 +132,7 @@ body {
   flex: 1;
   overflow-y: auto;
   min-height: 0;
+  position: relative;
 
   &::-webkit-scrollbar {
     width: 8px;
@@ -202,6 +203,30 @@ body {
 
 .server-error {
   color: var(--error);
+}
+
+.refresh-bar {
+  position: sticky;
+  bottom: -16px;
+  margin: 8px -16px -16px;
+  height: 4px;
+  background: var(--bg-highlight-faint);
+}
+
+.refresh-bar-fill {
+  height: 100%;
+  background: var(--primary);
+  opacity: 0.5;
+  animation: refresh-countdown 20s linear forwards;
+}
+
+@keyframes refresh-countdown {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
 }
 
 .server-status {

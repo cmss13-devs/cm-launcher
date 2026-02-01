@@ -79,6 +79,7 @@ function AppContent() {
     setSelectedRelay,
     initListener: initServerListener,
     initRelays,
+    lastUpdated,
   } = useServerStore(
     useShallow((s) => ({
       servers: s.servers,
@@ -89,6 +90,7 @@ function AppContent() {
       setSelectedRelay: s.setSelectedRelay,
       initListener: s.initListener,
       initRelays: s.initRelays,
+      lastUpdated: s.lastUpdated,
     })),
   );
 
@@ -418,6 +420,11 @@ function AppContent() {
                 />
               ))}
             </div>
+            {lastUpdated !== null && (
+              <div className="refresh-bar">
+                <div key={lastUpdated} className="refresh-bar-fill" />
+              </div>
+            )}
           </section>
         </main>
 

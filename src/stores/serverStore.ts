@@ -18,6 +18,7 @@ interface ServerStore {
   relays: RelayWithPing[];
   selectedRelay: string;
   relaysReady: boolean;
+  lastUpdated: number | null;
 
   setSelectedRelay: (id: string) => void;
   initListener: () => Promise<UnlistenFn>;
@@ -35,6 +36,7 @@ export const useServerStore = create<ServerStore>()((set) => ({
   relays: [],
   selectedRelay: "",
   relaysReady: false,
+  lastUpdated: null,
 
   setSelectedRelay: async (selectedRelay) => {
     set({ selectedRelay });
@@ -46,7 +48,7 @@ export const useServerStore = create<ServerStore>()((set) => ({
     try {
       const servers = await invoke<Server[]>("get_servers");
       if (servers.length > 0) {
-        set({ servers, loading: false, error: null });
+        set({ servers, loading: false, error: null, lastUpdated: Date.now() });
       }
     } catch (err) {
       console.error("Failed to get initial servers:", err);
@@ -55,7 +57,7 @@ export const useServerStore = create<ServerStore>()((set) => ({
     const unlistenUpdate = await listen<ServerUpdateEvent>(
       "servers-updated",
       (event) => {
-        set({ servers: event.payload.servers, loading: false, error: null });
+        set({ servers: event.payload.servers, loading: false, error: null, lastUpdated: Date.now() });
       }
     );
 
