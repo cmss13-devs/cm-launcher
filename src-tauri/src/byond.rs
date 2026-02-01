@@ -115,7 +115,7 @@ pub async fn check_byond_version(
     })
 }
 
-fn get_byond_download_url(version: &str) -> Result<String, String> {
+fn get_byond_download_urls(version: &str) -> Result<(String, String), String> {
     let parts: Vec<&str> = version.split('.').collect();
     if parts.len() != 2 {
         return Err(format!("Invalid BYOND version format: {}", version));
@@ -123,10 +123,33 @@ fn get_byond_download_url(version: &str) -> Result<String, String> {
 
     let major = parts[0];
 
-    Ok(format!(
+    let primary = format!(
         "https://www.byond.com/download/build/{}/{}_byond.zip",
         major, version
-    ))
+    );
+    let fallback = format!(
+        "https://byond-builds.dm-lang.org/{}/{}_byond.zip",
+        major, version
+    );
+
+    Ok((primary, fallback))
+}
+
+async fn try_download(url: &str) -> Result<Vec<u8>, String> {
+    let response = reqwest::get(url)
+        .await
+        .map_err(|e| format!("Request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("HTTP {}", response.status()));
+    }
+
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| format!("Failed to read response: {}", e))?;
+
+    Ok(bytes.to_vec())
 }
 
 #[tauri::command]
@@ -141,29 +164,28 @@ pub async fn install_byond_version(
     }
 
     tracing::info!("Installing BYOND version: {}", version);
-    let download_url = get_byond_download_url(&version)?;
+    let (primary_url, fallback_url) = get_byond_download_urls(&version)?;
     let version_dir = get_byond_version_dir(&app, &version)?;
 
     fs::create_dir_all(&version_dir).map_err(|e| format!("Failed to create directory: {}", e))?;
 
     let zip_path = version_dir.join("byond.zip");
 
-    let response = reqwest::get(&download_url)
-        .await
-        .map_err(|e| format!("Failed to download BYOND: {}", e))?;
-
-    if !response.status().is_success() {
-        return Err(format!(
-            "Failed to download BYOND version {}: HTTP {}",
-            version,
-            response.status()
-        ));
-    }
-
-    let bytes = response
-        .bytes()
-        .await
-        .map_err(|e| format!("Failed to read download: {}", e))?;
+    let bytes = match try_download(&primary_url).await {
+        Ok(b) => b,
+        Err(primary_err) => {
+            tracing::warn!(
+                "Primary download failed ({}), trying fallback URL",
+                primary_err
+            );
+            try_download(&fallback_url).await.map_err(|fallback_err| {
+                format!(
+                    "Failed to download BYOND version {}: primary error: {}, fallback error: {}",
+                    version, primary_err, fallback_err
+                )
+            })?
+        }
+    };
 
     fs::write(&zip_path, &bytes).map_err(|e| format!("Failed to save download: {}", e))?;
 
