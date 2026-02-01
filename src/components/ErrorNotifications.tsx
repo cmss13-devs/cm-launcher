@@ -1,3 +1,5 @@
+import { faXmark } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import type { ErrorNotification } from "../types";
 
 interface ErrorNotificationsProps {
@@ -19,7 +21,7 @@ export function ErrorNotifications({
             className="error-popup-dismiss"
             onClick={() => onDismiss(error.id)}
           >
-            x
+            <FontAwesomeIcon icon={faXmark} />
           </button>
         </div>
       ))}

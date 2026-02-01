@@ -1,7 +1,9 @@
+import { faBell, faBellSlash } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useState } from "react";
 import { GAME_STATES } from "../constants";
 import { useConnect, useError } from "../hooks";
-import { useServerStore } from "../stores";
+import { useServerStore, useSettingsStore } from "../stores";
 import type { Server } from "../types";
 import { formatDuration } from "../utils";
 
@@ -23,6 +25,12 @@ export function ServerItem({
   const { connect } = useConnect();
 
   const relaysReady = useServerStore((s) => s.relaysReady);
+  const notificationsEnabled = useSettingsStore((s) =>
+    s.notificationServers.has(server.name),
+  );
+  const toggleServerNotifications = useSettingsStore(
+    (s) => s.toggleServerNotifications,
+  );
 
   const isOnline = server.status === "available";
   const data = server.data;
@@ -53,6 +61,14 @@ export function ServerItem({
 
   const canConnect = isOnline && relaysReady;
 
+  const handleToggleNotifications = async () => {
+    try {
+      await toggleServerNotifications(server.name, !notificationsEnabled);
+    } catch (err) {
+      showError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
   return (
     <div className="server-item">
       <div className="server-info">
@@ -76,6 +92,18 @@ export function ServerItem({
         <div className="player-count">
           {isOnline && data ? data.players : "--"}
         </div>
+        <button
+          type="button"
+          className={`notification-button ${notificationsEnabled ? "enabled" : ""}`}
+          onClick={handleToggleNotifications}
+          title={
+            notificationsEnabled
+              ? "Disable restart notifications"
+              : "Enable restart notifications"
+          }
+        >
+          <FontAwesomeIcon icon={notificationsEnabled ? faBell : faBellSlash} />
+        </button>
         <button
           type="button"
           className="button"

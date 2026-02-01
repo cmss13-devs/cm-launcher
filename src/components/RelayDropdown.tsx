@@ -1,3 +1,5 @@
+import { faChevronDown, faChevronUp } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import type { RelayWithPing } from "../types";
 
 interface RelayDropdownProps {
@@ -38,7 +40,7 @@ export function RelayDropdown({
         <span className="relay-dropdown-label">Relay:</span>
         <span className="relay-dropdown-value">{selectedRelayName}</span>
         <span className="relay-dropdown-arrow">
-          {isOpen ? "\u25B2" : "\u25BC"}
+          <FontAwesomeIcon icon={isOpen ? faChevronUp : faChevronDown} />
         </span>
       </button>
       {isOpen && (

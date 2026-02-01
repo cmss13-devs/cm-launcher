@@ -27,7 +27,7 @@ use byond::{
 };
 use relays::{get_relays, get_selected_relay, set_selected_relay};
 use servers::get_servers;
-use settings::{get_settings, set_auth_mode, set_theme};
+use settings::{get_settings, set_auth_mode, set_theme, toggle_server_notifications};
 
 #[cfg(feature = "steam")]
 use steam::{
@@ -66,7 +66,9 @@ pub fn run() {
     }
 
     #[allow(unused_mut)]
-    let mut builder = tauri::Builder::default().plugin(tauri_plugin_opener::init());
+    let mut builder = tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init());
 
     #[cfg(not(feature = "steam"))]
     {
@@ -88,6 +90,7 @@ pub fn run() {
             get_settings,
             set_auth_mode,
             set_theme,
+            toggle_server_notifications,
             get_control_server_port,
             kill_game,
             get_servers,
@@ -117,6 +120,7 @@ pub fn run() {
             get_settings,
             set_auth_mode,
             set_theme,
+            toggle_server_notifications,
             get_control_server_port,
             kill_game,
             get_servers,

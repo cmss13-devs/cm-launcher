@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
@@ -27,6 +28,8 @@ pub struct AppSettings {
     pub auth_mode: AuthMode,
     #[serde(default)]
     pub theme: Theme,
+    #[serde(default)]
+    pub notification_servers: HashSet<String>,
 }
 
 impl Default for AppSettings {
@@ -35,6 +38,7 @@ impl Default for AppSettings {
         Self {
             auth_mode: AuthMode::Steam,
             theme: Theme::Default,
+            notification_servers: HashSet::new(),
         }
     }
 
@@ -43,6 +47,7 @@ impl Default for AppSettings {
         Self {
             auth_mode: AuthMode::CmSs13,
             theme: Theme::Default,
+            notification_servers: HashSet::new(),
         }
     }
 }
@@ -117,5 +122,22 @@ pub async fn set_theme(app: AppHandle, theme: Theme) -> Result<AppSettings, Stri
     let mut settings = load_settings(&app)?;
     settings.theme = theme;
     save_settings(&app, &settings)?;
+    Ok(settings)
+}
+
+#[tauri::command]
+pub async fn toggle_server_notifications(
+    app: AppHandle,
+    server_name: String,
+    enabled: bool,
+) -> Result<AppSettings, String> {
+    let mut settings = load_settings(&app)?;
+    if enabled {
+        settings.notification_servers.insert(server_name);
+    } else {
+        settings.notification_servers.remove(&server_name);
+    }
+    save_settings(&app, &settings)?;
+
     Ok(settings)
 }

@@ -1,3 +1,5 @@
+import { faMinus, faXmark } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 export function Titlebar() {
@@ -20,14 +22,14 @@ export function Titlebar() {
           className="titlebar-button"
           onClick={handleMinimize}
         >
-          <span className="titlebar-icon">-</span>
+          <FontAwesomeIcon icon={faMinus} className="titlebar-icon" />
         </button>
         <button
           type="button"
           className="titlebar-button titlebar-close"
           onClick={handleClose}
         >
-          <span className="titlebar-icon">x</span>
+          <FontAwesomeIcon icon={faXmark} className="titlebar-icon" />
         </button>
       </div>
     </div>

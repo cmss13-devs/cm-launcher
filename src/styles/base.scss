@@ -228,6 +228,31 @@ body {
   font-size: 14px;
 }
 
+.notification-button {
+  background: transparent;
+  border: 1px solid var(--primary-faint);
+  color: var(--primary-dim);
+  width: 32px;
+  height: 32px;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition);
+
+  &:hover {
+    border-color: var(--primary);
+    background-color: var(--bg-highlight);
+  }
+
+  &.enabled {
+    border-color: var(--primary);
+    color: var(--primary);
+    background-color: var(--bg-highlight-dim);
+  }
+}
+
 // Buttons
 .button,
 .button-secondary,

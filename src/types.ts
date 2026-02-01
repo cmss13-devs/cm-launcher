@@ -47,6 +47,7 @@ export interface SteamAuthState {
 export interface AppSettings {
   auth_mode: AuthMode;
   theme: Theme;
+  notification_servers: string[];
 }
 
 export interface ErrorNotification {
