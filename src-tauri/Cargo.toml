@@ -47,6 +47,7 @@ tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
 tracing-appender = "0.2"
 steamworks = { version = "0.12", optional = true }
 hex = "0.4"
+sha2 = "0.10"
 discord-sdk = "0.4.0"
 sysinfo = "0.33"
 async-trait = "0.1"

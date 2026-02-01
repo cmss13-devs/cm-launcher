@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::fs;
 use std::io;
 use std::path::PathBuf;
@@ -152,6 +153,51 @@ async fn try_download(url: &str) -> Result<Vec<u8>, String> {
     Ok(bytes.to_vec())
 }
 
+#[derive(Debug, Deserialize)]
+struct ByondHashResponse {
+    sha256: Option<String>,
+}
+
+async fn fetch_expected_hash(version: &str) -> Result<Option<String>, String> {
+    let url = format!("https://db.cm-ss13.com/api/ByondHash?byond_ver={}", version);
+
+    let response = reqwest::get(&url)
+        .await
+        .map_err(|e| format!("Failed to fetch hash: {}", e))?;
+
+    if !response.status().is_success() {
+        tracing::warn!(
+            "Hash API returned HTTP {} for version {}",
+            response.status(),
+            version
+        );
+        return Ok(None);
+    }
+
+    let hash_response: ByondHashResponse = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse hash response: {}", e))?;
+
+    Ok(hash_response.sha256)
+}
+
+fn verify_sha256(data: &[u8], expected_hex: &str) -> Result<(), String> {
+    let mut hasher = Sha256::new();
+    hasher.update(data);
+    let result = hasher.finalize();
+    let actual_hex = hex::encode(result);
+
+    if actual_hex.eq_ignore_ascii_case(expected_hex) {
+        Ok(())
+    } else {
+        Err(format!(
+            "SHA-256 mismatch: expected {}, got {}",
+            expected_hex, actual_hex
+        ))
+    }
+}
+
 #[tauri::command]
 pub async fn install_byond_version(
     app: AppHandle,
@@ -186,6 +232,33 @@ pub async fn install_byond_version(
             })?
         }
     };
+
+    // Verify download integrity using SHA-256 hash from API
+    match fetch_expected_hash(&version).await {
+        Ok(Some(expected_hash)) => {
+            verify_sha256(&bytes, &expected_hash).map_err(|e| {
+                tracing::error!("BYOND {} integrity check failed: {}", version, e);
+                format!(
+                    "Download integrity verification failed for BYOND {}: {}",
+                    version, e
+                )
+            })?;
+            tracing::info!("BYOND {} SHA-256 verified successfully", version);
+        }
+        Ok(None) => {
+            tracing::warn!(
+                "No SHA-256 hash available for BYOND {}, skipping verification",
+                version
+            );
+        }
+        Err(e) => {
+            tracing::warn!(
+                "Failed to fetch hash for BYOND {}: {}, skipping verification",
+                version,
+                e
+            );
+        }
+    }
 
     fs::write(&zip_path, &bytes).map_err(|e| format!("Failed to save download: {}", e))?;
 
