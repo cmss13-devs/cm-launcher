@@ -406,6 +406,8 @@ body {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
+  min-height: 38px;
+  box-sizing: border-box;
 }
 
 .relay-dropdown-label {
