@@ -10,6 +10,7 @@ import {
   RelayDropdown,
   ServerItem,
   SettingsModal,
+  SocialLinks,
   SteamAuthModal,
   Titlebar,
 } from "./components";
@@ -437,6 +438,7 @@ function AppContent() {
             />
           </div>
           <div className="footer-actions">
+            <SocialLinks />
             <RelayDropdown
               relays={relays}
               selectedRelay={selectedRelay}

@@ -8,6 +8,7 @@ export { Modal, ModalCloseButton, ModalContent, ModalSpinner } from "./Modal";
 export { RelayDropdown } from "./RelayDropdown";
 export { ServerItem } from "./ServerItem";
 export { SettingsModal } from "./SettingsModal";
+export { SocialLinks } from "./SocialLinks";
 export type { SteamAuthModalState } from "./SteamAuthModal";
 export { SteamAuthModal } from "./SteamAuthModal";
 export { Titlebar } from "./Titlebar";

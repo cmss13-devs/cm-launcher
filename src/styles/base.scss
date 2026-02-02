@@ -328,6 +328,35 @@ body {
   justify-content: space-between;
 }
 
+// Social links
+.social-links {
+  display: flex;
+  gap: 2px;
+}
+
+.social-link-button {
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  border: none;
+  color: var(--primary-dim);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition);
+  padding: 0;
+
+  &:hover {
+    color: var(--primary);
+  }
+}
+
+.social-link-icon {
+  font-size: 18px;
+}
+
 .account-info {
   display: flex;
   align-items: center;
