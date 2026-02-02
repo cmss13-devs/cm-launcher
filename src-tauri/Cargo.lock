@@ -36,6 +36,7 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "uuid",
+ "win32job",
  "windows 0.62.2",
  "winreg 0.55.0",
  "zip",
@@ -5539,6 +5540,16 @@ dependencies = [
  "thiserror 2.0.18",
  "windows 0.61.3",
  "windows-core 0.61.2",
+]
+
+[[package]]
+name = "win32job"
+version = "2.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8c6a6724ccfbf34154a8691bd868b0fcd2be2ca3f7b47b32614654f1a01b191c"
+dependencies = [
+ "thiserror 1.0.69",
+ "windows 0.61.3",
 ]
 
 [[package]]

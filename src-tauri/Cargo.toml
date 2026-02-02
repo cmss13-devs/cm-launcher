@@ -58,3 +58,4 @@ futures-util = "0.3"
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55.0"
 windows = { version = "0.62.2", features = ["Win32_UI_WindowsAndMessaging"] }
+win32job = "2"

@@ -3,6 +3,8 @@ mod autoconnect;
 mod byond;
 mod control_server;
 mod discord;
+#[cfg(target_os = "windows")]
+mod job_object;
 mod logging;
 mod presence;
 mod relays;
@@ -58,6 +60,13 @@ pub fn run() {
 
     #[cfg(target_os = "windows")]
     {
+        // Initialize job object for child process lifecycle management.
+        // This ensures spawned game processes are terminated when the launcher exits
+        // (e.g., when user clicks "Stop" in Steam).
+        if let Err(e) = job_object::init_job_object() {
+            tracing::error!("Failed to initialize job object: {}", e);
+        }
+
         if !webview2::check_webview2_installed() {
             webview2::show_webview2_error();
             let _ = open::that("https://go.microsoft.com/fwlink/p/?LinkId=2124703");
