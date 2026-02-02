@@ -6,6 +6,7 @@
 		{
 			"#Status_Launcher"	"In the Launcher"
 			"#Status_Playing" "Playing on %name%: %players% online"
+			"#Status_Playing_Map" "Playing on %name% (%map%): %players% online"
 		}
 	}
 }

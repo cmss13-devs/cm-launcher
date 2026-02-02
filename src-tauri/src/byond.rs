@@ -319,6 +319,7 @@ pub async fn connect_to_server_internal(
     access_type: Option<String>,
     access_token: Option<String>,
     server_name: String,
+    map_name: Option<String>,
     source: Option<String>,
 ) -> Result<ConnectionResult, String> {
     let source_str = source.as_deref().unwrap_or("unknown");
@@ -351,6 +352,7 @@ pub async fn connect_to_server_internal(
         access_type,
         access_token,
         server_name,
+        map_name,
         source,
     )
     .await;
@@ -495,6 +497,8 @@ pub async fn connect_to_server(
         }
     };
 
+    let map_name = server.data.map(|d| d.map_name);
+
     tracing::info!(
         "[connect_to_server] source={} server={} version={} host={}",
         source_str,
@@ -511,6 +515,7 @@ pub async fn connect_to_server(
         access_type,
         access_token,
         server_name,
+        map_name,
         source,
     )
     .await
@@ -524,6 +529,7 @@ async fn connect_to_server_impl(
     access_type: Option<String>,
     access_token: Option<String>,
     server_name: String,
+    map_name: Option<String>,
     source: Option<String>,
 ) -> Result<ConnectionResult, String> {
     let version_info = install_byond_version(app.clone(), version.clone()).await?;
@@ -575,13 +581,10 @@ async fn connect_to_server_impl(
                 access_type,
                 access_token,
                 server_name: server_name.clone(),
+                map_name: map_name.clone(),
             });
 
-            manager.start_game_session(
-                server_name,
-                "https://db.cm-ss13.com/api/Round".to_string(),
-                child,
-            );
+            manager.start_game_session(server_name, map_name, child);
         }
 
         Ok(ConnectionResult {

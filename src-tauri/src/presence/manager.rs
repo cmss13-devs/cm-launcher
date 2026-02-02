@@ -4,10 +4,10 @@ use std::process::Child;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use super::status::fetch_player_count;
-use super::traits::{ConnectionParams, GameSession, PresenceProvider, PresenceState};
+use tauri::Manager;
 
-const STATUS_UPDATE_INTERVAL: Duration = Duration::from_secs(30);
+use super::traits::{ConnectionParams, GameSession, PresenceProvider, PresenceState};
+use crate::servers::ServerState;
 
 /// Manages game session state and multiple presence providers
 pub struct PresenceManager {
@@ -35,13 +35,18 @@ impl PresenceManager {
     }
 
     #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
-    pub fn start_game_session(&self, server_name: String, status_url: String, process: Child) {
+    pub fn start_game_session(
+        &self,
+        server_name: String,
+        map_name: Option<String>,
+        process: Child,
+    ) {
         tracing::info!("Starting game session on {}", server_name);
         {
             let mut session = self.game_session.lock().unwrap();
             *session = Some(GameSession {
                 server_name: server_name.clone(),
-                status_url,
+                map_name: map_name.clone(),
             });
         }
         {
@@ -52,6 +57,7 @@ impl PresenceManager {
         self.update_all_presence(&PresenceState::Playing {
             server_name,
             player_count: 0,
+            map_name,
         });
     }
 
@@ -163,8 +169,8 @@ pub fn start_presence_background_task(
     tauri::async_runtime::spawn(async move {
         let poll_interval = Duration::from_millis(100);
         let mut was_game_running = false;
-        let mut last_player_count: Option<u32> = None;
-        let mut last_status_fetch = std::time::Instant::now() - STATUS_UPDATE_INTERVAL;
+        let mut last_player_count: Option<i32> = None;
+        let mut last_map_name: Option<String> = None;
 
         loop {
             if let Some(ref callback) = poll_callback {
@@ -177,26 +183,41 @@ pub fn start_presence_background_task(
                 was_game_running = true;
 
                 if let Some(session) = presence_manager.get_game_session() {
-                    let now = std::time::Instant::now();
-                    if now.duration_since(last_status_fetch) >= STATUS_UPDATE_INTERVAL {
-                        last_status_fetch = now;
-
-                        let player_count =
-                            fetch_player_count(&session.status_url, &session.server_name).await;
-
-                        if player_count != last_player_count {
-                            last_player_count = player_count;
-
-                            presence_manager.update_all_presence(&PresenceState::Playing {
-                                server_name: session.server_name.clone(),
-                                player_count: player_count.unwrap_or(0),
-                            });
+                    let (player_count, map_name) = if let Some(server_state) =
+                        app_handle.try_state::<Arc<ServerState>>()
+                    {
+                        let servers = server_state.get_servers().await;
+                        if let Some(server) = servers.iter().find(|s| s.name == session.server_name)
+                        {
+                            let player_count = server.data.as_ref().map(|d| d.players);
+                            let map_name = server
+                                .data
+                                .as_ref()
+                                .map(|d| d.map_name.clone())
+                                .or_else(|| session.map_name.clone());
+                            (player_count, map_name)
+                        } else {
+                            (None, session.map_name.clone())
                         }
+                    } else {
+                        (None, session.map_name.clone())
+                    };
+
+                    if player_count != last_player_count || map_name != last_map_name {
+                        last_player_count = player_count;
+                        last_map_name = map_name.clone();
+
+                        presence_manager.update_all_presence(&PresenceState::Playing {
+                            server_name: session.server_name.clone(),
+                            player_count: player_count.unwrap_or(0) as u32,
+                            map_name,
+                        });
                     }
                 }
             } else if was_game_running {
                 was_game_running = false;
                 last_player_count = None;
+                last_map_name = None;
                 presence_manager.update_all_presence(&PresenceState::InLauncher);
                 app_handle.emit("game-closed", ()).ok();
             }

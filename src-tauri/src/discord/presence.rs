@@ -170,16 +170,22 @@ impl DiscordState {
                 PresenceState::Playing {
                     server_name,
                     player_count,
+                    map_name,
                 } => {
                     let encoded_server =
                         url::form_urlencoded::byte_serialize(server_name.as_bytes())
                             .collect::<String>();
                     let join_url = format!("{}//{}", steam_launch_url(), encoded_server);
 
+                    let details = match map_name {
+                        Some(map) => format!("{} players on {}", player_count, map),
+                        None => format!("{} players online", player_count),
+                    };
+
                     #[allow(unused_mut)]
                     let mut activity = ActivityBuilder::new()
                         .state(format!("Playing on {}", server_name))
-                        .details(format!("{} players online", player_count))
+                        .details(details)
                         .assets(Assets::default().large("logo", Some::<&str>("Colonial Marines")))
                         .button(Button {
                             label: "Join Game".to_string(),
