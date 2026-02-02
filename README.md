@@ -68,8 +68,8 @@ See issues tagged with https://github.com/cmss13-devs/cm-launcher/labels/feature
 
 ### Team Roles
 
-- **Committers and reviewers:** [cmss13-devs members](https://github.com/orgs/cmss13-devs/teams/launcher-reviewers)
-- **Approvers:** [Organization owners](https://github.com/orgs/cmss13-devs/teams/launcher-approvers)
+- **Committers and reviewers:** [Launcher Reviewer group members](https://github.com/orgs/cmss13-devs/teams/launcher-reviewers)
+- **Approvers:** [Launcher Approver group members](https://github.com/orgs/cmss13-devs/teams/launcher-approvers)
 
 ### Privacy Policy
 
