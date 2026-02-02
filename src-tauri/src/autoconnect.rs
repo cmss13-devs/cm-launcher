@@ -333,6 +333,8 @@ mod implementation {
             None,
         );
 
+        let map_name = server.data.as_ref().map(|d| d.map_name.clone());
+
         match connect_to_server_internal(
             handle.clone(),
             version,
@@ -341,6 +343,7 @@ mod implementation {
             access_type,
             access_token,
             server_name.clone(),
+            map_name,
             Some("autoconnect".to_string()),
         )
         .await

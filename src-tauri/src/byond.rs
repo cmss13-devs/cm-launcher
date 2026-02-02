@@ -605,6 +605,7 @@ async fn connect_to_server_impl(
             access_type,
             access_token,
             source,
+            map_name,
         );
         Err("BYOND is only natively supported on Windows".to_string())
     }
@@ -737,6 +738,7 @@ pub async fn connect_to_url(
             access_type,
             access_token,
             format!("Dev Server ({})", url),
+            None, // No map_name for dev server connections
             source,
         )
         .await
