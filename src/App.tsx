@@ -16,7 +16,12 @@ import {
 } from "./components";
 import type { AuthModalState } from "./components/AuthModal";
 import type { SteamAuthModalState } from "./components/SteamAuthModal";
-import { ErrorProvider, useError, useGameConnection } from "./hooks";
+import {
+  ErrorProvider,
+  useConnect,
+  useError,
+  useGameConnection,
+} from "./hooks";
 import {
   useAuthStore,
   useServerStore,
@@ -144,7 +149,12 @@ function AppContent() {
     showGameConnectionModal,
   } = useGameConnection();
 
+  const { connect } = useConnect();
+
   const [autoConnecting, setAutoConnecting] = useState(false);
+  const [pendingServerName, setPendingServerName] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     document.documentElement.className = `theme-${theme}`;
@@ -282,6 +292,15 @@ function AppContent() {
           error: undefined,
           linkingUrl: undefined,
         });
+
+        if (pendingServerName) {
+          const serverToConnect = pendingServerName;
+          setPendingServerName(null);
+          connect(serverToConnect, "SteamAuthModal.afterAuth").catch((err) => {
+            showError(err instanceof Error ? err.message : String(err));
+          });
+        }
+
         return result;
       }
       if (result?.requires_linking) {
@@ -301,7 +320,7 @@ function AppContent() {
       });
       return result;
     },
-    [authenticateSteam],
+    [authenticateSteam, connect, pendingServerName, showError],
   );
 
   const handleSteamModalClose = useCallback(async () => {
@@ -318,15 +337,21 @@ function AppContent() {
     steamLogout();
   }, [steamLogout]);
 
-  const onSteamAuthRequired = useCallback(() => {
-    setSteamModal({
-      visible: true,
-      state: "idle",
-      error: undefined,
-      linkingUrl: undefined,
-    });
-    handleSteamAuthenticate(false);
-  }, [handleSteamAuthenticate]);
+  const onSteamAuthRequired = useCallback(
+    (serverName?: string) => {
+      if (serverName) {
+        setPendingServerName(serverName);
+      }
+      setSteamModal({
+        visible: true,
+        state: "idle",
+        error: undefined,
+        linkingUrl: undefined,
+      });
+      handleSteamAuthenticate(false);
+    },
+    [handleSteamAuthenticate],
+  );
 
   // Settings handlers
   const handleAuthModeChange = useCallback(

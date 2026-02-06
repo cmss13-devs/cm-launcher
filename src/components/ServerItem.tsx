@@ -10,7 +10,7 @@ import { formatDuration } from "../utils";
 interface ServerItemProps {
   server: Server;
   onLoginRequired: () => void;
-  onSteamAuthRequired: () => void;
+  onSteamAuthRequired: (serverName?: string) => void;
   autoConnecting?: boolean;
 }
 
@@ -45,7 +45,7 @@ export function ServerItem({
         if (result.auth_error.code === "auth_required") {
           onLoginRequired();
         } else if (result.auth_error.code === "steam_linking_required") {
-          onSteamAuthRequired();
+          onSteamAuthRequired(server.name);
         } else {
           showError(result.auth_error.message);
         }
