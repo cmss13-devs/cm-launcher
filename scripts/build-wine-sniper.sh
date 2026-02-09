@@ -30,9 +30,10 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 OUTPUT_DIR="$PROJECT_ROOT/src-tauri/wine"
 WINETRICKS_OUTPUT="$PROJECT_ROOT/src-tauri/winetricks"
 
-# Wine version to build
+# Wine version to build (major.minor format)
 WINE_VERSION="${WINE_VERSION:-10.0}"
-WINE_SOURCE_URL="https://dl.winehq.org/wine/source/10.x/wine-${WINE_VERSION}.tar.xz"
+# URL uses major.minor as directory (e.g., 10.0, 9.0)
+WINE_SOURCE_URL="https://dl.winehq.org/wine/source/${WINE_VERSION}/wine-${WINE_VERSION}.tar.xz"
 
 # Container settings
 CONTAINER_IMAGE="registry.gitlab.steamos.cloud/steamrt/sniper/sdk"
@@ -85,19 +86,45 @@ pull_sdk_image() {
 
 download_wine_source() {
     local work_dir="$1"
-    log_info "Downloading Wine ${WINE_VERSION} source..."
+    local dest_file="$work_dir/wine-${WINE_VERSION}.tar.xz"
 
-    if [[ -f "$work_dir/wine-${WINE_VERSION}.tar.xz" ]]; then
-        log_info "Wine source already downloaded"
-        return 0
+    log_info "Downloading Wine ${WINE_VERSION} source from ${WINE_SOURCE_URL}..."
+
+    if [[ -f "$dest_file" ]]; then
+        # Verify it's actually a valid xz file
+        if xz -t "$dest_file" 2>/dev/null; then
+            log_info "Wine source already downloaded and valid"
+            return 0
+        else
+            log_warn "Existing download is corrupted, re-downloading..."
+            rm -f "$dest_file"
+        fi
     fi
 
-    curl -L -o "$work_dir/wine-${WINE_VERSION}.tar.xz" "$WINE_SOURCE_URL"
+    if ! curl -fL -o "$dest_file" "$WINE_SOURCE_URL"; then
+        log_error "Failed to download Wine source from $WINE_SOURCE_URL"
+        log_error "Check that Wine version $WINE_VERSION exists"
+        exit 1
+    fi
+
+    # Verify download
+    if ! xz -t "$dest_file" 2>/dev/null; then
+        log_error "Downloaded file is not a valid xz archive"
+        rm -f "$dest_file"
+        exit 1
+    fi
+
+    log_info "Wine source downloaded successfully"
 }
 
 download_winetricks() {
     log_info "Downloading winetricks..."
-    curl -L -o "$WINETRICKS_OUTPUT" "$WINETRICKS_URL"
+
+    if ! curl -fL -o "$WINETRICKS_OUTPUT" "$WINETRICKS_URL"; then
+        log_error "Failed to download winetricks"
+        exit 1
+    fi
+
     chmod +x "$WINETRICKS_OUTPUT"
     log_info "Winetricks downloaded to: $WINETRICKS_OUTPUT"
 }
