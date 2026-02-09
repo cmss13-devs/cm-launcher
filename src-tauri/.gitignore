@@ -9,3 +9,7 @@
 /resources
 
 steam_appid.txt
+
+# Bundled Wine (built by scripts/build-wine-sniper.sh)
+wine/
+winetricks

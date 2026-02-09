@@ -47,6 +47,24 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
+      - name: Cache Wine build
+        if: matrix.platform == 'ubuntu-22.04'
+        id: cache-wine
+        uses: actions/cache@v4
+        with:
+          path: |
+            src-tauri/wine
+            src-tauri/winetricks
+          key: wine-sniper-10.0-${{ hashFiles('scripts/build-wine-sniper.sh') }}
+
+      - name: Build Wine for Steam Runtime (ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04' && steps.cache-wine.outputs.cache-hit != 'true'
+        run: ./scripts/build-wine-sniper.sh
+
+      - name: Download winetricks only (if Wine cached)
+        if: matrix.platform == 'ubuntu-22.04' && steps.cache-wine.outputs.cache-hit == 'true' && !hashFiles('src-tauri/winetricks')
+        run: ./scripts/build-wine-sniper.sh winetricks
+
       - name: install frontend dependencies
         run: npm install
 
@@ -57,4 +75,4 @@ jobs:
           tagName: app-v__VERSION__
           releaseName: "App v__VERSION__"
           releaseBody: "See the assets to download this version and install."
-          args: ${{ matrix.args }}
+          args: ${{ matrix.args }} ${{ matrix.platform == 'ubuntu-22.04' && '--config src-tauri/tauri.linux.conf.json' || '' }}

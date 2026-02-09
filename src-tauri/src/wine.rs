@@ -5,8 +5,12 @@
 //! - Wine prefix initialization with required dependencies
 //! - WebView2 installation within the prefix
 //! - Launching executables via Wine
+//!
+//! In production builds, Wine is bundled with the application (built for Steam Runtime sniper).
+//! In development builds, the system Wine is used as a fallback.
 
 use serde::{Deserialize, Serialize};
+use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
@@ -23,6 +27,10 @@ const INIT_MARKER_FILE: &str = ".cm_launcher_initialized";
 
 /// Current initialization version - bump this to force re-initialization
 const INIT_VERSION: u32 = 1;
+
+/// Resource names for bundled Wine
+const WINE_RESOURCE_DIR: &str = "wine";
+const WINETRICKS_RESOURCE: &str = "winetricks";
 
 /// Winetricks verbs to install, in order
 const WINETRICKS_VERBS: &[(&str, &str)] = &[
@@ -124,14 +132,218 @@ impl From<WineError> for String {
     }
 }
 
-/// Check if Wine is installed and return its version
-pub fn check_wine_installed() -> Result<(String, bool), WineError> {
-    let wine_path = which::which("wine").map_err(|_| WineError::WineNotFound)?;
+/// Wine binary paths resolved from bundled or system Wine
+#[derive(Debug, Clone)]
+pub struct WinePaths {
+    /// Path to the wine binary (wine64 preferred)
+    pub wine: PathBuf,
+    /// Path to wine64 binary (same as wine in most cases)
+    pub wine64: PathBuf,
+    /// Path to wineserver binary
+    pub wineserver: PathBuf,
+    /// Path to wineboot binary
+    pub wineboot: PathBuf,
+    /// Path to winetricks script
+    pub winetricks: PathBuf,
+    /// Wine installation directory (for setting LD_LIBRARY_PATH, etc.)
+    pub wine_dir: PathBuf,
+    /// Whether using bundled Wine (vs system)
+    pub is_bundled: bool,
+}
 
-    let output = Command::new(&wine_path)
-        .arg("--version")
-        .output()
+impl WinePaths {
+    /// Get environment variables needed to run Wine commands
+    pub fn get_env_vars(&self) -> Vec<(String, String)> {
+        let mut vars = Vec::new();
+
+        if self.is_bundled {
+            // Set LD_LIBRARY_PATH to include Wine's libraries
+            let lib64_dir = self.wine_dir.join("lib64");
+            let lib_dir = self.wine_dir.join("lib");
+
+            let existing_ld_path = std::env::var("LD_LIBRARY_PATH").unwrap_or_default();
+            let ld_library_path = if existing_ld_path.is_empty() {
+                format!("{}:{}", lib64_dir.display(), lib_dir.display())
+            } else {
+                format!(
+                    "{}:{}:{}",
+                    lib64_dir.display(),
+                    lib_dir.display(),
+                    existing_ld_path
+                )
+            };
+            vars.push(("LD_LIBRARY_PATH".to_string(), ld_library_path));
+
+            // Set WINEDLLPATH to Wine's DLL directories
+            let wine_dll_path = format!(
+                "{}:{}",
+                self.wine_dir.join("lib64/wine").display(),
+                self.wine_dir.join("lib/wine").display()
+            );
+            vars.push(("WINEDLLPATH".to_string(), wine_dll_path));
+
+            // Set WINESERVER path
+            vars.push((
+                "WINESERVER".to_string(),
+                self.wineserver.to_string_lossy().to_string(),
+            ));
+        }
+
+        // Always suppress Wine debug output for cleaner logs
+        vars.push(("WINEDEBUG".to_string(), "-all".to_string()));
+
+        vars
+    }
+
+    /// Get environment variables for winetricks (includes WINE and WINE64)
+    pub fn get_winetricks_env_vars(&self) -> Vec<(String, String)> {
+        let mut vars = self.get_env_vars();
+
+        // Winetricks needs to know where Wine binaries are
+        vars.push((
+            "WINE".to_string(),
+            self.wine.to_string_lossy().to_string(),
+        ));
+        vars.push((
+            "WINE64".to_string(),
+            self.wine64.to_string_lossy().to_string(),
+        ));
+
+        vars
+    }
+}
+
+/// Get the bundled Wine directory path
+fn get_bundled_wine_dir(app: &AppHandle) -> Option<PathBuf> {
+    // In production, Wine is bundled as a resource
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        let wine_dir = resource_dir.join(WINE_RESOURCE_DIR);
+        if wine_dir.exists() && wine_dir.join("bin/wine64").exists() {
+            return Some(wine_dir);
+        }
+    }
+
+    // In development, check if Wine was built locally in src-tauri/wine/
+    #[cfg(debug_assertions)]
+    {
+        // Try to find the project root by looking for Cargo.toml
+        if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
+            let dev_wine_dir = PathBuf::from(manifest_dir).join("wine");
+            if dev_wine_dir.exists() && dev_wine_dir.join("bin/wine64").exists() {
+                return Some(dev_wine_dir);
+            }
+        }
+    }
+
+    None
+}
+
+/// Get the bundled winetricks path
+fn get_bundled_winetricks(app: &AppHandle) -> Option<PathBuf> {
+    // In production, winetricks is bundled as a resource
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        let winetricks_path = resource_dir.join(WINETRICKS_RESOURCE);
+        if winetricks_path.exists() {
+            return Some(winetricks_path);
+        }
+    }
+
+    // In development, check if winetricks was downloaded locally
+    #[cfg(debug_assertions)]
+    {
+        if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
+            let dev_winetricks = PathBuf::from(manifest_dir).join("winetricks");
+            if dev_winetricks.exists() {
+                return Some(dev_winetricks);
+            }
+        }
+    }
+
+    None
+}
+
+/// Resolve Wine paths - prefers bundled Wine, falls back to system Wine
+pub fn resolve_wine_paths(app: &AppHandle) -> Result<WinePaths, WineError> {
+    // Try bundled Wine first
+    if let Some(wine_dir) = get_bundled_wine_dir(app) {
+        let bin_dir = wine_dir.join("bin");
+        let wine64 = bin_dir.join("wine64");
+        let wine = if bin_dir.join("wine").exists() {
+            bin_dir.join("wine")
+        } else {
+            wine64.clone()
+        };
+        let wineserver = bin_dir.join("wineserver");
+        let wineboot = bin_dir.join("wineboot");
+
+        // Verify binaries exist
+        if wine64.exists() && wineserver.exists() {
+            let winetricks = get_bundled_winetricks(app)
+                .or_else(|| which::which("winetricks").ok())
+                .ok_or(WineError::WinetricksNotFound)?;
+
+            tracing::info!("Using bundled Wine from: {:?}", wine_dir);
+            return Ok(WinePaths {
+                wine,
+                wine64,
+                wineserver,
+                wineboot,
+                winetricks,
+                wine_dir,
+                is_bundled: true,
+            });
+        }
+    }
+
+    // Fall back to system Wine
+    tracing::info!("Bundled Wine not found, falling back to system Wine");
+    resolve_system_wine_paths()
+}
+
+/// Resolve system Wine paths using which
+fn resolve_system_wine_paths() -> Result<WinePaths, WineError> {
+    let wine64 = which::which("wine64")
+        .or_else(|_| which::which("wine"))
         .map_err(|_| WineError::WineNotFound)?;
+
+    let wine = which::which("wine").unwrap_or_else(|_| wine64.clone());
+
+    // Derive wine_dir from the binary path (e.g., /usr/bin/wine64 -> /usr)
+    let wine_dir = wine64
+        .parent()
+        .and_then(|p| p.parent())
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| PathBuf::from("/usr"));
+
+    let wineserver =
+        which::which("wineserver").unwrap_or_else(|_| wine_dir.join("bin/wineserver"));
+
+    let wineboot = which::which("wineboot").unwrap_or_else(|_| wine_dir.join("bin/wineboot"));
+
+    let winetricks = which::which("winetricks").map_err(|_| WineError::WinetricksNotFound)?;
+
+    Ok(WinePaths {
+        wine,
+        wine64,
+        wineserver,
+        wineboot,
+        winetricks,
+        wine_dir,
+        is_bundled: false,
+    })
+}
+
+/// Check if Wine is installed and return its version
+pub fn check_wine_installed_with_paths(paths: &WinePaths) -> Result<(String, bool), WineError> {
+    let mut cmd = Command::new(&paths.wine);
+    cmd.arg("--version");
+
+    // Apply environment variables for bundled Wine
+    for (key, value) in paths.get_env_vars() {
+        cmd.env(key, value);
+    }
+
+    let output = cmd.output().map_err(|_| WineError::WineNotFound)?;
 
     if !output.status.success() {
         return Err(WineError::WineNotFound);
@@ -141,12 +353,19 @@ pub fn check_wine_installed() -> Result<(String, bool), WineError> {
     let meets_minimum = parse_and_check_wine_version(&version_str);
 
     tracing::info!(
-        "Wine detected: {} (meets minimum: {})",
+        "Wine detected: {} (bundled: {}, meets minimum: {})",
         version_str,
+        paths.is_bundled,
         meets_minimum
     );
 
     Ok((version_str, meets_minimum))
+}
+
+/// Check if Wine is installed and return its version (legacy, uses system Wine only)
+pub fn check_wine_installed() -> Result<(String, bool), WineError> {
+    let paths = resolve_system_wine_paths()?;
+    check_wine_installed_with_paths(&paths)
 }
 
 /// Parse Wine version string and check if it meets minimum requirements
@@ -181,7 +400,16 @@ fn parse_and_check_wine_version(version_str: &str) -> bool {
     (major, minor) >= MIN_WINE_VERSION
 }
 
-/// Check if winetricks is installed
+/// Check if winetricks is installed (using resolved paths)
+pub fn check_winetricks_installed_with_paths(paths: &WinePaths) -> Result<PathBuf, WineError> {
+    if paths.winetricks.exists() {
+        Ok(paths.winetricks.clone())
+    } else {
+        Err(WineError::WinetricksNotFound)
+    }
+}
+
+/// Check if winetricks is installed (legacy, uses system winetricks only)
 pub fn check_winetricks_installed() -> Result<PathBuf, WineError> {
     which::which("winetricks").map_err(|_| WineError::WinetricksNotFound)
 }
@@ -229,8 +457,17 @@ fn check_webview2_installed(prefix: &Path) -> bool {
 pub async fn check_prefix_status(app: &AppHandle) -> WineStatus {
     let mut status = WineStatus::default();
 
+    // Resolve Wine paths (bundled or system)
+    let paths = match resolve_wine_paths(app) {
+        Ok(p) => p,
+        Err(e) => {
+            status.error = Some(e.to_string());
+            return status;
+        }
+    };
+
     // Check Wine
-    match check_wine_installed() {
+    match check_wine_installed_with_paths(&paths) {
         Ok((version, meets_min)) => {
             status.installed = true;
             status.version = Some(version);
@@ -243,7 +480,7 @@ pub async fn check_prefix_status(app: &AppHandle) -> WineStatus {
     }
 
     // Check winetricks
-    status.winetricks_installed = check_winetricks_installed().is_ok();
+    status.winetricks_installed = check_winetricks_installed_with_paths(&paths).is_ok();
 
     // Check prefix
     if let Ok(prefix) = get_wine_prefix(app) {
@@ -270,31 +507,51 @@ fn emit_progress(app: &AppHandle, stage: WineSetupStage, progress: u8, message: 
 }
 
 /// Run a Wine command with the specified prefix
-fn run_wine_command(prefix: &Path, args: &[&str]) -> Result<Output, WineError> {
-    let wine_path = which::which("wine").map_err(|_| WineError::WineNotFound)?;
+fn run_wine_command_with_paths(
+    paths: &WinePaths,
+    prefix: &Path,
+    args: &[impl AsRef<OsStr>],
+) -> Result<Output, WineError> {
+    let mut cmd = Command::new(&paths.wine);
+    cmd.args(args);
+    cmd.env("WINEPREFIX", prefix);
 
-    let output = Command::new(&wine_path)
-        .args(args)
-        .env("WINEPREFIX", prefix)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()?;
+    // Apply environment variables for bundled Wine
+    for (key, value) in paths.get_env_vars() {
+        cmd.env(key, value);
+    }
 
+    cmd.stdout(Stdio::piped());
+    cmd.stderr(Stdio::piped());
+
+    let output = cmd.output()?;
     Ok(output)
 }
 
-/// Run winetricks with a specific verb
-fn run_winetricks(prefix: &Path, verb: &str) -> Result<(), WineError> {
-    let winetricks_path = check_winetricks_installed()?;
+/// Run a Wine command with the specified prefix (legacy, uses system Wine)
+#[allow(dead_code)]
+fn run_wine_command(prefix: &Path, args: &[&str]) -> Result<Output, WineError> {
+    let paths = resolve_system_wine_paths()?;
+    run_wine_command_with_paths(&paths, prefix, args)
+}
 
+/// Run winetricks with a specific verb
+fn run_winetricks_with_paths(paths: &WinePaths, prefix: &Path, verb: &str) -> Result<(), WineError> {
     tracing::info!("Running winetricks {}", verb);
 
-    let output = Command::new(&winetricks_path)
-        .args(["-q", verb])
-        .env("WINEPREFIX", prefix)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()?;
+    let mut cmd = Command::new(&paths.winetricks);
+    cmd.args(["-q", verb]);
+    cmd.env("WINEPREFIX", prefix);
+
+    // Apply environment variables for bundled Wine (includes WINE and WINE64)
+    for (key, value) in paths.get_winetricks_env_vars() {
+        cmd.env(key, value);
+    }
+
+    cmd.stdout(Stdio::piped());
+    cmd.stderr(Stdio::piped());
+
+    let output = cmd.output()?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -307,26 +564,40 @@ fn run_winetricks(prefix: &Path, verb: &str) -> Result<(), WineError> {
     Ok(())
 }
 
+/// Run winetricks with a specific verb (legacy, uses system Wine)
+#[allow(dead_code)]
+fn run_winetricks(prefix: &Path, verb: &str) -> Result<(), WineError> {
+    let paths = resolve_system_wine_paths()?;
+    run_winetricks_with_paths(&paths, prefix, verb)
+}
+
 /// Set a registry key in the Wine prefix
-fn set_registry_key(
+fn set_registry_key_with_paths(
+    paths: &WinePaths,
     prefix: &Path,
     path: &str,
     key: &str,
     value: &str,
     reg_type: &str,
 ) -> Result<(), WineError> {
-    let wine_path = which::which("wine").map_err(|_| WineError::WineNotFound)?;
-
     // Use wine reg add command
     let full_path = format!("{}\\{}", path, key);
-    let output = Command::new(&wine_path)
-        .args([
-            "reg", "add", path, "/v", key, "/t", reg_type, "/d", value, "/f",
-        ])
-        .env("WINEPREFIX", prefix)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()?;
+
+    let mut cmd = Command::new(&paths.wine);
+    cmd.args([
+        "reg", "add", path, "/v", key, "/t", reg_type, "/d", value, "/f",
+    ]);
+    cmd.env("WINEPREFIX", prefix);
+
+    // Apply environment variables for bundled Wine
+    for (k, v) in paths.get_env_vars() {
+        cmd.env(k, v);
+    }
+
+    cmd.stdout(Stdio::piped());
+    cmd.stderr(Stdio::piped());
+
+    let output = cmd.output()?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -340,19 +611,46 @@ fn set_registry_key(
     Ok(())
 }
 
+/// Set a registry key in the Wine prefix (legacy, uses system Wine)
+#[allow(dead_code)]
+fn set_registry_key(
+    prefix: &Path,
+    path: &str,
+    key: &str,
+    value: &str,
+    reg_type: &str,
+) -> Result<(), WineError> {
+    let paths = resolve_system_wine_paths()?;
+    set_registry_key_with_paths(&paths, prefix, path, key, value, reg_type)
+}
+
 /// Kill a process running in the Wine prefix
-fn kill_wine_process(prefix: &Path, process_name: &str) -> Result<(), WineError> {
-    let wine_path = which::which("wine").map_err(|_| WineError::WineNotFound)?;
+fn kill_wine_process_with_paths(
+    paths: &WinePaths,
+    prefix: &Path,
+    process_name: &str,
+) -> Result<(), WineError> {
+    let mut cmd = Command::new(&paths.wine);
+    cmd.args(["taskkill", "/f", "/im", process_name]);
+    cmd.env("WINEPREFIX", prefix);
 
-    // Use wineserver to kill the process
-    let _ = Command::new(&wine_path)
-        .args(["taskkill", "/f", "/im", process_name])
-        .env("WINEPREFIX", prefix)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .output();
+    // Apply environment variables for bundled Wine
+    for (key, value) in paths.get_env_vars() {
+        cmd.env(key, value);
+    }
 
+    cmd.stdout(Stdio::null());
+    cmd.stderr(Stdio::null());
+
+    let _ = cmd.output();
     Ok(())
+}
+
+/// Kill a process running in the Wine prefix (legacy, uses system Wine)
+#[allow(dead_code)]
+fn kill_wine_process(prefix: &Path, process_name: &str) -> Result<(), WineError> {
+    let paths = resolve_system_wine_paths()?;
+    kill_wine_process_with_paths(&paths, prefix, process_name)
 }
 
 /// Initialize the Wine prefix with all required dependencies
@@ -367,12 +665,15 @@ pub async fn initialize_prefix(app: &AppHandle) -> Result<(), WineError> {
         "Checking Wine installation...",
     );
 
-    let (version, meets_min) = check_wine_installed()?;
+    // Resolve Wine paths (bundled or system)
+    let paths = resolve_wine_paths(app)?;
+
+    let (version, meets_min) = check_wine_installed_with_paths(&paths)?;
     if !meets_min {
         return Err(WineError::WineVersionTooOld(version));
     }
 
-    check_winetricks_installed()?;
+    check_winetricks_installed_with_paths(&paths)?;
 
     // Create prefix directory
     fs::create_dir_all(&prefix)?;
@@ -385,7 +686,7 @@ pub async fn initialize_prefix(app: &AppHandle) -> Result<(), WineError> {
         "Creating Wine prefix...",
     );
 
-    let output = run_wine_command(&prefix, &["wineboot", "--init"])?;
+    let output = run_wine_command_with_paths(&paths, &prefix, &["wineboot", "--init"])?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(WineError::PrefixCreationFailed(stderr.to_string()));
@@ -412,7 +713,7 @@ pub async fn initialize_prefix(app: &AppHandle) -> Result<(), WineError> {
             &format!("Installing {}...", description),
         );
 
-        run_winetricks(&prefix, verb)?;
+        run_winetricks_with_paths(&paths, &prefix, verb)?;
     }
 
     // Step 7: Set registry key for WebView2 compatibility
@@ -423,7 +724,8 @@ pub async fn initialize_prefix(app: &AppHandle) -> Result<(), WineError> {
         "Configuring WebView2 compatibility...",
     );
 
-    set_registry_key(
+    set_registry_key_with_paths(
+        &paths,
         &prefix,
         "HKEY_CURRENT_USER\\Software\\Wine\\AppDefaults\\msedgewebview2.exe",
         "version",
@@ -450,10 +752,9 @@ pub async fn initialize_prefix(app: &AppHandle) -> Result<(), WineError> {
         "Installing WebView2 (this may take a while)...",
     );
 
-    let output = run_wine_command(
-        &prefix,
-        &[webview2_installer.to_str().unwrap(), "/silent", "/install"],
-    )?;
+    let installer_path = webview2_installer.to_string_lossy().to_string();
+    let output =
+        run_wine_command_with_paths(&paths, &prefix, &[&installer_path, "/silent", "/install"])?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -465,7 +766,7 @@ pub async fn initialize_prefix(app: &AppHandle) -> Result<(), WineError> {
     tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
 
     // Kill MicrosoftEdgeUpdate.exe if it's running
-    let _ = kill_wine_process(&prefix, "MicrosoftEdgeUpdate.exe");
+    let _ = kill_wine_process_with_paths(&paths, &prefix, "MicrosoftEdgeUpdate.exe");
 
     // Clean up installer
     let _ = fs::remove_file(&webview2_installer);
@@ -534,18 +835,29 @@ pub fn launch_with_wine(
     env_vars: &[(&str, &str)],
 ) -> Result<std::process::Child, WineError> {
     let prefix = get_wine_prefix(app)?;
-    let wine_path = which::which("wine").map_err(|_| WineError::WineNotFound)?;
+    let paths = resolve_wine_paths(app)?;
 
-    let mut cmd = Command::new(&wine_path);
+    let mut cmd = Command::new(&paths.wine);
     cmd.arg(exe_path);
     cmd.args(args);
     cmd.env("WINEPREFIX", &prefix);
 
+    // Apply environment variables for bundled Wine
+    for (key, value) in paths.get_env_vars() {
+        cmd.env(key, value);
+    }
+
+    // Apply user-provided environment variables
     for (key, value) in env_vars {
         cmd.env(key, value);
     }
 
-    tracing::info!("Launching via Wine: {:?} {:?}", exe_path, args);
+    tracing::info!(
+        "Launching via Wine (bundled: {}): {:?} {:?}",
+        paths.is_bundled,
+        exe_path,
+        args
+    );
 
     let child = cmd
         .spawn()

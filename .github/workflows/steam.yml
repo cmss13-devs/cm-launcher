@@ -103,6 +103,26 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
+      - name: Cache Wine build
+        id: cache-wine
+        uses: actions/cache@v4
+        with:
+          path: |
+            src-tauri/wine
+            src-tauri/winetricks
+          key: wine-sniper-10.0-${{ hashFiles('scripts/build-wine-sniper.sh') }}
+
+      - name: Build Wine for Steam Runtime
+        if: steps.cache-wine.outputs.cache-hit != 'true'
+        run: ./scripts/build-wine-sniper.sh
+
+      - name: Download winetricks only (if Wine cached)
+        if: steps.cache-wine.outputs.cache-hit == 'true'
+        run: |
+          if [ ! -f src-tauri/winetricks ]; then
+            ./scripts/build-wine-sniper.sh winetricks
+          fi
+
       - name: Download Steamworks SDK
         run: |
           curl -L "https://github.com/rlabrecque/SteamworksSDK/archive/$STEAMWORKS_SDK_COMMIT.zip" -o steamworks_sdk.zip
@@ -127,7 +147,7 @@ jobs:
           LD_LIBRARY_PATH: /usr/lib
           STEAM_APP_ID: ${{ matrix.steam_app_id }}
         with:
-          args: --features steam --config src-tauri/tauri.steam.conf.json
+          args: --features steam --config src-tauri/tauri.steam.conf.json --config src-tauri/tauri.linux.conf.json
 
       - name: Prepare Linux artifacts
         run: |
