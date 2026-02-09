@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
-# Download pre-built portable Wine for bundling in AppImage
+# Download pre-built portable Wine and package as archive for AppImage bundling
 #
 # Uses Kron4ek's Wine builds: https://github.com/Kron4ek/Wine-Builds
 # These are portable, self-contained Wine builds that work on most Linux distros.
+#
+# The Wine directory is compressed as a tar.zst archive to:
+# 1. Avoid linuxdeploy scanning Wine binaries for dependencies
+# 2. Reduce AppImage size (~500MB -> ~120MB)
+#
+# At runtime, the archive is extracted to the app data directory on first use.
 #
 # Usage:
 #   ./scripts/download-wine.sh           # Download default version
@@ -12,7 +18,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-OUTPUT_DIR="$PROJECT_ROOT/src-tauri/wine"
+WINE_ARCHIVE="$PROJECT_ROOT/src-tauri/wine.tar.zst"
 WINETRICKS_OUTPUT="$PROJECT_ROOT/src-tauri/winetricks"
 
 # Wine version (check https://github.com/Kron4ek/Wine-Builds/releases for available versions)
@@ -61,20 +67,23 @@ download_wine() {
         exit 1
     fi
 
-    log_info "Extracting Wine..."
-    rm -rf "$OUTPUT_DIR"
-    mkdir -p "$OUTPUT_DIR"
+    log_info "Recompressing Wine as zstd archive..."
 
-    # Extract and move contents (archive contains wine-VERSION-amd64/ folder)
+    # Extract to temp dir, then recompress with zstd
     local temp_extract
     temp_extract=$(mktemp -d)
     tar -xf "$temp_file" -C "$temp_extract"
 
-    # Move contents from the extracted folder to output dir
-    mv "$temp_extract"/wine-*/* "$OUTPUT_DIR/"
+    # Create zstd archive (contents directly, not nested in wine-VERSION-amd64/)
+    # Use compression level 19 for best ratio
+    rm -f "$WINE_ARCHIVE"
+    tar -C "$temp_extract"/wine-*/ -cf - . | zstd -19 -T0 -o "$WINE_ARCHIVE"
+
     rm -rf "$temp_extract"
 
-    log_info "Wine extracted to: $OUTPUT_DIR"
+    local size
+    size=$(du -h "$WINE_ARCHIVE" | cut -f1)
+    log_info "Wine archive created: $WINE_ARCHIVE ($size)"
 }
 
 download_winetricks() {
@@ -89,36 +98,36 @@ download_winetricks() {
     log_info "Winetricks downloaded to: $WINETRICKS_OUTPUT"
 }
 
-verify_wine() {
-    log_info "Verifying Wine installation..."
+verify_archive() {
+    log_info "Verifying Wine archive..."
 
-    local wine_bin="$OUTPUT_DIR/bin/wine64"
-    if [[ ! -x "$wine_bin" ]]; then
-        log_error "Wine binary not found at $wine_bin"
+    if [[ ! -f "$WINE_ARCHIVE" ]]; then
+        log_error "Wine archive not found at $WINE_ARCHIVE"
         exit 1
     fi
 
-    # Check for required directories
-    for dir in bin lib lib64; do
-        if [[ ! -d "$OUTPUT_DIR/$dir" ]]; then
-            log_warn "Expected directory not found: $OUTPUT_DIR/$dir"
-        fi
-    done
+    # Test archive integrity
+    if ! zstd -t "$WINE_ARCHIVE" 2>/dev/null; then
+        log_error "Wine archive is corrupted"
+        exit 1
+    fi
 
-    # Get version
-    local version
-    version=$("$wine_bin" --version 2>/dev/null || echo "unknown")
-    log_info "Wine version: $version"
+    # List contents to verify structure
+    local has_wine64
+    has_wine64=$(tar -tf "$WINE_ARCHIVE" --zstd 2>/dev/null | grep -c "bin/wine64" || true)
+    if [[ "$has_wine64" -eq 0 ]]; then
+        log_error "Wine archive doesn't contain bin/wine64"
+        exit 1
+    fi
 
-    # Show size
     local size
-    size=$(du -sh "$OUTPUT_DIR" | cut -f1)
-    log_info "Total Wine size: $size"
+    size=$(du -h "$WINE_ARCHIVE" | cut -f1)
+    log_info "Wine archive verified: $size"
 }
 
 clean() {
-    log_info "Cleaning Wine and winetricks..."
-    rm -rf "$OUTPUT_DIR"
+    log_info "Cleaning Wine archive and winetricks..."
+    rm -f "$WINE_ARCHIVE"
     rm -f "$WINETRICKS_OUTPUT"
     log_info "Clean complete"
 }
@@ -129,8 +138,8 @@ Usage: $0 [command]
 
 Commands:
     download    Download Wine and winetricks (default)
-    clean       Remove downloaded Wine and winetricks
-    verify      Verify existing Wine installation
+    clean       Remove Wine archive and winetricks
+    verify      Verify existing Wine archive
     help        Show this help
 
 Environment Variables:
@@ -151,18 +160,18 @@ main() {
         download)
             download_wine
             download_winetricks
-            verify_wine
+            verify_archive
 
             log_info ""
             log_info "Download complete!"
-            log_info "Wine: $OUTPUT_DIR"
+            log_info "Wine archive: $WINE_ARCHIVE"
             log_info "Winetricks: $WINETRICKS_OUTPUT"
             ;;
         clean)
             clean
             ;;
         verify)
-            verify_wine
+            verify_archive
             ;;
         help|--help|-h)
             usage

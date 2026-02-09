@@ -6,7 +6,10 @@
 //! - WebView2 installation within the prefix
 //! - Launching executables via Wine
 //!
-//! In production builds, Wine is bundled with the application (downloaded via scripts/download-wine.sh).
+//! In production builds, Wine is bundled as a compressed archive (wine.tar.zst) and
+//! extracted to the app data directory on first use. This avoids linuxdeploy scanning
+//! Wine binaries during AppImage creation.
+//!
 //! In development builds, the system Wine is used as a fallback.
 
 use serde::{Deserialize, Serialize};
@@ -29,8 +32,10 @@ const INIT_MARKER_FILE: &str = ".cm_launcher_initialized";
 const INIT_VERSION: u32 = 1;
 
 /// Resource names for bundled Wine
-const WINE_RESOURCE_DIR: &str = "wine";
+const WINE_ARCHIVE_RESOURCE: &str = "wine.tar.zst";
 const WINETRICKS_RESOURCE: &str = "winetricks";
+/// Directory name for extracted Wine in app data
+const WINE_EXTRACTED_DIR: &str = "wine";
 
 /// Winetricks verbs to install, in order
 const WINETRICKS_VERBS: &[(&str, &str)] = &[
@@ -157,36 +162,30 @@ impl WinePaths {
         let mut vars = Vec::new();
 
         if self.is_bundled {
-            // Modern Wine (9.0+) directory structure:
-            // - lib/wine/x86_64-unix/ - Unix .so files (ntdll.so, etc.)
-            // - lib/wine/i386-unix/ - 32-bit Unix .so files
-            // - lib/wine/x86_64-windows/ - PE .dll files
-            // - lib/wine/i386-windows/ - 32-bit PE .dll files
-            let lib_dir = self.wine_dir.join("lib");
+            // Set LD_LIBRARY_PATH to include Wine's libraries
             let lib64_dir = self.wine_dir.join("lib64");
-
-            // Build LD_LIBRARY_PATH with all possible library locations
-            let mut ld_paths = Vec::new();
-            ld_paths.push(lib_dir.display().to_string());
-            ld_paths.push(lib64_dir.display().to_string());
-            // Wine 9.0+ Unix library paths
-            ld_paths.push(lib_dir.join("wine/x86_64-unix").display().to_string());
-            ld_paths.push(lib_dir.join("wine/i386-unix").display().to_string());
+            let lib_dir = self.wine_dir.join("lib");
 
             let existing_ld_path = std::env::var("LD_LIBRARY_PATH").unwrap_or_default();
-            if !existing_ld_path.is_empty() {
-                ld_paths.push(existing_ld_path);
-            }
-            vars.push(("LD_LIBRARY_PATH".to_string(), ld_paths.join(":")));
+            let ld_library_path = if existing_ld_path.is_empty() {
+                format!("{}:{}", lib64_dir.display(), lib_dir.display())
+            } else {
+                format!(
+                    "{}:{}:{}",
+                    lib64_dir.display(),
+                    lib_dir.display(),
+                    existing_ld_path
+                )
+            };
+            vars.push(("LD_LIBRARY_PATH".to_string(), ld_library_path));
 
-            // Set WINEDLLPATH to Wine's DLL directories (both old and new layouts)
-            let mut dll_paths = Vec::new();
-            dll_paths.push(lib_dir.join("wine").display().to_string());
-            dll_paths.push(lib64_dir.join("wine").display().to_string());
-            // Wine 9.0+ PE library paths
-            dll_paths.push(lib_dir.join("wine/x86_64-windows").display().to_string());
-            dll_paths.push(lib_dir.join("wine/i386-windows").display().to_string());
-            vars.push(("WINEDLLPATH".to_string(), dll_paths.join(":")));
+            // Set WINEDLLPATH to Wine's DLL directories
+            let wine_dll_path = format!(
+                "{}:{}",
+                self.wine_dir.join("lib64/wine").display(),
+                self.wine_dir.join("lib/wine").display()
+            );
+            vars.push(("WINEDLLPATH".to_string(), wine_dll_path));
 
             // Set WINESERVER path
             vars.push((
@@ -219,20 +218,90 @@ impl WinePaths {
     }
 }
 
-/// Get the bundled Wine directory path
-fn get_bundled_wine_dir(app: &AppHandle) -> Option<PathBuf> {
-    // In production, Wine is bundled as a resource
+/// Get the extracted Wine directory in app data
+fn get_wine_extract_dir(app: &AppHandle) -> Result<PathBuf, WineError> {
+    let app_data = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| WineError::Other(format!("Failed to get app data directory: {}", e)))?;
+    Ok(app_data.join(WINE_EXTRACTED_DIR))
+}
+
+/// Get the bundled Wine archive path from resources
+fn get_wine_archive_path(app: &AppHandle) -> Option<PathBuf> {
     if let Ok(resource_dir) = app.path().resource_dir() {
-        let wine_dir = resource_dir.join(WINE_RESOURCE_DIR);
-        if wine_dir.exists() && wine_dir.join("bin/wine64").exists() {
-            return Some(wine_dir);
+        let archive_path = resource_dir.join(WINE_ARCHIVE_RESOURCE);
+        if archive_path.exists() {
+            return Some(archive_path);
+        }
+    }
+    None
+}
+
+/// Extract the bundled Wine archive to app data directory
+fn extract_wine_archive(app: &AppHandle) -> Result<PathBuf, WineError> {
+    let archive_path = get_wine_archive_path(app)
+        .ok_or_else(|| WineError::Other("Wine archive not found in resources".to_string()))?;
+
+    let extract_dir = get_wine_extract_dir(app)?;
+
+    tracing::info!(
+        "Extracting Wine from {:?} to {:?}",
+        archive_path,
+        extract_dir
+    );
+
+    // Remove existing extraction if present (in case of corruption or upgrade)
+    if extract_dir.exists() {
+        fs::remove_dir_all(&extract_dir)?;
+    }
+    fs::create_dir_all(&extract_dir)?;
+
+    // Extract using tar with zstd decompression
+    let output = Command::new("tar")
+        .args([
+            "--zstd",
+            "-xf",
+            archive_path.to_str().unwrap(),
+            "-C",
+            extract_dir.to_str().unwrap(),
+        ])
+        .output()?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(WineError::Other(format!(
+            "Failed to extract Wine archive: {}",
+            stderr
+        )));
+    }
+
+    tracing::info!("Wine extracted successfully");
+    Ok(extract_dir)
+}
+
+/// Get the bundled Wine directory path, extracting from archive if needed
+fn get_bundled_wine_dir(app: &AppHandle) -> Option<PathBuf> {
+    // Check if Wine is already extracted in app data
+    if let Ok(extract_dir) = get_wine_extract_dir(app) {
+        if extract_dir.exists() && extract_dir.join("bin/wine64").exists() {
+            return Some(extract_dir);
         }
     }
 
-    // In development, check if Wine was built locally in src-tauri/wine/
+    // Check if archive exists and extract it
+    if get_wine_archive_path(app).is_some() {
+        match extract_wine_archive(app) {
+            Ok(extract_dir) => return Some(extract_dir),
+            Err(e) => {
+                tracing::error!("Failed to extract Wine archive: {}", e);
+            }
+        }
+    }
+
+    // In development, check if Wine was extracted locally in src-tauri/wine/
     #[cfg(debug_assertions)]
     {
-        // Try to find the project root by looking for Cargo.toml
         if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
             let dev_wine_dir = PathBuf::from(manifest_dir).join("wine");
             if dev_wine_dir.exists() && dev_wine_dir.join("bin/wine64").exists() {
