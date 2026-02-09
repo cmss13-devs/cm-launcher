@@ -6,7 +6,7 @@
 //! - WebView2 installation within the prefix
 //! - Launching executables via Wine
 //!
-//! In production builds, Wine is bundled with the application (built for Steam Runtime sniper).
+//! In production builds, Wine is bundled with the application (downloaded via scripts/download-wine.sh).
 //! In development builds, the system Wine is used as a fallback.
 
 use serde::{Deserialize, Serialize};
