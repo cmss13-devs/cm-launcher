@@ -753,8 +753,11 @@ pub async fn initialize_prefix(app: &AppHandle) -> Result<(), WineError> {
     );
 
     let installer_path = webview2_installer.to_string_lossy().to_string();
-    let output =
-        run_wine_command_with_paths(&paths, &prefix, &[&installer_path, "/silent", "/install"])?;
+    let output = run_wine_command_with_paths(
+        &paths,
+        &prefix,
+        &[installer_path.as_str(), "/silent", "/install"],
+    )?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
