@@ -157,30 +157,36 @@ impl WinePaths {
         let mut vars = Vec::new();
 
         if self.is_bundled {
-            // Set LD_LIBRARY_PATH to include Wine's libraries
-            let lib64_dir = self.wine_dir.join("lib64");
+            // Modern Wine (9.0+) directory structure:
+            // - lib/wine/x86_64-unix/ - Unix .so files (ntdll.so, etc.)
+            // - lib/wine/i386-unix/ - 32-bit Unix .so files
+            // - lib/wine/x86_64-windows/ - PE .dll files
+            // - lib/wine/i386-windows/ - 32-bit PE .dll files
             let lib_dir = self.wine_dir.join("lib");
+            let lib64_dir = self.wine_dir.join("lib64");
+
+            // Build LD_LIBRARY_PATH with all possible library locations
+            let mut ld_paths = Vec::new();
+            ld_paths.push(lib_dir.display().to_string());
+            ld_paths.push(lib64_dir.display().to_string());
+            // Wine 9.0+ Unix library paths
+            ld_paths.push(lib_dir.join("wine/x86_64-unix").display().to_string());
+            ld_paths.push(lib_dir.join("wine/i386-unix").display().to_string());
 
             let existing_ld_path = std::env::var("LD_LIBRARY_PATH").unwrap_or_default();
-            let ld_library_path = if existing_ld_path.is_empty() {
-                format!("{}:{}", lib64_dir.display(), lib_dir.display())
-            } else {
-                format!(
-                    "{}:{}:{}",
-                    lib64_dir.display(),
-                    lib_dir.display(),
-                    existing_ld_path
-                )
-            };
-            vars.push(("LD_LIBRARY_PATH".to_string(), ld_library_path));
+            if !existing_ld_path.is_empty() {
+                ld_paths.push(existing_ld_path);
+            }
+            vars.push(("LD_LIBRARY_PATH".to_string(), ld_paths.join(":")));
 
-            // Set WINEDLLPATH to Wine's DLL directories
-            let wine_dll_path = format!(
-                "{}:{}",
-                self.wine_dir.join("lib64/wine").display(),
-                self.wine_dir.join("lib/wine").display()
-            );
-            vars.push(("WINEDLLPATH".to_string(), wine_dll_path));
+            // Set WINEDLLPATH to Wine's DLL directories (both old and new layouts)
+            let mut dll_paths = Vec::new();
+            dll_paths.push(lib_dir.join("wine").display().to_string());
+            dll_paths.push(lib64_dir.join("wine").display().to_string());
+            // Wine 9.0+ PE library paths
+            dll_paths.push(lib_dir.join("wine/x86_64-windows").display().to_string());
+            dll_paths.push(lib_dir.join("wine/i386-windows").display().to_string());
+            vars.push(("WINEDLLPATH".to_string(), dll_paths.join(":")));
 
             // Set WINESERVER path
             vars.push((
