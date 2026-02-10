@@ -277,12 +277,14 @@ impl ControlServer {
     fn handle_status(request: tiny_http::Request, presence_manager: &Arc<PresenceManager>) {
         let is_running = presence_manager.check_game_running();
         let session = presence_manager.get_game_session();
+        let hwid = mid::get("cm-ss13").ok();
 
         let response = json_response(
             200,
             serde_json::json!({
                 "running": is_running,
                 "server_name": session.as_ref().map(|s| &s.server_name),
+                "hwid": hwid,
             }),
         );
         request.respond(response).ok();

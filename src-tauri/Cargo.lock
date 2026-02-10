@@ -13,6 +13,7 @@ dependencies = [
  "discord-sdk",
  "futures-util",
  "hex",
+ "mid",
  "oauth2",
  "open",
  "percent-encoding",
@@ -1731,6 +1732,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "hmac-sha256"
+version = "1.1.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d0f0ae375a85536cac3a243e3a9cda80a47910348abdea7e2c22f8ec556d586d"
+
+[[package]]
 name = "html5ever"
 version = "0.29.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2383,6 +2390,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "488016bfae457b036d996092f6cb448677611ce4449e970ceaf42695203f218a"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "mid"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f0ab4b7ce393ddb4cab95c46e5585bc6283fdcf8f4f6a81be98e6cce9ee39624"
+dependencies = [
+ "hex",
+ "hmac-sha256",
 ]
 
 [[package]]
