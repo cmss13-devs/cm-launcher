@@ -66,7 +66,7 @@ pub async fn get_steam_auth_ticket(
     steam_state: State<'_, Arc<SteamState>>,
 ) -> Result<String, String> {
     tracing::debug!("Generating Steam auth ticket");
-    let ticket_bytes = steam_state.get_auth_session_ticket()?;
+    let ticket_bytes = steam_state.get_auth_session_ticket().await?;
     Ok(hex::encode(ticket_bytes))
 }
 
@@ -87,7 +87,7 @@ pub async fn authenticate_with_steam(
     let steam_id = steam_state.get_steam_id().to_string();
     let display_name = steam_state.get_display_name();
 
-    let ticket_bytes = steam_state.get_auth_session_ticket()?;
+    let ticket_bytes = steam_state.get_auth_session_ticket().await?;
     let ticket = hex::encode(&ticket_bytes);
 
     let client = reqwest::Client::new();
