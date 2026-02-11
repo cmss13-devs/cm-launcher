@@ -15,7 +15,6 @@ function getStageDisplayName(stage: string): string {
   const stageNames: Record<string, string> = {
     checking: "Checking",
     creating_prefix: "Creating Wine prefix",
-    installing_mono: "Installing Wine Mono",
     installing_vcrun2022: "Installing Visual C++ 2022",
     installing_dxtrans: "Installing DirectX Transform",
     installing_corefonts: "Installing core fonts",

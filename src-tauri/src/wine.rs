@@ -39,7 +39,6 @@ const WINE_EXTRACTED_DIR: &str = "wine";
 
 /// Winetricks verbs to install, in order
 const WINETRICKS_VERBS: &[(&str, &str)] = &[
-    ("mono", "Wine Mono (.NET runtime)"),
     ("vcrun2022", "Visual C++ 2022 runtime"),
     ("dxtrans", "DirectX Transform libraries"),
     ("corefonts", "Microsoft core fonts"),
@@ -76,7 +75,6 @@ impl Default for WineStatus {
 pub enum WineSetupStage {
     Checking,
     CreatingPrefix,
-    InstallingMono,
     InstallingVcrun2022,
     InstallingDxtrans,
     InstallingCorefonts,
@@ -770,7 +768,19 @@ pub async fn initialize_prefix(app: &AppHandle) -> Result<(), WineError> {
         "Creating Wine prefix...",
     );
 
-    let output = run_wine_command_with_paths(&paths, &prefix, &["wineboot", "--init"])?;
+    // Run wineboot with Mono/Gecko dialogs suppressed (winetricks installs these later)
+    let output = {
+        let mut cmd = Command::new(&paths.wine);
+        cmd.args(["wineboot", "--init"]);
+        cmd.env("WINEPREFIX", &prefix);
+        cmd.env("WINEDLLOVERRIDES", "mscoree=d;mshtml=d");
+        for (key, value) in paths.get_env_vars() {
+            cmd.env(key, value);
+        }
+        cmd.stdout(Stdio::piped());
+        cmd.stderr(Stdio::piped());
+        cmd.output()?
+    };
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(WineError::PrefixCreationFailed(stderr.to_string()));
@@ -779,9 +789,8 @@ pub async fn initialize_prefix(app: &AppHandle) -> Result<(), WineError> {
     // Wait for wineboot to complete
     tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
-    // Step 2-6: Install winetricks verbs
+    // Step 2-5: Install winetricks verbs
     let verb_stages = [
-        WineSetupStage::InstallingMono,
         WineSetupStage::InstallingVcrun2022,
         WineSetupStage::InstallingDxtrans,
         WineSetupStage::InstallingCorefonts,

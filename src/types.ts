@@ -92,7 +92,6 @@ export interface WineStatus {
 export type WineSetupStage =
   | "checking"
   | "creating_prefix"
-  | "installing_mono"
   | "installing_vcrun2022"
   | "installing_dxtrans"
   | "installing_corefonts"
