@@ -205,10 +205,7 @@ impl WinePaths {
         let mut vars = self.get_env_vars();
 
         // Winetricks needs to know where Wine binaries are
-        vars.push((
-            "WINE".to_string(),
-            self.wine.to_string_lossy().to_string(),
-        ));
+        vars.push(("WINE".to_string(), self.wine.to_string_lossy().to_string()));
         vars.push((
             "WINE64".to_string(),
             self.wine64.to_string_lossy().to_string(),
@@ -284,7 +281,9 @@ fn extract_wine_archive(app: &AppHandle) -> Result<PathBuf, WineError> {
 fn get_bundled_wine_dir(app: &AppHandle) -> Option<PathBuf> {
     // Check if Wine is already extracted in app data
     if let Ok(extract_dir) = get_wine_extract_dir(app) {
-        if extract_dir.exists() && extract_dir.join("bin/wine64").exists() {
+        if extract_dir.exists()
+            && (extract_dir.join("bin/wine64").exists() || extract_dir.join("bin/wine").exists())
+        {
             return Some(extract_dir);
         }
     }
@@ -304,7 +303,10 @@ fn get_bundled_wine_dir(app: &AppHandle) -> Option<PathBuf> {
     {
         if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
             let dev_wine_dir = PathBuf::from(manifest_dir).join("wine");
-            if dev_wine_dir.exists() && dev_wine_dir.join("bin/wine64").exists() {
+            if dev_wine_dir.exists()
+                && (dev_wine_dir.join("bin/wine64").exists()
+                    || dev_wine_dir.join("bin/wine").exists())
+            {
                 return Some(dev_wine_dir);
             }
         }
@@ -342,7 +344,12 @@ pub fn resolve_wine_paths(app: &AppHandle) -> Result<WinePaths, WineError> {
     // Try bundled Wine first
     if let Some(wine_dir) = get_bundled_wine_dir(app) {
         let bin_dir = wine_dir.join("bin");
-        let wine64 = bin_dir.join("wine64");
+
+        let wine64 = if bin_dir.join("wine64").exists() {
+            bin_dir.join("wine64")
+        } else {
+            bin_dir.join("wine")
+        };
         let wine = if bin_dir.join("wine").exists() {
             bin_dir.join("wine")
         } else {
@@ -351,8 +358,7 @@ pub fn resolve_wine_paths(app: &AppHandle) -> Result<WinePaths, WineError> {
         let wineserver = bin_dir.join("wineserver");
         let wineboot = bin_dir.join("wineboot");
 
-        // Verify binaries exist
-        if wine64.exists() && wineserver.exists() {
+        if wine.exists() && wineserver.exists() {
             let winetricks = get_bundled_winetricks(app)
                 .or_else(|| which::which("winetricks").ok())
                 .ok_or(WineError::WinetricksNotFound)?;
@@ -390,8 +396,7 @@ fn resolve_system_wine_paths() -> Result<WinePaths, WineError> {
         .map(|p| p.to_path_buf())
         .unwrap_or_else(|| PathBuf::from("/usr"));
 
-    let wineserver =
-        which::which("wineserver").unwrap_or_else(|_| wine_dir.join("bin/wineserver"));
+    let wineserver = which::which("wineserver").unwrap_or_else(|_| wine_dir.join("bin/wineserver"));
 
     let wineboot = which::which("wineboot").unwrap_or_else(|_| wine_dir.join("bin/wineboot"));
 
@@ -611,7 +616,11 @@ fn run_wine_command(prefix: &Path, args: &[&str]) -> Result<Output, WineError> {
 }
 
 /// Run winetricks with a specific verb
-fn run_winetricks_with_paths(paths: &WinePaths, prefix: &Path, verb: &str) -> Result<(), WineError> {
+fn run_winetricks_with_paths(
+    paths: &WinePaths,
+    prefix: &Path,
+    verb: &str,
+) -> Result<(), WineError> {
     tracing::info!("Running winetricks {}", verb);
 
     let mut cmd = Command::new(&paths.winetricks);

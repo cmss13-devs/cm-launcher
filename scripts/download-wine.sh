@@ -112,11 +112,11 @@ verify_archive() {
         exit 1
     fi
 
-    # List contents to verify structure
-    local has_wine64
-    has_wine64=$(tar -tf "$WINE_ARCHIVE" --zstd 2>/dev/null | grep -c "bin/wine64" || true)
-    if [[ "$has_wine64" -eq 0 ]]; then
-        log_error "Wine archive doesn't contain bin/wine64"
+    # List contents to verify structure (Wine 10.5+ uses bin/wine instead of bin/wine64)
+    local has_wine
+    has_wine=$(tar -tf "$WINE_ARCHIVE" --zstd 2>/dev/null | grep -cE "bin/wine(64)?$" || true)
+    if [[ "$has_wine" -eq 0 ]]; then
+        log_error "Wine archive doesn't contain bin/wine or bin/wine64"
         exit 1
     fi
 

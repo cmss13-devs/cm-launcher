@@ -108,20 +108,13 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            src-tauri/wine
+            src-tauri/wine.tar.zst
             src-tauri/winetricks
           key: wine-10.5-${{ hashFiles('scripts/download-wine.sh') }}
 
-      - name: Build Wine for Steam Runtime
+      - name: Download Wine
         if: steps.cache-wine.outputs.cache-hit != 'true'
-        run: ./scripts/build-wine-sniper.sh
-
-      - name: Download winetricks only (if Wine cached)
-        if: steps.cache-wine.outputs.cache-hit == 'true'
-        run: |
-          if [ ! -f src-tauri/winetricks ]; then
-            ./scripts/build-wine-sniper.sh winetricks
-          fi
+        run: ./scripts/download-wine.sh
 
       - name: Download Steamworks SDK
         run: |
