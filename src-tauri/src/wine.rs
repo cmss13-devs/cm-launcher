@@ -73,15 +73,7 @@ impl Default for WineStatus {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum WineSetupStage {
-    Checking,
-    CreatingPrefix,
-    InstallingVcrun2022,
-    InstallingDxtrans,
-    InstallingCorefonts,
-    InstallingDxvk,
-    SettingRegistry,
-    DownloadingWebview2,
-    InstallingWebview2,
+    InProgress,
     Complete,
     Error,
 }
@@ -739,10 +731,9 @@ fn kill_wine_process(prefix: &Path, process_name: &str) -> Result<(), WineError>
 pub async fn initialize_prefix(app: &AppHandle) -> Result<(), WineError> {
     let prefix = get_wine_prefix(app)?;
 
-    // Check prerequisites
     emit_progress(
         app,
-        WineSetupStage::Checking,
+        WineSetupStage::InProgress,
         0,
         "Checking Wine installation...",
     );
@@ -757,18 +748,15 @@ pub async fn initialize_prefix(app: &AppHandle) -> Result<(), WineError> {
 
     check_winetricks_installed_with_paths(&paths)?;
 
-    // Create prefix directory
     fs::create_dir_all(&prefix)?;
 
-    // Step 1: Create/initialize prefix
     emit_progress(
         app,
-        WineSetupStage::CreatingPrefix,
+        WineSetupStage::InProgress,
         5,
         "Creating Wine prefix...",
     );
 
-    // Run wineboot with Mono/Gecko dialogs suppressed (winetricks installs these later)
     let output = {
         let mut cmd = Command::new(&paths.wine);
         cmd.args(["wineboot", "--init"]);
@@ -786,34 +774,24 @@ pub async fn initialize_prefix(app: &AppHandle) -> Result<(), WineError> {
         return Err(WineError::PrefixCreationFailed(stderr.to_string()));
     }
 
-    // Wait for wineboot to complete
     tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
-    // Step 2-5: Install winetricks verbs
-    let verb_stages = [
-        WineSetupStage::InstallingVcrun2022,
-        WineSetupStage::InstallingDxtrans,
-        WineSetupStage::InstallingCorefonts,
-        WineSetupStage::InstallingDxvk,
-    ];
-
+    let verb_count = WINETRICKS_VERBS.len();
     for (i, (verb, description)) in WINETRICKS_VERBS.iter().enumerate() {
-        let progress = 10 + (i as u8 * 10); // 10, 20, 30, 40, 50
+        let progress = 10 + ((i as u8 * 40) / verb_count as u8);
         emit_progress(
             app,
-            verb_stages[i].clone(),
+            WineSetupStage::InProgress,
             progress,
             &format!("Installing {}...", description),
         );
-
         run_winetricks_with_paths(&paths, &prefix, verb)?;
     }
 
-    // Step 7: Set registry key for WebView2 compatibility
     emit_progress(
         app,
-        WineSetupStage::SettingRegistry,
-        60,
+        WineSetupStage::InProgress,
+        55,
         "Configuring WebView2 compatibility...",
     );
 
@@ -826,22 +804,20 @@ pub async fn initialize_prefix(app: &AppHandle) -> Result<(), WineError> {
         "REG_SZ",
     )?;
 
-    // Step 7: Download WebView2
     emit_progress(
         app,
-        WineSetupStage::DownloadingWebview2,
-        70,
+        WineSetupStage::InProgress,
+        60,
         "Downloading WebView2 installer...",
     );
 
     let webview2_installer = prefix.join("webview2_installer.exe");
     download_webview2(&webview2_installer).await?;
 
-    // Step 8: Install WebView2
     emit_progress(
         app,
-        WineSetupStage::InstallingWebview2,
-        85,
+        WineSetupStage::InProgress,
+        80,
         "Installing WebView2 (this may take a while)...",
     );
 
@@ -854,20 +830,15 @@ pub async fn initialize_prefix(app: &AppHandle) -> Result<(), WineError> {
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        // Don't fail on WebView2 install errors - it often returns non-zero but succeeds
         tracing::warn!("WebView2 installer returned non-zero: {}", stderr);
     }
 
-    // Wait for installation to complete
     tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
 
-    // Kill MicrosoftEdgeUpdate.exe if it's running
     let _ = kill_wine_process_with_paths(&paths, &prefix, "MicrosoftEdgeUpdate.exe");
 
-    // Clean up installer
     let _ = fs::remove_file(&webview2_installer);
 
-    // Mark as initialized
     let marker_path = prefix.join(INIT_MARKER_FILE);
     fs::write(&marker_path, INIT_VERSION.to_string())?;
 
@@ -914,12 +885,10 @@ pub async fn reset_prefix(app: &AppHandle) -> Result<(), WineError> {
 
     tracing::info!("Resetting Wine prefix at {:?}", prefix);
 
-    // Delete existing prefix
     if prefix.exists() {
         fs::remove_dir_all(&prefix)?;
     }
 
-    // Reinitialize
     initialize_prefix(app).await
 }
 
@@ -938,12 +907,10 @@ pub fn launch_with_wine(
     cmd.args(args);
     cmd.env("WINEPREFIX", &prefix);
 
-    // Apply environment variables for bundled Wine
     for (key, value) in paths.get_env_vars() {
         cmd.env(key, value);
     }
 
-    // Apply user-provided environment variables
     for (key, value) in env_vars {
         cmd.env(key, value);
     }

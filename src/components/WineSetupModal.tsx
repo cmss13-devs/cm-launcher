@@ -11,22 +11,6 @@ interface WineSetupModalProps {
   onRetry: () => void;
 }
 
-function getStageDisplayName(stage: string): string {
-  const stageNames: Record<string, string> = {
-    checking: "Checking",
-    creating_prefix: "Creating Wine prefix",
-    installing_vcrun2022: "Installing Visual C++ 2022",
-    installing_dxtrans: "Installing DirectX Transform",
-    installing_corefonts: "Installing core fonts",
-    installing_dxvk: "Installing DXVK",
-    setting_registry: "Configuring registry",
-    downloading_webview2: "Downloading WebView2",
-    installing_webview2: "Installing WebView2",
-    complete: "Complete",
-    error: "Error",
-  };
-  return stageNames[stage] || stage;
-}
 
 function WineNotInstalledContent({
   status,
@@ -106,13 +90,9 @@ function SetupProgressContent({
   const displayProgress = progress?.progress ?? 0;
   const displayMessage =
     progress?.message ?? "Starting Wine environment setup...";
-  const displayStage = progress?.stage
-    ? getStageDisplayName(progress.stage)
-    : "Initializing";
 
   return (
     <ModalContent title="Setting Up Wine Environment">
-      <p className="wine-setup-stage">{displayStage}</p>
       <p className="wine-setup-message">{displayMessage}</p>
       <div className="wine-progress-bar">
         <div

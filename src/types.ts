@@ -89,18 +89,7 @@ export interface WineStatus {
   error: string | null;
 }
 
-export type WineSetupStage =
-  | "checking"
-  | "creating_prefix"
-  | "installing_vcrun2022"
-  | "installing_dxtrans"
-  | "installing_corefonts"
-  | "installing_dxvk"
-  | "setting_registry"
-  | "downloading_webview2"
-  | "installing_webview2"
-  | "complete"
-  | "error";
+export type WineSetupStage = "in_progress" | "complete" | "error";
 
 export interface WineSetupProgress {
   stage: WineSetupStage;

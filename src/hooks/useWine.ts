@@ -81,7 +81,7 @@ export function useWine() {
     setIsSettingUp(true);
     setSetupError(null);
     setSetupProgress({
-      stage: "checking",
+      stage: "in_progress",
       progress: 0,
       message: "Starting Wine setup...",
     });
@@ -107,7 +107,7 @@ export function useWine() {
     setIsSettingUp(true);
     setSetupError(null);
     setSetupProgress({
-      stage: "checking",
+      stage: "in_progress",
       progress: 0,
       message: "Resetting Wine prefix...",
     });
