@@ -27,6 +27,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
+          cache: 'npm'
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -35,8 +36,17 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          shared-key: steam-windows
+
+      - name: Cache Steamworks SDK
+        id: cache-steamworks
+        uses: actions/cache@v4
+        with:
+          path: steamworks_sdk
+          key: steamworks-sdk-${{ env.STEAMWORKS_SDK_COMMIT }}
 
       - name: Download Steamworks SDK
+        if: steps.cache-steamworks.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           $commit = "$env:STEAMWORKS_SDK_COMMIT"
@@ -95,6 +105,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
+          cache: 'npm'
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -103,13 +114,22 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          shared-key: steam-linux
 
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
+      - name: Cache Steamworks SDK
+        id: cache-steamworks
+        uses: actions/cache@v4
+        with:
+          path: steamworks_sdk
+          key: steamworks-sdk-${{ env.STEAMWORKS_SDK_COMMIT }}
+
       - name: Download Steamworks SDK
+        if: steps.cache-steamworks.outputs.cache-hit != 'true'
         run: |
           curl -L "https://github.com/rlabrecque/SteamworksSDK/archive/$STEAMWORKS_SDK_COMMIT.zip" -o steamworks_sdk.zip
           unzip steamworks_sdk.zip
@@ -169,6 +189,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
+          cache: 'npm'
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -179,8 +200,17 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          shared-key: steam-macos
+
+      - name: Cache Steamworks SDK
+        id: cache-steamworks
+        uses: actions/cache@v4
+        with:
+          path: steamworks_sdk
+          key: steamworks-sdk-${{ env.STEAMWORKS_SDK_COMMIT }}
 
       - name: Download Steamworks SDK
+        if: steps.cache-steamworks.outputs.cache-hit != 'true'
         run: |
           curl -L "https://github.com/rlabrecque/SteamworksSDK/archive/$STEAMWORKS_SDK_COMMIT.zip" -o steamworks_sdk.zip
           unzip steamworks_sdk.zip
