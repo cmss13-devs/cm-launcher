@@ -110,7 +110,7 @@ jobs:
           path: |
             src-tauri/wine
             src-tauri/winetricks
-          key: wine-sniper-10.0-${{ hashFiles('scripts/build-wine-sniper.sh') }}
+          key: wine-10.5-${{ hashFiles('scripts/download-wine.sh') }}
 
       - name: Build Wine for Steam Runtime
         if: steps.cache-wine.outputs.cache-hit != 'true'

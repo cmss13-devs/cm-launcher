@@ -22,7 +22,7 @@ WINE_ARCHIVE="$PROJECT_ROOT/src-tauri/wine.tar.zst"
 WINETRICKS_OUTPUT="$PROJECT_ROOT/src-tauri/winetricks"
 
 # Wine version (check https://github.com/Kron4ek/Wine-Builds/releases for available versions)
-WINE_VERSION="${WINE_VERSION:-10.0}"
+WINE_VERSION="${WINE_VERSION:-10.5}"
 
 # Kron4ek Wine builds - vanilla Wine, amd64
 WINE_DOWNLOAD_URL="https://github.com/Kron4ek/Wine-Builds/releases/download/${WINE_VERSION}/wine-${WINE_VERSION}-amd64.tar.xz"
