@@ -698,6 +698,30 @@ fn set_registry_key(
     set_registry_key_with_paths(&paths, prefix, path, key, value, reg_type)
 }
 
+/// Check if a registry key/value exists in the Wine prefix
+fn check_registry_key_exists(
+    paths: &WinePaths,
+    prefix: &Path,
+    path: &str,
+    value_name: &str,
+) -> bool {
+    let mut cmd = Command::new(&paths.wine);
+    cmd.args(["reg", "query", path, "/v", value_name]);
+    cmd.env("WINEPREFIX", prefix);
+
+    for (key, value) in paths.get_env_vars() {
+        cmd.env(key, value);
+    }
+
+    cmd.stdout(Stdio::piped());
+    cmd.stderr(Stdio::null());
+
+    match cmd.output() {
+        Ok(output) => output.status.success(),
+        Err(_) => false,
+    }
+}
+
 /// Kill a process running in the Wine prefix
 fn kill_wine_process_with_paths(
     paths: &WinePaths,
@@ -822,20 +846,53 @@ pub async fn initialize_prefix(app: &AppHandle) -> Result<(), WineError> {
     );
 
     let installer_path = webview2_installer.to_string_lossy().to_string();
-    let output = run_wine_command_with_paths(
-        &paths,
-        &prefix,
-        &[installer_path.as_str(), "/silent", "/install"],
-    )?;
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        tracing::warn!("WebView2 installer returned non-zero: {}", stderr);
+    // Spawn installer with timeout - it spawns background processes that never exit
+    let mut cmd = Command::new(&paths.wine);
+    cmd.args([installer_path.as_str(), "/silent", "/install"]);
+    cmd.env("WINEPREFIX", &prefix);
+    for (key, value) in paths.get_env_vars() {
+        cmd.env(key, value);
+    }
+    cmd.stdout(Stdio::null());
+    cmd.stderr(Stdio::null());
+
+    let mut child = cmd.spawn()?;
+
+    // Poll registry key to detect when WebView2 is installed
+    let webview2_reg_key = r"HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}";
+    let timeout = tokio::time::Duration::from_secs(300); // 5 min max
+    let start = std::time::Instant::now();
+
+    loop {
+        if check_registry_key_exists(&paths, &prefix, webview2_reg_key, "pv") {
+            tracing::info!("WebView2 installation detected via registry");
+            break;
+        }
+
+        if let Ok(Some(_)) = child.try_wait() {
+            tracing::info!("WebView2 installer exited");
+
+            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+            break;
+        }
+
+        if start.elapsed() > timeout {
+            tracing::warn!("WebView2 installer timed out after 5 minutes");
+            let _ = child.kill();
+            break;
+        }
+
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
     }
 
-    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-
-    let _ = kill_wine_process_with_paths(&paths, &prefix, "MicrosoftEdgeUpdate.exe");
+    for process in &[
+        "MicrosoftEdgeUpdate.exe",
+        "MicrosoftEdgeWebView2Setup.exe",
+        "setup.exe",
+    ] {
+        let _ = kill_wine_process_with_paths(&paths, &prefix, process);
+    }
 
     let _ = fs::remove_file(&webview2_installer);
 
