@@ -277,7 +277,7 @@ impl ControlServer {
     fn handle_status(request: tiny_http::Request, presence_manager: &Arc<PresenceManager>) {
         let is_running = presence_manager.check_game_running();
         let session = presence_manager.get_game_session();
-        let hwid = mid::get("cm-ss13").ok();
+        let hwid = generate_hwid();
 
         let response = json_response(
             200,
@@ -288,6 +288,51 @@ impl ControlServer {
             }),
         );
         request.respond(response).ok();
+    }
+}
+
+fn generate_hwid() -> Option<String> {
+    use sha2::{Digest, Sha256};
+    use sysinfo::{Motherboard, Product, System};
+
+    let mut hasher = Sha256::new();
+    let mut has_data = false;
+
+    if let Some(uuid) = Product::uuid() {
+        hasher.update(uuid.as_bytes());
+        has_data = true;
+    }
+    if let Some(serial) = Product::serial_number() {
+        hasher.update(serial.as_bytes());
+        has_data = true;
+    }
+
+    if let Some(mb) = Motherboard::new() {
+        if let Some(serial) = mb.serial_number() {
+            hasher.update(serial.as_bytes());
+            has_data = true;
+        }
+        if let Some(name) = mb.name() {
+            hasher.update(name.as_bytes());
+        }
+        if let Some(vendor) = mb.vendor_name() {
+            hasher.update(vendor.as_bytes());
+        }
+    }
+
+    let sys = System::new();
+    if let Some(cpu) = sys.cpus().first() {
+        hasher.update(cpu.vendor_id().as_bytes());
+        hasher.update(cpu.brand().as_bytes());
+        has_data = true;
+    }
+
+    hasher.update(b"cm-ss13-hwid-v1");
+
+    if has_data {
+        Some(hex::encode(hasher.finalize()))
+    } else {
+        None
     }
 }
 
