@@ -191,9 +191,35 @@ pub async fn install_byond_version(
 
         if dx_installer.exists() {
             tracing::info!("Running BYOND's bundled DirectX installer via Wine");
-            if let Ok(prefix) = wine::get_wine_prefix(&app) {
-                let _ = wine::launch_with_wine(&app, &dx_installer, &["/silent"], &[]);
-                tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+            match wine::launch_with_wine(&app, &dx_installer, &["/silent"], &[]) {
+                Ok(mut child) => {
+                    // Wait for installer to complete (with timeout)
+                    let timeout = tokio::time::Duration::from_secs(60);
+                    let start = std::time::Instant::now();
+                    loop {
+                        match child.try_wait() {
+                            Ok(Some(_)) => {
+                                tracing::info!("BYOND DirectX installer completed");
+                                break;
+                            }
+                            Ok(None) => {
+                                if start.elapsed() > timeout {
+                                    tracing::warn!("BYOND DirectX installer timed out");
+                                    let _ = child.kill();
+                                    break;
+                                }
+                                tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+                            }
+                            Err(e) => {
+                                tracing::warn!("Error waiting for DirectX installer: {}", e);
+                                break;
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to run BYOND DirectX installer: {}", e);
+                }
             }
         }
     }

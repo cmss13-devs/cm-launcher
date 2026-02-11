@@ -944,11 +944,6 @@ body {
   margin: 8px 0;
 }
 
-.wine-check-item::before {
-  content: "\\2713 ";
-  color: var(--primary);
-  font-weight: bold;
-}
 
 .wine-error-message {
   color: var(--error);
