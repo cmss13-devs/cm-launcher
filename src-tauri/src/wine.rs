@@ -202,24 +202,15 @@ fn extract_wine_archive(app: &AppHandle) -> Result<PathBuf, WineError> {
     }
     fs::create_dir_all(&extract_dir)?;
 
-    // Extract using tar with zstd decompression
-    let output = Command::new("tar")
-        .args([
-            "--zstd",
-            "-xf",
-            archive_path.to_str().unwrap(),
-            "-C",
-            extract_dir.to_str().unwrap(),
-        ])
-        .output()?;
+    let archive_file = fs::File::open(&archive_path)?;
+    let zstd_decoder = zstd::stream::Decoder::new(archive_file)
+        .map_err(|e| WineError::Other(format!("Failed to create zstd decoder: {}", e)))?;
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(WineError::Other(format!(
-            "Failed to extract Wine archive: {}",
-            stderr
-        )));
-    }
+    let mut archive = tar::Archive::new(zstd_decoder);
+    archive.set_preserve_permissions(true);
+    archive
+        .unpack(&extract_dir)
+        .map_err(|e| WineError::Other(format!("Failed to extract Wine archive: {}", e)))?;
 
     tracing::info!("Wine extracted successfully");
     Ok(extract_dir)

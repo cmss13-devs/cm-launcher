@@ -63,3 +63,7 @@ win32job = "2"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+zstd = "0.13"
+tar = "0.4"
