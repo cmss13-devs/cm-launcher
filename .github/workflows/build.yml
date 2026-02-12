@@ -9,6 +9,7 @@ jobs:
   build-tauri:
     permissions:
       contents: write
+      issues: write
     strategy:
       fail-fast: false
       matrix:
@@ -60,3 +61,48 @@ jobs:
           releaseName: "App v__VERSION__"
           releaseBody: "See the assets to download this version and install."
           args: ${{ matrix.args }}
+
+      - name: Scan Windows executable with Windows Defender
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          $exePath = "src-tauri/target/release/CM_Launcher.exe"
+          if (Test-Path $exePath) {
+            Write-Host "Scanning $exePath with Windows Defender..."
+            $scanResult = & "C:\Program Files\Windows Defender\MpCmdRun.exe" -Scan -ScanType 3 -File $exePath 2>&1
+            $exitCode = $LASTEXITCODE
+            Write-Host $scanResult
+            if ($exitCode -eq 2) {
+              Write-Host "::warning::Windows Defender detected a threat in the executable"
+              echo "DEFENDER_DETECTION=true" >> $env:GITHUB_ENV
+              echo "DEFENDER_OUTPUT<<EOF" >> $env:GITHUB_ENV
+              echo $scanResult >> $env:GITHUB_ENV
+              echo "EOF" >> $env:GITHUB_ENV
+            } else {
+              Write-Host "Windows Defender scan completed - no threats detected"
+            }
+          } else {
+            Write-Host "Executable not found at $exePath"
+          }
+
+      - name: Create issue for Windows Defender detection
+        if: matrix.platform == 'windows-latest' && env.DEFENDER_DETECTION == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create --title "Windows Defender detection on build ${{ github.ref_name }}" --body "## Windows Defender Detection
+
+          A Windows Defender scan flagged the built executable during the GitHub Release build.
+
+          **Build:** ${{ github.ref_name }}
+          **Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          ### Scan Output
+          \`\`\`
+          ${{ env.DEFENDER_OUTPUT }}
+          \`\`\`
+
+          ### Action Required
+          Please submit the \`.msi\` and \`.exe\` to [Microsoft Security Intelligence](https://www.microsoft.com/en-us/wdsi/filesubmission) for manual review to resolve the false positive.
+
+          See the [README](https://github.com/${{ github.repository }}#releases) for more details." --label "security"
