@@ -655,7 +655,8 @@ async fn connect_to_server_impl(
     {
         use std::sync::Arc;
 
-        use crate::presence::PresenceManager;
+        use crate::control_server::ControlServer;
+        use crate::presence::{ConnectionParams, PresenceManager};
 
         let status = wine::check_prefix_status(&app).await;
         if !status.prefix_initialized || !status.webview2_installed {
@@ -664,12 +665,22 @@ async fn connect_to_server_impl(
             );
         }
 
+        if let Some(control_server) = app.try_state::<ControlServer>() {
+            control_server.reset_connected_flag();
+        }
+
+        if source.as_deref() != Some("control_server_restart") {
+            app.emit("game-connecting", &server_name).ok();
+        }
+
+        let control_port = app.try_state::<ControlServer>().map(|s| s.port.to_string());
+
         let connect_url = build_connect_url(
             &host,
             &port,
             access_type.as_deref(),
             access_token.as_deref(),
-            None, // No control server on Linux
+            control_port.as_deref(),
         );
 
         let webview2_data_dir = get_byond_base_dir(&app)?.join("webview2_data");
@@ -686,7 +697,17 @@ async fn connect_to_server_impl(
         .map_err(|e| format!("Failed to launch DreamSeeker via Wine: {}", e))?;
 
         if let Some(manager) = app.try_state::<Arc<PresenceManager>>() {
-            manager.start_game_session(server_name.clone(), map_name, child);
+            manager.set_last_connection_params(ConnectionParams {
+                version: version.clone(),
+                host: host.clone(),
+                port: port.clone(),
+                access_type,
+                access_token,
+                server_name: server_name.clone(),
+                map_name: map_name.clone(),
+            });
+
+            manager.start_game_session(server_name, map_name, child);
         }
 
         Ok(ConnectionResult {
