@@ -173,7 +173,8 @@ jobs:
       - name: Prepare Linux artifacts
         run: |
           mkdir -p steam-build/linux
-          find src-tauri/target/release/bundle -name "*.AppImage" -exec cp {} steam-build/linux/ \;
+          APPIMAGE=$(find src-tauri/target/release/bundle -name "*.AppImage" | head -1)
+          cp "$APPIMAGE" "steam-build/linux/CM-SS13.AppImage"
           cp src-tauri/resources/libsteam_api.so steam-build/linux/
 
       - name: Upload Linux build

@@ -11,68 +11,20 @@ interface WineSetupModalProps {
   onRetry: () => void;
 }
 
-function WineNotInstalledContent({
+function WineErrorContent({
   status,
   onRetry,
 }: {
   status: WineStatus;
   onRetry: () => void;
 }) {
-  const showWinetricksError = status.installed && !status.winetricks_installed;
-  const showVersionError =
-    status.installed && !status.meets_minimum_version && status.version;
-
   return (
-    <ModalContent
-      title={
-        showVersionError
-          ? "Wine Version Too Old"
-          : showWinetricksError
-            ? "Winetricks Required"
-            : "Wine Required"
-      }
-    >
-      {showVersionError ? (
-        <>
-          <p>
-            Wine 10.5 or newer is required to run BYOND.
-            <br />
-            Your version: <code>{status.version}</code>
-          </p>
-          <p>Please update Wine using your package manager.</p>
-        </>
-      ) : showWinetricksError ? (
-        <>
-          <p>Winetricks is required for initial setup.</p>
-          <div className="wine-install-instructions compact">
-            <code>
-              <strong>Ubuntu/Debian:</strong> sudo apt install winetricks
-            </code>
-            <code>
-              <strong>Fedora:</strong> sudo dnf install winetricks
-            </code>
-            <code>
-              <strong>Arch:</strong> sudo pacman -S winetricks
-            </code>
-          </div>
-        </>
-      ) : (
-        <>
-          <p>Wine 10.5+ is required to run BYOND on Linux.</p>
-          <div className="wine-install-instructions compact">
-            <code>
-              <strong>Ubuntu/Debian:</strong> sudo apt install wine winetricks
-            </code>
-            <code>
-              <strong>Fedora:</strong> sudo dnf install wine winetricks
-            </code>
-            <code>
-              <strong>Arch:</strong> sudo pacman -S wine winetricks
-            </code>
-          </div>
-        </>
-      )}
-      <div className="wine-modal-actions">
+    <ModalContent title="Wine Error">
+      <p>
+        {status.error ||
+          "Failed to initialize bundled Wine. Please try again or check the logs for details."}
+      </p>
+      <div>
         <button type="button" className="button" onClick={onRetry}>
           Retry
         </button>
@@ -92,7 +44,7 @@ function SetupProgressContent({
 
   return (
     <ModalContent title="Setting Up Wine Environment">
-      <p className="wine-setup-message">{displayMessage}</p>
+      <p>{displayMessage}</p>
       <div className="wine-progress-bar">
         <div
           className="wine-progress-fill"
@@ -100,9 +52,7 @@ function SetupProgressContent({
         />
       </div>
       <p className="wine-progress-percent">{displayProgress}%</p>
-      <p className="wine-setup-note">
-        This may take several minutes. Please do not close the launcher.
-      </p>
+      <p>This may take several minutes. Please do not close the launcher.</p>
       <ModalSpinner />
     </ModalContent>
   );
@@ -112,11 +62,10 @@ function SetupRequiredContent({ onSetup }: { onSetup: () => void }) {
   return (
     <ModalContent title="Wine Setup Required">
       <p>
-        BYOND requires a Wine environment with VC++ runtime, DirectX, fonts, and
-        WebView2.
+        Launching DreamSeeker requires a one-time setup, may take up to 5
+        minutes.
       </p>
-      <p className="wine-setup-note">One-time setup, may take 5-10 minutes.</p>
-      <div className="wine-modal-actions">
+      <div>
         <button type="button" className="button" onClick={onSetup}>
           Start Setup
         </button>
@@ -134,14 +83,13 @@ function SetupErrorContent({
 }) {
   return (
     <ModalContent title="Setup Failed">
-      <p className="wine-error-message">{error}</p>
+      <p>{error}</p>
       <p>You can try:</p>
-      <ul className="wine-setup-list">
+      <ul>
         <li>Reset the Wine prefix from Settings</li>
-        <li>Check if Wine and winetricks are properly installed</li>
         <li>Check the logs for more details</li>
       </ul>
-      <div className="wine-modal-actions">
+      <div>
         <button type="button" className="button" onClick={onRetry}>
           Try Again
         </button>
@@ -153,10 +101,10 @@ function SetupErrorContent({
 function SetupCompleteContent({ onClose }: { onClose: () => void }) {
   return (
     <ModalContent title="Setup Complete">
-      <div className="wine-setup-complete">
-        <p className="wine-check-item">Wine setup complete!</p>
+      <div>
+        <p>Wine setup complete!</p>
       </div>
-      <div className="wine-modal-actions">
+      <div>
         <button type="button" className="button" onClick={onClose}>
           Continue
         </button>
@@ -175,10 +123,7 @@ export function WineSetupModal({
   onRetry,
 }: WineSetupModalProps) {
   // Determine which state to show
-  const wineNotReady =
-    !status.installed ||
-    !status.meets_minimum_version ||
-    !status.winetricks_installed;
+  const wineError = status.error || !status.installed;
   const setupComplete =
     status.prefix_initialized &&
     status.webview2_installed &&
@@ -193,8 +138,8 @@ export function WineSetupModal({
     <Modal visible={visible} onClose={canClose ? onClose : () => {}}>
       {canClose && <ModalCloseButton onClick={onClose} />}
 
-      {wineNotReady ? (
-        <WineNotInstalledContent status={status} onRetry={onRetry} />
+      {wineError ? (
+        <WineErrorContent status={status} onRetry={onRetry} />
       ) : isSettingUp ? (
         <SetupProgressContent progress={progress} />
       ) : setupFailed ? (
