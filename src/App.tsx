@@ -161,6 +161,7 @@ function AppContent() {
     needsSetup: wineNeedsSetup,
     checkStatus: checkWineStatus,
     initializePrefix: initializeWinePrefix,
+    resetPrefix: resetWinePrefix,
   } = useWine();
 
   const [wineModalVisible, setWineModalVisible] = useState(false);
@@ -450,10 +451,14 @@ function AppContent() {
         theme={theme}
         steamAvailable={steamAvailable}
         devMode={devMode}
+        platform={platform}
+        wineStatus={wineStatus}
+        isResettingWine={wineIsSettingUp}
         onAuthModeChange={handleAuthModeChange}
         onThemeChange={handleThemeChange}
         onLoginRequired={onLoginRequired}
         onSteamAuthRequired={onSteamAuthRequired}
+        onResetWinePrefix={resetWinePrefix}
         onClose={() => setSettingsVisible(false)}
       />
       <GameConnectionModal
