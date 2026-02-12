@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useState } from "react";
 import type { ConnectionResult } from "../hooks/useConnect";
-import type { AuthMode, Theme } from "../types";
+import type { AuthMode, Platform, Theme, WineStatus } from "../types";
 import { Modal, ModalCloseButton } from "./Modal";
 
 interface AuthModeOptionProps {
@@ -71,6 +71,68 @@ function ThemeOption({
         <span className="theme-desc">{description}</span>
       </div>
     </label>
+  );
+}
+
+interface WineSettingsProps {
+  platform: Platform;
+  wineStatus: WineStatus;
+  isResetting: boolean;
+  onResetPrefix: () => void;
+}
+
+function WineSettings({
+  platform,
+  wineStatus,
+  isResetting,
+  onResetPrefix,
+}: WineSettingsProps) {
+  if (platform !== "linux") {
+    return null;
+  }
+
+  return (
+    <div className="settings-section">
+      <h3>Wine Configuration</h3>
+      <div className="wine-status-info">
+        <p>
+          <strong>Wine:</strong>{" "}
+          {wineStatus.installed ? (
+            <span className="status-ok">{wineStatus.version}</span>
+          ) : (
+            <span className="status-error">Not installed</span>
+          )}
+        </p>
+        <p>
+          <strong>Prefix:</strong>{" "}
+          {wineStatus.prefix_initialized ? (
+            <span className="status-ok">Initialized</span>
+          ) : (
+            <span className="status-warning">Not initialized</span>
+          )}
+        </p>
+        <p>
+          <strong>WebView2:</strong>{" "}
+          {wineStatus.webview2_installed ? (
+            <span className="status-ok">Installed</span>
+          ) : (
+            <span className="status-warning">Not installed</span>
+          )}
+        </p>
+      </div>
+      <button
+        type="button"
+        className="button-secondary"
+        onClick={onResetPrefix}
+        disabled={isResetting}
+      >
+        {isResetting ? "Resetting..." : "Reset Wine Prefix"}
+      </button>
+      <p className="settings-hint">
+        Use this if you're experiencing issues. This will reinstall all
+        dependencies.
+      </p>
+    </div>
   );
 }
 
@@ -158,10 +220,14 @@ interface SettingsModalProps {
   theme: Theme;
   steamAvailable: boolean;
   devMode: boolean;
+  platform: Platform;
+  wineStatus: WineStatus;
+  isResettingWine: boolean;
   onAuthModeChange: (mode: AuthMode) => void;
   onThemeChange: (theme: Theme) => void;
   onLoginRequired: () => void;
   onSteamAuthRequired: () => void;
+  onResetWinePrefix: () => void;
   onClose: () => void;
 }
 
@@ -171,10 +237,14 @@ export function SettingsModal({
   theme,
   steamAvailable,
   devMode,
+  platform,
+  wineStatus,
+  isResettingWine,
   onAuthModeChange,
   onThemeChange,
   onLoginRequired,
   onSteamAuthRequired,
+  onResetWinePrefix,
   onClose,
 }: SettingsModalProps) {
   const [byondPagerRunning, setByondPagerRunning] = useState<boolean | null>(
@@ -277,6 +347,13 @@ export function SettingsModal({
             />
           </div>
         </div>
+
+        <WineSettings
+          platform={platform}
+          wineStatus={wineStatus}
+          isResetting={isResettingWine}
+          onResetPrefix={onResetWinePrefix}
+        />
 
         {devMode && (
           <div className="settings-section dev-section">

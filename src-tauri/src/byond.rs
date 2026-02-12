@@ -5,6 +5,8 @@ use std::io;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+#[cfg(target_os = "linux")]
+use std::path::Path;
 use tauri::{AppHandle, Manager};
 
 use crate::auth::TokenStorage;
@@ -20,6 +22,9 @@ use crate::presence::{ConnectionParams, PresenceManager};
 use std::process::Command;
 #[cfg(target_os = "windows")]
 use tauri::Emitter;
+
+#[cfg(target_os = "linux")]
+use crate::wine;
 
 #[cfg(feature = "steam")]
 use crate::steam::{authenticate_with_steam, SteamState};
@@ -91,9 +96,18 @@ fn get_dreamseeker_path(app: &AppHandle, version: &str) -> Result<PathBuf, Strin
         .join("dreamseeker.exe"))
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(target_os = "linux")]
+fn get_dreamseeker_path(app: &AppHandle, version: &str) -> Result<PathBuf, String> {
+    let version_dir = get_byond_version_dir(app, version)?;
+    Ok(version_dir
+        .join("byond")
+        .join("bin")
+        .join("dreamseeker.exe"))
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "linux")))]
 fn get_dreamseeker_path(_app: &AppHandle, _version: &str) -> Result<PathBuf, String> {
-    Err("BYOND is only natively supported on Windows".to_string())
+    Err("BYOND is only supported on Windows and Linux (via Wine)".to_string())
 }
 
 #[tauri::command]
@@ -303,6 +317,49 @@ pub async fn install_byond_version(
     }
 
     fs::remove_file(&zip_path).ok();
+
+    // On Linux, run BYOND's bundled DirectX installer via Wine
+    #[cfg(target_os = "linux")]
+    {
+        let dx_installer = version_dir
+            .join("byond")
+            .join("directx")
+            .join("DXSETUP.exe");
+
+        if dx_installer.exists() {
+            tracing::info!("Running BYOND's bundled DirectX installer via Wine");
+            match wine::launch_with_wine(&app, &dx_installer, &["/silent"], &[]) {
+                Ok(mut child) => {
+                    // Wait for installer to complete (with timeout)
+                    let timeout = tokio::time::Duration::from_secs(60);
+                    let start = std::time::Instant::now();
+                    loop {
+                        match child.try_wait() {
+                            Ok(Some(_)) => {
+                                tracing::info!("BYOND DirectX installer completed");
+                                break;
+                            }
+                            Ok(None) => {
+                                if start.elapsed() > timeout {
+                                    tracing::warn!("BYOND DirectX installer timed out");
+                                    let _ = child.kill();
+                                    break;
+                                }
+                                tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+                            }
+                            Err(e) => {
+                                tracing::warn!("Error waiting for DirectX installer: {}", e);
+                                break;
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to run BYOND DirectX installer: {}", e);
+                }
+            }
+        }
+    }
 
     tracing::info!("BYOND version {} installed successfully", version);
 
@@ -594,7 +651,74 @@ async fn connect_to_server_impl(
         })
     }
 
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "linux")]
+    {
+        use std::sync::Arc;
+        use tauri::Emitter;
+
+        use crate::control_server::ControlServer;
+        use crate::presence::{ConnectionParams, PresenceManager};
+
+        let status = wine::check_prefix_status(&app).await;
+        if !status.prefix_initialized || !status.webview2_installed {
+            return Err(
+                "Wine environment not fully configured. Please complete setup first.".to_string(),
+            );
+        }
+
+        if let Some(control_server) = app.try_state::<ControlServer>() {
+            control_server.reset_connected_flag();
+        }
+
+        if source.as_deref() != Some("control_server_restart") {
+            app.emit("game-connecting", &server_name).ok();
+        }
+
+        let control_port = app.try_state::<ControlServer>().map(|s| s.port.to_string());
+
+        let connect_url = build_connect_url(
+            &host,
+            &port,
+            access_type.as_deref(),
+            access_token.as_deref(),
+            control_port.as_deref(),
+        );
+
+        let webview2_data_dir = get_byond_base_dir(&app)?.join("webview2_data");
+
+        let child = wine::launch_with_wine(
+            &app,
+            Path::new(&dreamseeker_path),
+            &[&connect_url],
+            &[(
+                "WEBVIEW2_USER_DATA_FOLDER",
+                webview2_data_dir.to_str().unwrap(),
+            )],
+        )
+        .map_err(|e| format!("Failed to launch DreamSeeker via Wine: {}", e))?;
+
+        if let Some(manager) = app.try_state::<Arc<PresenceManager>>() {
+            manager.set_last_connection_params(ConnectionParams {
+                version: version.clone(),
+                host: host.clone(),
+                port: port.clone(),
+                access_type,
+                access_token,
+                server_name: server_name.clone(),
+                map_name: map_name.clone(),
+            });
+
+            manager.start_game_session(server_name, map_name, child);
+        }
+
+        Ok(ConnectionResult {
+            success: true,
+            message: format!("Connecting to {} with BYOND {} (via Wine)", host, version),
+            auth_error: None,
+        })
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
     {
         // Suppress unused warnings
         let _ = (
@@ -607,7 +731,7 @@ async fn connect_to_server_impl(
             source,
             map_name,
         );
-        Err("BYOND is only natively supported on Windows".to_string())
+        Err("BYOND is only supported on Windows and Linux (via Wine)".to_string())
     }
 }
 

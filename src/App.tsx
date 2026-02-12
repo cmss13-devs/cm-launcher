@@ -13,6 +13,7 @@ import {
   SocialLinks,
   SteamAuthModal,
   Titlebar,
+  WineSetupModal,
 } from "./components";
 import type { AuthModalState } from "./components/AuthModal";
 import type { SteamAuthModalState } from "./components/SteamAuthModal";
@@ -21,6 +22,7 @@ import {
   useConnect,
   useError,
   useGameConnection,
+  useWine,
 } from "./hooks";
 import {
   useAuthStore,
@@ -151,6 +153,19 @@ function AppContent() {
 
   const { connect } = useConnect();
 
+  const {
+    platform,
+    status: wineStatus,
+    setupProgress: wineSetupProgress,
+    isSettingUp: wineIsSettingUp,
+    needsSetup: wineNeedsSetup,
+    checkStatus: checkWineStatus,
+    initializePrefix: initializeWinePrefix,
+    resetPrefix: resetWinePrefix,
+  } = useWine();
+
+  const [wineModalVisible, setWineModalVisible] = useState(false);
+
   const [autoConnecting, setAutoConnecting] = useState(false);
   const [pendingServerName, setPendingServerName] = useState<string | null>(
     null,
@@ -159,6 +174,17 @@ function AppContent() {
   useEffect(() => {
     document.documentElement.className = `theme-${theme}`;
   }, [theme]);
+
+  // Check Wine status on Linux
+  useEffect(() => {
+    if (platform === "linux") {
+      checkWineStatus().then((status) => {
+        if (!status.prefix_initialized || !status.webview2_installed) {
+          setWineModalVisible(true);
+        }
+      });
+    }
+  }, [platform, checkWineStatus]);
 
   useEffect(() => {
     const unlistenAuthPromise = initAuthListener();
@@ -376,6 +402,21 @@ function AppContent() {
     [saveTheme, showError],
   );
 
+  // Wine handlers
+  const handleWineSetup = useCallback(async () => {
+    await initializeWinePrefix();
+  }, [initializeWinePrefix]);
+
+  const handleWineRetry = useCallback(async () => {
+    await checkWineStatus();
+  }, [checkWineStatus]);
+
+  const handleWineModalClose = useCallback(() => {
+    if (!wineIsSettingUp && !wineNeedsSetup) {
+      setWineModalVisible(false);
+    }
+  }, [wineIsSettingUp, wineNeedsSetup]);
+
   // Relay handlers
   const handleRelaySelect = useCallback(
     (relayId: string) => {
@@ -410,10 +451,14 @@ function AppContent() {
         theme={theme}
         steamAvailable={steamAvailable}
         devMode={devMode}
+        platform={platform}
+        wineStatus={wineStatus}
+        isResettingWine={wineIsSettingUp}
         onAuthModeChange={handleAuthModeChange}
         onThemeChange={handleThemeChange}
         onLoginRequired={onLoginRequired}
         onSteamAuthRequired={onSteamAuthRequired}
+        onResetWinePrefix={resetWinePrefix}
         onClose={() => setSettingsVisible(false)}
       />
       <GameConnectionModal
@@ -422,6 +467,15 @@ function AppContent() {
         serverName={connectedServerName}
         restartReason={restartReason}
         onClose={closeGameConnectionModal}
+      />
+      <WineSetupModal
+        visible={wineModalVisible}
+        status={wineStatus}
+        progress={wineSetupProgress}
+        isSettingUp={wineIsSettingUp}
+        onSetup={handleWineSetup}
+        onClose={handleWineModalClose}
+        onRetry={handleWineRetry}
       />
 
       <div className="launcher">

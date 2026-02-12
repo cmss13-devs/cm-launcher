@@ -51,6 +51,7 @@ sha2 = "0.10"
 discord-sdk = "0.4.0"
 sysinfo = "0.38"
 async-trait = "0.1"
+which = "7"
 percent-encoding = "2.3.2"
 tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
 futures-util = "0.3"
@@ -59,3 +60,6 @@ futures-util = "0.3"
 winreg = "0.55.0"
 windows = { version = "0.62.2", features = ["Win32_UI_WindowsAndMessaging"] }
 win32job = "2"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
