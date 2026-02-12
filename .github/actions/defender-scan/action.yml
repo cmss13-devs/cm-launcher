@@ -50,24 +50,30 @@ runs:
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github_token }}
+        BUILD_NAME: ${{ inputs.build_name }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        REPO: ${{ github.repository }}
       run: |
         SCAN_OUTPUT=$(cat defender_output.txt)
         gh issue create \
-          --title "Windows Defender detection: ${{ inputs.build_name }}" \
+          --title "Windows Defender detection: ${BUILD_NAME}" \
           --label "security" \
-          --body "## Windows Defender Detection
+          --body "$(cat <<EOF
+        ## Windows Defender Detection
 
-A Windows Defender scan flagged the built executable.
+        A Windows Defender scan flagged the built executable.
 
-**Build:** ${{ inputs.build_name }}
-**Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        **Build:** ${BUILD_NAME}
+        **Workflow Run:** ${RUN_URL}
 
-### Scan Output
-\`\`\`
-${SCAN_OUTPUT}
-\`\`\`
+        ### Scan Output
+        \`\`\`
+        ${SCAN_OUTPUT}
+        \`\`\`
 
-### Action Required
-Please submit the executable to [Microsoft Security Intelligence](https://www.microsoft.com/en-us/wdsi/filesubmission) for manual review to resolve the false positive.
+        ### Action Required
+        Please submit the executable to [Microsoft Security Intelligence](https://www.microsoft.com/en-us/wdsi/filesubmission) for manual review to resolve the false positive.
 
-See the [README](https://github.com/${{ github.repository }}#releases) for more details."
+        See the [README](https://github.com/${REPO}#releases) for more details.
+        EOF
+        )"
