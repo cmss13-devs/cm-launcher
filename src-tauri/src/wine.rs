@@ -152,39 +152,12 @@ impl WinePaths {
         let mut vars = Vec::new();
 
         if self.is_bundled {
-            // Set LD_LIBRARY_PATH to include Wine's libraries
-            let lib64_dir = self.wine_dir.join("lib64");
-            let lib_dir = self.wine_dir.join("lib");
-
-            let existing_ld_path = std::env::var("LD_LIBRARY_PATH").unwrap_or_default();
-            let ld_library_path = if existing_ld_path.is_empty() {
-                format!("{}:{}", lib64_dir.display(), lib_dir.display())
-            } else {
-                format!(
-                    "{}:{}:{}",
-                    lib64_dir.display(),
-                    lib_dir.display(),
-                    existing_ld_path
-                )
-            };
-            vars.push(("LD_LIBRARY_PATH".to_string(), ld_library_path));
-
-            // Set WINEDLLPATH to Wine's DLL directories
-            let wine_dll_path = format!(
-                "{}:{}",
-                self.wine_dir.join("lib64/wine").display(),
-                self.wine_dir.join("lib/wine").display()
-            );
-            vars.push(("WINEDLLPATH".to_string(), wine_dll_path));
-
-            // Set WINESERVER path
             vars.push((
                 "WINESERVER".to_string(),
                 self.wineserver.to_string_lossy().to_string(),
             ));
         }
 
-        // Always suppress Wine debug output for cleaner logs
         vars.push(("WINEDEBUG".to_string(), "-all".to_string()));
 
         vars
@@ -194,7 +167,6 @@ impl WinePaths {
     pub fn get_winetricks_env_vars(&self) -> Vec<(String, String)> {
         let mut vars = self.get_env_vars();
 
-        // Winetricks needs to know where Wine binaries are
         vars.push(("WINE".to_string(), self.wine.to_string_lossy().to_string()));
         vars.push((
             "WINE64".to_string(),
@@ -269,7 +241,6 @@ fn extract_wine_archive(app: &AppHandle) -> Result<PathBuf, WineError> {
 
 /// Get the bundled Wine directory path, extracting from archive if needed
 fn get_bundled_wine_dir(app: &AppHandle) -> Option<PathBuf> {
-    // Check if Wine is already extracted in app data
     if let Ok(extract_dir) = get_wine_extract_dir(app) {
         if extract_dir.exists()
             && (extract_dir.join("bin/wine64").exists() || extract_dir.join("bin/wine").exists())
@@ -278,7 +249,6 @@ fn get_bundled_wine_dir(app: &AppHandle) -> Option<PathBuf> {
         }
     }
 
-    // Check if archive exists and extract it
     if get_wine_archive_path(app).is_some() {
         match extract_wine_archive(app) {
             Ok(extract_dir) => return Some(extract_dir),
@@ -288,7 +258,6 @@ fn get_bundled_wine_dir(app: &AppHandle) -> Option<PathBuf> {
         }
     }
 
-    // In development, check if Wine was extracted locally in src-tauri/wine/
     #[cfg(debug_assertions)]
     {
         if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
@@ -331,7 +300,6 @@ fn get_bundled_winetricks(app: &AppHandle) -> Option<PathBuf> {
 
 /// Resolve Wine paths - prefers bundled Wine, falls back to system Wine
 pub fn resolve_wine_paths(app: &AppHandle) -> Result<WinePaths, WineError> {
-    // Try bundled Wine first
     if let Some(wine_dir) = get_bundled_wine_dir(app) {
         let bin_dir = wine_dir.join("bin");
 
@@ -366,7 +334,6 @@ pub fn resolve_wine_paths(app: &AppHandle) -> Result<WinePaths, WineError> {
         }
     }
 
-    // Fall back to system Wine
     tracing::info!("Bundled Wine not found, falling back to system Wine");
     resolve_system_wine_paths()
 }
@@ -379,7 +346,6 @@ fn resolve_system_wine_paths() -> Result<WinePaths, WineError> {
 
     let wine = which::which("wine").unwrap_or_else(|_| wine64.clone());
 
-    // Derive wine_dir from the binary path (e.g., /usr/bin/wine64 -> /usr)
     let wine_dir = wine64
         .parent()
         .and_then(|p| p.parent())
@@ -956,6 +922,8 @@ pub fn launch_with_wine(
     args: &[&str],
     env_vars: &[(&str, &str)],
 ) -> Result<std::process::Child, WineError> {
+    use std::os::unix::process::CommandExt;
+
     let prefix = get_wine_prefix(app)?;
     let paths = resolve_wine_paths(app)?;
 
@@ -970,6 +938,14 @@ pub fn launch_with_wine(
 
     for (key, value) in env_vars {
         cmd.env(key, value);
+    }
+
+    // SAFETY: prctl is a simple syscall that only affects this process's children
+    unsafe {
+        cmd.pre_exec(|| {
+            libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL);
+            Ok(())
+        });
     }
 
     tracing::info!(

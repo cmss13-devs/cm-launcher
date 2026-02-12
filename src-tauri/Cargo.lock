@@ -13,6 +13,7 @@ dependencies = [
  "discord-sdk",
  "futures-util",
  "hex",
+ "libc",
  "oauth2",
  "open",
  "percent-encoding",
