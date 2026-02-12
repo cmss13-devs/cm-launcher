@@ -664,6 +664,14 @@ async fn connect_to_server_impl(
             );
         }
 
+        let connect_url = build_connect_url(
+            &host,
+            &port,
+            access_type.as_deref(),
+            access_token.as_deref(),
+            None, // No control server on Linux
+        );
+
         let webview2_data_dir = get_byond_base_dir(&app)?.join("webview2_data");
 
         let child = wine::launch_with_wine(
