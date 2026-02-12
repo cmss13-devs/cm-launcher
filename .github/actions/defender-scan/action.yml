@@ -1,0 +1,73 @@
+name: "Windows Defender Scan"
+description: "Scans an executable with Windows Defender and creates an issue if detection occurs"
+
+inputs:
+  exe_path:
+    description: "Path to the executable to scan"
+    required: true
+  build_name:
+    description: "Name to identify this build in the issue title"
+    required: true
+  github_token:
+    description: "GitHub token for creating issues"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Update Windows Defender signatures
+      shell: pwsh
+      run: |
+        Write-Host "Updating Windows Defender signatures..."
+        & "C:\Program Files\Windows Defender\MpCmdRun.exe" -SignatureUpdate
+
+    - name: Scan executable with Windows Defender
+      id: scan
+      shell: pwsh
+      run: |
+        $exePath = "${{ inputs.exe_path }}"
+        if (Test-Path $exePath) {
+          Write-Host "Scanning $exePath with Windows Defender..."
+          $scanResult = & "C:\Program Files\Windows Defender\MpCmdRun.exe" -Scan -ScanType 3 -File $exePath 2>&1
+          $exitCode = $LASTEXITCODE
+          Write-Host $scanResult
+          if ($exitCode -eq 2) {
+            Write-Host "::warning::Windows Defender detected a threat in the executable"
+            echo "detection=true" >> $env:GITHUB_OUTPUT
+            # Write scan output to a file to avoid multiline env var issues
+            $scanResult | Out-File -FilePath "defender_output.txt" -Encoding utf8
+          } else {
+            Write-Host "Windows Defender scan completed - no threats detected"
+            echo "detection=false" >> $env:GITHUB_OUTPUT
+          }
+        } else {
+          Write-Host "::error::Executable not found at $exePath"
+          exit 1
+        }
+
+    - name: Create issue for Windows Defender detection
+      if: steps.scan.outputs.detection == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+      run: |
+        SCAN_OUTPUT=$(cat defender_output.txt)
+        gh issue create \
+          --title "Windows Defender detection: ${{ inputs.build_name }}" \
+          --label "security" \
+          --body "## Windows Defender Detection
+
+A Windows Defender scan flagged the built executable.
+
+**Build:** ${{ inputs.build_name }}
+**Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+### Scan Output
+\`\`\`
+${SCAN_OUTPUT}
+\`\`\`
+
+### Action Required
+Please submit the executable to [Microsoft Security Intelligence](https://www.microsoft.com/en-us/wdsi/filesubmission) for manual review to resolve the false positive.
+
+See the [README](https://github.com/${{ github.repository }}#releases) for more details."
