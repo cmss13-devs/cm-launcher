@@ -678,16 +678,13 @@ async fn connect_to_server_impl(
         .map_err(|e| format!("Failed to launch DreamSeeker via Wine: {}", e))?;
 
         if let Some(manager) = app.try_state::<Arc<PresenceManager>>() {
-            manager.start_game_session(
-                server_name,
-                "https://db.cm-ss13.com/api/Round".to_string(),
-                child,
-            );
+            manager.start_game_session(server_name.clone(), map_name, child);
         }
 
         Ok(ConnectionResult {
             success: true,
             message: format!("Connecting to {} with BYOND {} (via Wine)", host, version),
+            auth_error: None,
         })
     }
 
