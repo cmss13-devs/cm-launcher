@@ -1,4 +1,9 @@
-import type { AuthMode, Platform, WineStatus } from "../types";
+import { getVersion } from "@tauri-apps/api/app";
+import { invoke } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { useEffect, useState } from "react";
+import type { ConnectionResult } from "../hooks/useConnect";
+import type { AuthMode, Theme } from "../types";
 import { Modal, ModalCloseButton } from "./Modal";
 
 interface AuthModeOptionProps {
@@ -35,64 +40,114 @@ function AuthModeOption({
   );
 }
 
-interface WineSettingsProps {
-  platform: Platform;
-  wineStatus: WineStatus;
-  isResetting: boolean;
-  onResetPrefix: () => void;
+interface ThemeOptionProps {
+  theme: Theme;
+  currentTheme: Theme;
+  name: string;
+  description: string;
+  onChange: (theme: Theme) => void;
 }
 
-function WineSettings({
-  platform,
-  wineStatus,
-  isResetting,
-  onResetPrefix,
-}: WineSettingsProps) {
-  if (platform !== "linux") {
-    return null;
-  }
+function ThemeOption({
+  theme,
+  currentTheme,
+  name,
+  description,
+  onChange,
+}: ThemeOptionProps) {
+  return (
+    <label
+      className={`theme-option ${currentTheme === theme ? "selected" : ""}`}
+    >
+      <input
+        type="radio"
+        name="theme"
+        value={theme}
+        checked={currentTheme === theme}
+        onChange={() => onChange(theme)}
+      />
+      <div className="theme-info">
+        <span className="theme-name">{name}</span>
+        <span className="theme-desc">{description}</span>
+      </div>
+    </label>
+  );
+}
+
+interface DevConnectSectionProps {
+  onLoginRequired: () => void;
+  onSteamAuthRequired: () => void;
+}
+
+function DevConnectSection({
+  onLoginRequired,
+  onSteamAuthRequired,
+}: DevConnectSectionProps) {
+  const [url, setUrl] = useState("localhost:1337");
+  const [version, setVersion] = useState("516.1667");
+  const [connecting, setConnecting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleConnect = async () => {
+    setConnecting(true);
+    setError(null);
+
+    try {
+      const result = await invoke<ConnectionResult>("connect_to_url", {
+        url,
+        version,
+        source: "DevConnectSection",
+      });
+
+      if (!result.success && result.auth_error) {
+        if (result.auth_error.code === "auth_required") {
+          onLoginRequired();
+        } else if (result.auth_error.code === "steam_linking_required") {
+          onSteamAuthRequired();
+        } else {
+          setError(result.auth_error.message);
+        }
+      } else if (!result.success) {
+        setError(result.message);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setConnecting(false);
+    }
+  };
 
   return (
-    <div className="settings-section">
-      <h3>Wine Configuration</h3>
-      <div className="wine-status-info">
-        <p>
-          <strong>Wine:</strong>{" "}
-          {wineStatus.installed ? (
-            <span className="status-ok">{wineStatus.version}</span>
-          ) : (
-            <span className="status-error">Not installed</span>
-          )}
-        </p>
-        <p>
-          <strong>Prefix:</strong>{" "}
-          {wineStatus.prefix_initialized ? (
-            <span className="status-ok">Initialized</span>
-          ) : (
-            <span className="status-warning">Not initialized</span>
-          )}
-        </p>
-        <p>
-          <strong>WebView2:</strong>{" "}
-          {wineStatus.webview2_installed ? (
-            <span className="status-ok">Installed</span>
-          ) : (
-            <span className="status-warning">Not installed</span>
-          )}
-        </p>
+    <div className="dev-connect-section">
+      <div className="dev-input-group">
+        <label htmlFor="dev-url">Server URL</label>
+        <input
+          id="dev-url"
+          type="text"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="localhost:1337"
+        />
       </div>
+      <div className="dev-input-group">
+        <label htmlFor="dev-version">BYOND Version</label>
+        <input
+          id="dev-version"
+          type="text"
+          value={version}
+          onChange={(e) => setVersion(e.target.value)}
+          placeholder="516.1667"
+        />
+      </div>
+      {error && <div className="dev-error">{error}</div>}
       <button
         type="button"
-        className="button-secondary"
-        onClick={onResetPrefix}
-        disabled={isResetting}
+        className="button dev-connect-button"
+        onClick={handleConnect}
+        disabled={connecting || !url || !version}
       >
-        {isResetting ? "Resetting..." : "Reset Wine Prefix"}
+        {connecting ? "Connecting..." : "Connect"}
       </button>
-      <p className="settings-hint">
-        Use this if you're experiencing issues. This will reinstall all
-        dependencies.
-      </p>
     </div>
   );
 }
@@ -100,26 +155,45 @@ function WineSettings({
 interface SettingsModalProps {
   visible: boolean;
   authMode: AuthMode;
+  theme: Theme;
   steamAvailable: boolean;
-  platform: Platform;
-  wineStatus: WineStatus;
-  isResettingWine: boolean;
+  devMode: boolean;
   onAuthModeChange: (mode: AuthMode) => void;
-  onResetWinePrefix: () => void;
+  onThemeChange: (theme: Theme) => void;
+  onLoginRequired: () => void;
+  onSteamAuthRequired: () => void;
   onClose: () => void;
 }
 
 export function SettingsModal({
   visible,
   authMode,
+  theme,
   steamAvailable,
-  platform,
-  wineStatus,
-  isResettingWine,
+  devMode,
   onAuthModeChange,
-  onResetWinePrefix,
+  onThemeChange,
+  onLoginRequired,
+  onSteamAuthRequired,
   onClose,
 }: SettingsModalProps) {
+  const [byondPagerRunning, setByondPagerRunning] = useState<boolean | null>(
+    null,
+  );
+  const [appVersion, setAppVersion] = useState<string>("");
+
+  useEffect(() => {
+    getVersion().then(setAppVersion);
+  }, []);
+
+  useEffect(() => {
+    if (visible && authMode === "byond") {
+      invoke<boolean>("is_byond_pager_running")
+        .then(setByondPagerRunning)
+        .catch(() => setByondPagerRunning(null));
+    }
+  }, [visible, authMode]);
+
   return (
     <Modal
       visible={visible}
@@ -130,14 +204,53 @@ export function SettingsModal({
     >
       <div className="settings-modal-header">
         <h2>Settings</h2>
+        <button
+          type="button"
+          className="help-link"
+          onClick={() =>
+            openUrl("https://github.com/cmss13-devs/cm-launcher/issues")
+          }
+          title="Report an issue"
+        >
+          Help
+        </button>
         <ModalCloseButton onClick={onClose} />
       </div>
       <div className="settings-modal-content">
+        <div className="settings-section">
+          <h3>Appearance</h3>
+          <p className="settings-description">
+            Choose a visual theme for the launcher.
+          </p>
+          <div className="theme-options">
+            <ThemeOption
+              theme="default"
+              currentTheme={theme}
+              name="Default"
+              description="Classic green CRT terminal theme"
+              onChange={onThemeChange}
+            />
+            <ThemeOption
+              theme="ntos"
+              currentTheme={theme}
+              name="NTos"
+              description="Blue corporate terminal theme"
+              onChange={onThemeChange}
+            />
+          </div>
+        </div>
+
         <div className="settings-section">
           <h3>Authentication Mode</h3>
           <p className="settings-description">
             Choose how you want to authenticate when connecting to servers.
           </p>
+          {authMode === "byond" && byondPagerRunning === false && (
+            <div className="auth-mode-warning">
+              BYOND pager (byond.exe) is not running. Please open BYOND and log
+              in before connecting to a server.
+            </div>
+          )}
           <div className="auth-mode-options">
             <AuthModeOption
               mode="cm_ss13"
@@ -164,12 +277,22 @@ export function SettingsModal({
             />
           </div>
         </div>
-        <WineSettings
-          platform={platform}
-          wineStatus={wineStatus}
-          isResetting={isResettingWine}
-          onResetPrefix={onResetWinePrefix}
-        />
+
+        {devMode && (
+          <div className="settings-section dev-section">
+            <h3>Developer Options</h3>
+            <p className="settings-description">
+              Connect to a local development server.
+            </p>
+            <DevConnectSection
+              onLoginRequired={onLoginRequired}
+              onSteamAuthRequired={onSteamAuthRequired}
+            />
+          </div>
+        )}
+      </div>
+      <div className="settings-modal-footer">
+        <span className="version-info">v{appVersion}</span>
       </div>
     </Modal>
   );

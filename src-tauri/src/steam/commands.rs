@@ -3,6 +3,8 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
+use crate::steam::get_steam_app_name;
+
 use super::SteamState;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,6 +33,7 @@ pub struct SteamAuthResult {
 struct SteamAuthRequest {
     ticket: String,
     steam_id: String,
+    instance: String,
     display_name: String,
     create_account_if_missing: bool,
 }
@@ -63,7 +66,7 @@ pub async fn get_steam_auth_ticket(
     steam_state: State<'_, Arc<SteamState>>,
 ) -> Result<String, String> {
     tracing::debug!("Generating Steam auth ticket");
-    let ticket_bytes = steam_state.get_auth_session_ticket()?;
+    let ticket_bytes = steam_state.get_auth_session_ticket().await?;
     Ok(hex::encode(ticket_bytes))
 }
 
@@ -76,22 +79,22 @@ pub async fn cancel_steam_auth_ticket(
     Ok(())
 }
 
-#[tauri::command]
-pub async fn steam_authenticate(
-    steam_state: State<'_, Arc<SteamState>>,
+pub async fn authenticate_with_steam(
+    steam_state: &Arc<SteamState>,
     create_account_if_missing: bool,
 ) -> Result<SteamAuthResult, String> {
     tracing::info!("Starting Steam authentication");
     let steam_id = steam_state.get_steam_id().to_string();
     let display_name = steam_state.get_display_name();
 
-    let ticket_bytes = steam_state.get_auth_session_ticket()?;
+    let ticket_bytes = steam_state.get_auth_session_ticket().await?;
     let ticket = hex::encode(&ticket_bytes);
 
     let client = reqwest::Client::new();
     let request = SteamAuthRequest {
         ticket,
         steam_id,
+        instance: get_steam_app_name(),
         display_name,
         create_account_if_missing,
     };
@@ -106,7 +109,7 @@ pub async fn steam_authenticate(
     if !response.status().is_success() {
         let status = response.status();
         let body = response.text().await.unwrap_or_default();
-        // Cancel the ticket since auth failed
+
         steam_state.cancel_auth_ticket();
         return Err(format!("Auth server error ({}): {}", status, body));
     }
@@ -116,7 +119,6 @@ pub async fn steam_authenticate(
         .await
         .map_err(|e| format!("Failed to parse auth response: {}", e))?;
 
-    // Cancel ticket if auth wasn't successful (we don't need to keep it alive)
     if !auth_response.success {
         steam_state.cancel_auth_ticket();
     }
@@ -135,9 +137,24 @@ pub async fn steam_authenticate(
     })
 }
 
+#[tauri::command]
+pub async fn steam_authenticate(
+    steam_state: State<'_, Arc<SteamState>>,
+    create_account_if_missing: bool,
+) -> Result<SteamAuthResult, String> {
+    authenticate_with_steam(&steam_state, create_account_if_missing).await
+}
+
 fn parse_server_name(command_line: &str) -> Option<String> {
     let trimmed = command_line.trim();
     if trimmed.is_empty() {
+        return None;
+    }
+    let decoded = trimmed.replace('+', " ");
+    let decoded = percent_encoding::percent_decode_str(&decoded)
+        .decode_utf8_lossy()
+        .to_string();
+    if decoded.is_empty() {
         return None;
     }
     Some(trimmed.to_string())

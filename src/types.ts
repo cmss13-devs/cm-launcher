@@ -15,6 +15,8 @@ export interface AuthState {
 
 export type AuthMode = "cm_ss13" | "byond" | "steam";
 
+export type Theme = "default" | "ntos";
+
 export interface SteamUserInfo {
   steam_id: string;
   display_name: string;
@@ -44,6 +46,8 @@ export interface SteamAuthState {
 
 export interface AppSettings {
   auth_mode: AuthMode;
+  theme: Theme;
+  notification_servers: string[];
 }
 
 export interface ErrorNotification {

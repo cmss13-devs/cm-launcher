@@ -33,7 +33,7 @@ impl TokenStorage {
     fn get_auth_file_path() -> Result<PathBuf, String> {
         let data_dir = dirs::data_local_dir()
             .ok_or("Failed to get local data directory")?
-            .join("cm-launcher");
+            .join("com.cm-ss13.launcher");
 
         fs::create_dir_all(&data_dir)
             .map_err(|e| format!("Failed to create data directory: {}", e))?;
@@ -116,7 +116,6 @@ impl TokenStorage {
         let decrypted = match Self::decrypt(&encrypted) {
             Ok(data) => data,
             Err(_) => {
-                // If decryption fails, the file may be corrupted - remove it
                 fs::remove_file(&path).ok();
                 return Ok(None);
             }

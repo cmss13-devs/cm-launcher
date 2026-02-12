@@ -16,8 +16,10 @@ jobs:
         include:
           - variant: production
             steam_app_id: "4313790"
+            steam_app_name: "production"
           - variant: playtest
             steam_app_id: "4313850"
+            steam_app_name: "playtest"
     steps:
       - uses: actions/checkout@v4
 
@@ -25,6 +27,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
+          cache: 'npm'
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -33,8 +36,17 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          shared-key: steam-windows
+
+      - name: Cache Steamworks SDK
+        id: cache-steamworks
+        uses: actions/cache@v4
+        with:
+          path: steamworks_sdk
+          key: steamworks-sdk-${{ env.STEAMWORKS_SDK_COMMIT }}
 
       - name: Download Steamworks SDK
+        if: steps.cache-steamworks.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           $commit = "$env:STEAMWORKS_SDK_COMMIT"
@@ -56,6 +68,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           STEAM_APP_ID: ${{ matrix.steam_app_id }}
+          STEAM_APP_NAME: ${{ matrix.steam_app_name }}
         with:
           args: --features steam --config src-tauri/tauri.steam.conf.json
 
@@ -80,8 +93,11 @@ jobs:
         include:
           - variant: production
             steam_app_id: "4313790"
+            steam_app_name: "production"
+
           - variant: playtest
             steam_app_id: "4313850"
+            steam_app_name: "playtest"
     steps:
       - uses: actions/checkout@v4
 
@@ -89,6 +105,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
+          cache: 'npm'
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -97,6 +114,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          shared-key: steam-linux
 
       - name: Install dependencies
         run: |
@@ -116,7 +134,15 @@ jobs:
         if: steps.cache-wine.outputs.cache-hit != 'true'
         run: ./scripts/download-wine.sh
 
+      - name: Cache Steamworks SDK
+        id: cache-steamworks
+        uses: actions/cache@v4
+        with:
+          path: steamworks_sdk
+          key: steamworks-sdk-${{ env.STEAMWORKS_SDK_COMMIT }}
+
       - name: Download Steamworks SDK
+        if: steps.cache-steamworks.outputs.cache-hit != 'true'
         run: |
           curl -L "https://github.com/rlabrecque/SteamworksSDK/archive/$STEAMWORKS_SDK_COMMIT.zip" -o steamworks_sdk.zip
           unzip steamworks_sdk.zip
@@ -139,6 +165,8 @@ jobs:
           APPIMAGE_EXTRACT_AND_RUN: 1
           LD_LIBRARY_PATH: /usr/lib:${{ github.workspace }}/src-tauri/resources
           STEAM_APP_ID: ${{ matrix.steam_app_id }}
+          STEAM_APP_NAME: ${{ matrix.steam_app_name }}
+
         with:
           args: --features steam --config src-tauri/tauri.steam.conf.json --config src-tauri/tauri.linux.conf.json
 
@@ -162,8 +190,11 @@ jobs:
         include:
           - variant: production
             steam_app_id: "4313790"
+            steam_app_name: "production"
+
           - variant: playtest
             steam_app_id: "4313850"
+            steam_app_name: "playtest"
     steps:
       - uses: actions/checkout@v4
 
@@ -171,6 +202,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
+          cache: 'npm'
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -181,8 +213,17 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          shared-key: steam-macos
+
+      - name: Cache Steamworks SDK
+        id: cache-steamworks
+        uses: actions/cache@v4
+        with:
+          path: steamworks_sdk
+          key: steamworks-sdk-${{ env.STEAMWORKS_SDK_COMMIT }}
 
       - name: Download Steamworks SDK
+        if: steps.cache-steamworks.outputs.cache-hit != 'true'
         run: |
           curl -L "https://github.com/rlabrecque/SteamworksSDK/archive/$STEAMWORKS_SDK_COMMIT.zip" -o steamworks_sdk.zip
           unzip steamworks_sdk.zip
@@ -201,6 +242,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           STEAM_APP_ID: ${{ matrix.steam_app_id }}
+          STEAM_APP_NAME: ${{ matrix.steam_app_name }}
+
         with:
           args: --features steam --target universal-apple-darwin --config src-tauri/tauri.steam.conf.json
 
@@ -232,6 +275,7 @@ jobs:
         with:
           variant: production
           steam_app_id: "4313790"
+          steam_app_name: "production"
           steam_username: ${{ secrets.STEAM_USERNAME }}
           steam_password: ${{ secrets.STEAM_PASSWORD }}
           steam_shared_secret: ${{ secrets.STEAM_SHARED_SECRET }}
@@ -247,6 +291,7 @@ jobs:
         with:
           variant: playtest
           steam_app_id: "4313850"
+          steam_app_name: "playtest"
           steam_username: ${{ secrets.STEAM_USERNAME }}
           steam_password: ${{ secrets.STEAM_PASSWORD }}
           steam_shared_secret: ${{ secrets.STEAM_SHARED_SECRET }}

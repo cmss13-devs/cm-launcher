@@ -1,3 +1,5 @@
+import { faXmark } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import type { KeyboardEvent, MouseEvent, ReactNode } from "react";
 
 interface ModalProps {
@@ -51,7 +53,7 @@ interface ModalCloseButtonProps {
 export function ModalCloseButton({ onClick }: ModalCloseButtonProps) {
   return (
     <button type="button" className="modal-close-button" onClick={onClick}>
-      x
+      <FontAwesomeIcon icon={faXmark} />
     </button>
   );
 }

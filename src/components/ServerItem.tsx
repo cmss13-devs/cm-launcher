@@ -1,71 +1,57 @@
-import { invoke } from "@tauri-apps/api/core";
+import { faBell, faBellSlash } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useState } from "react";
 import { GAME_STATES } from "../constants";
-import { useError } from "../hooks/useError";
-import type { AuthMode, RelayWithPing, Server } from "../types";
+import { useConnect, useError } from "../hooks";
+import { useServerStore, useSettingsStore } from "../stores";
+import type { Server } from "../types";
 import { formatDuration } from "../utils";
 
 interface ServerItemProps {
   server: Server;
-  selectedRelay: string;
-  relays: RelayWithPing[];
-  isLoggedIn: boolean;
-  authMode: AuthMode;
-  steamAccessToken: string | null;
-  onLoginRequired: (serverName?: string) => void;
+  onLoginRequired: () => void;
   onSteamAuthRequired: (serverName?: string) => void;
+  autoConnecting?: boolean;
 }
 
 export function ServerItem({
   server,
-  selectedRelay,
-  relays,
-  isLoggedIn,
-  authMode,
-  steamAccessToken,
   onLoginRequired,
   onSteamAuthRequired,
+  autoConnecting = false,
 }: ServerItemProps) {
   const [connecting, setConnecting] = useState(false);
   const { showError } = useError();
+  const { connect } = useConnect();
 
-  const relay = relays.find((r) => r.id === selectedRelay);
-  const port = server.url.split(":")[1];
+  const relaysReady = useServerStore((s) => s.relaysReady);
+  const notificationsEnabled = useSettingsStore((s) =>
+    s.notificationServers.has(server.name),
+  );
+  const toggleServerNotifications = useSettingsStore(
+    (s) => s.toggleServerNotifications,
+  );
+
   const isOnline = server.status === "available";
   const data = server.data;
-  const byondVersion = server.recommended_byond_version;
 
   const handleConnect = async () => {
-    if (authMode === "cm_ss13" && !isLoggedIn) {
-      onLoginRequired(server.name);
-      return;
-    }
-
-    if (authMode === "steam" && !steamAccessToken) {
-      onSteamAuthRequired(server.name);
-      return;
-    }
-
-    if (!relay || !byondVersion || !port) return;
-
     setConnecting(true);
 
     try {
-      let accessToken: string | null = null;
-      if (authMode === "cm_ss13") {
-        accessToken = await invoke<string | null>("get_access_token");
-      } else if (authMode === "steam") {
-        accessToken = steamAccessToken;
-      }
+      const result = await connect(server.name, "ServerItem.handleConnect");
 
-      await invoke("connect_to_server", {
-        version: byondVersion,
-        host: relay.host,
-        port: port,
-        accessType: authMode,
-        accessToken: accessToken,
-        serverName: server.name,
-      });
+      if (!result.success && result.auth_error) {
+        if (result.auth_error.code === "auth_required") {
+          onLoginRequired();
+        } else if (result.auth_error.code === "steam_linking_required") {
+          onSteamAuthRequired(server.name);
+        } else {
+          showError(result.auth_error.message);
+        }
+      } else if (!result.success) {
+        showError(result.message);
+      }
     } catch (err) {
       showError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -73,7 +59,15 @@ export function ServerItem({
     }
   };
 
-  const canConnect = isOnline && relay && byondVersion && port;
+  const canConnect = isOnline && relaysReady;
+
+  const handleToggleNotifications = async () => {
+    try {
+      await toggleServerNotifications(server.name, !notificationsEnabled);
+    } catch (err) {
+      showError(err instanceof Error ? err.message : String(err));
+    }
+  };
 
   return (
     <div className="server-item">
@@ -100,11 +94,23 @@ export function ServerItem({
         </div>
         <button
           type="button"
+          className={`notification-button ${notificationsEnabled ? "enabled" : ""}`}
+          onClick={handleToggleNotifications}
+          title={
+            notificationsEnabled
+              ? "Disable restart notifications"
+              : "Enable restart notifications"
+          }
+        >
+          <FontAwesomeIcon icon={notificationsEnabled ? faBell : faBellSlash} />
+        </button>
+        <button
+          type="button"
           className="button"
           onClick={handleConnect}
-          disabled={!canConnect || connecting}
+          disabled={!canConnect || connecting || autoConnecting}
         >
-          {connecting ? "Connecting..." : "Connect"}
+          {connecting || autoConnecting ? "Connecting..." : "Connect"}
         </button>
       </div>
     </div>

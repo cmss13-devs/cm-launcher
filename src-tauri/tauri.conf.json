@@ -26,6 +26,14 @@
     }
   },
   "bundle": {
+    "resources": [
+      "icons/icon.png"
+    ],
+    "publisher": "CM-SS13",
+    "copyright": "Copyright © 2026 CM-SS13",
+    "category": "Game",
+    "shortDescription": "Game launcher for CM-SS13",
+    "longDescription": "Official launcher for CM-SS13. Manages BYOND game client installations and server authentication.",
     "windows": {
       "allowDowngrades": true,
       "certificateThumbprint": null,

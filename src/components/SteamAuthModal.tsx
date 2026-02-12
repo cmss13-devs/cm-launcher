@@ -23,6 +23,7 @@ export function SteamAuthModal({
   const openLinkingUrl = async () => {
     if (linkingUrl) {
       await openUrl(linkingUrl);
+      onClose();
     }
   };
 

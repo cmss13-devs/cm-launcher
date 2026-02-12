@@ -98,14 +98,36 @@ pub struct CallbackServer {
 
 impl CallbackServer {
     pub fn start_without_state() -> Result<Self, String> {
-        let server = Server::http("127.0.0.1:0")
-            .map_err(|e| format!("Failed to start callback server: {}", e))?;
+        tracing::info!("Starting OAuth callback server on 127.0.0.1:0");
 
-        let port = server
-            .server_addr()
-            .to_ip()
-            .ok_or("Failed to get server address")?
-            .port();
+        let server = Server::http("127.0.0.1:0").map_err(|e| {
+            tracing::error!(
+                "Failed to start OAuth callback server: {} (error type: {:?})",
+                e,
+                std::any::type_name_of_val(&e)
+            );
+            tracing::error!(
+                "This may be caused by: firewall blocking the connection, \
+                antivirus software, or network configuration issues"
+            );
+            format!(
+                "Failed to start callback server: {}. \
+                Please check your firewall and antivirus settings.",
+                e
+            )
+        })?;
+
+        let addr = server.server_addr().to_ip().ok_or_else(|| {
+            tracing::error!("Failed to get server address after binding");
+            "Failed to get server address".to_string()
+        })?;
+
+        let port = addr.port();
+        tracing::info!(
+            "OAuth callback server started successfully on {}:{}",
+            addr.ip(),
+            port
+        );
 
         Ok(Self {
             server,
@@ -123,15 +145,33 @@ impl CallbackServer {
     }
 
     pub fn wait_for_callback(self) -> Result<CallbackResult, String> {
+        tracing::info!(
+            "Waiting for OAuth callback on port {} (timeout: {}s)",
+            self.port,
+            CALLBACK_TIMEOUT_SECS
+        );
+
         loop {
             let request = match self
                 .server
                 .recv_timeout(Duration::from_secs(CALLBACK_TIMEOUT_SECS))
             {
-                Ok(Some(req)) => req,
+                Ok(Some(req)) => {
+                    tracing::debug!(
+                        "Received request: {} {}",
+                        req.method(),
+                        req.url()
+                    );
+                    req
+                }
                 Ok(None) => continue,
-                Err(_) => {
-                    return Err("Callback server timed out waiting for authentication".to_string())
+                Err(e) => {
+                    tracing::error!(
+                        "OAuth callback server timed out after {}s: {:?}",
+                        CALLBACK_TIMEOUT_SECS,
+                        e
+                    );
+                    return Err("Callback server timed out waiting for authentication".to_string());
                 }
             };
             let full_url = format!("http://127.0.0.1{}", request.url());

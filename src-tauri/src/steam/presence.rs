@@ -2,7 +2,6 @@ use steamworks::Client;
 
 use crate::presence::{PresenceProvider, PresenceState};
 
-/// Steam-specific presence provider
 pub struct SteamPresence {
     client: Client,
 }
@@ -12,17 +11,32 @@ impl SteamPresence {
         Self { client }
     }
 
-    fn set_playing_status(&self, server_name: &str, player_count: u32) {
-        tracing::debug!("Setting Steam presence: Playing on {} ({} players)", server_name, player_count);
+    fn set_playing_status(&self, server_name: &str, player_count: u32, map_name: Option<&str>) {
+        tracing::debug!(
+            "Setting Steam presence: Playing on {} ({} players, map: {:?})",
+            server_name,
+            player_count,
+            map_name
+        );
         let friends = self.client.friends();
 
-        friends.set_rich_presence("status", Some(&format!("Playing on {}", server_name)));
-        friends.set_rich_presence("connect", Some(server_name));
+        let status = match map_name {
+            Some(map) => format!("{} players on {}", player_count, map),
+            None => format!("Playing on {}", server_name),
+        };
+        friends.set_rich_presence("status", Some(&status));
+
+        let encoded_server =
+            url::form_urlencoded::byte_serialize(server_name.as_bytes()).collect::<String>();
+        friends.set_rich_presence("connect", Some(&encoded_server));
 
         friends.set_rich_presence("players", Some(&player_count.to_string()));
         friends.set_rich_presence("name", Some(server_name));
+        if let Some(map) = map_name {
+            friends.set_rich_presence("map", Some(map));
+        }
 
-        friends.set_rich_presence("steam_display", Some("#Status_Playing"));
+        friends.set_rich_presence("steam_display", Some("#Status_Playing_Map"));
         friends.set_rich_presence("steam_player_group", Some(server_name));
         friends.set_rich_presence("steam_player_group_size", Some(&player_count.to_string()));
     }
@@ -49,7 +63,8 @@ impl PresenceProvider for SteamPresence {
             PresenceState::Playing {
                 server_name,
                 player_count,
-            } => self.set_playing_status(server_name, *player_count),
+                map_name,
+            } => self.set_playing_status(server_name, *player_count, map_name.as_deref()),
             PresenceState::Disconnected => self.clear_presence(),
         }
     }

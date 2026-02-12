@@ -1,16 +1,35 @@
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::fs;
 use std::io;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 #[cfg(target_os = "linux")]
 use std::path::Path;
 use tauri::{AppHandle, Manager};
 
+use crate::auth::TokenStorage;
+use crate::relays::RelayState;
+use crate::servers::ServerState;
+use crate::settings::{load_settings, AuthMode};
+
+#[cfg(target_os = "windows")]
+use crate::control_server::ControlServer;
+#[cfg(target_os = "windows")]
+use crate::presence::{ConnectionParams, PresenceManager};
 #[cfg(target_os = "windows")]
 use std::process::Command;
+#[cfg(target_os = "windows")]
+use tauri::Emitter;
 
 #[cfg(target_os = "linux")]
 use crate::wine;
+
+#[cfg(feature = "steam")]
+use crate::steam::{authenticate_with_steam, SteamState};
+
+static CONNECTING: AtomicBool = AtomicBool::new(false);
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ByondVersionInfo {
     pub version: String,
@@ -18,29 +37,56 @@ pub struct ByondVersionInfo {
     pub path: Option<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AuthError {
+    pub code: String,
+    pub message: String,
+    pub linking_url: Option<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ConnectionResult {
     pub success: bool,
     pub message: String,
+    pub auth_error: Option<AuthError>,
 }
 
-/// Get the base directory for BYOND installations within the app's data directory
-fn get_byond_base_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    let app_data = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("Failed to get app data directory: {}", e))?;
+/// Build a BYOND connection URL with optional auth and launcher port.
+pub fn build_connect_url(
+    host: &str,
+    port: &str,
+    access_type: Option<&str>,
+    access_token: Option<&str>,
+    launcher_port: Option<&str>,
+) -> String {
+    let mut query_params = Vec::new();
+    if let (Some(access_type), Some(token)) = (access_type, access_token) {
+        query_params.push(format!("{}={}", access_type, token));
+    }
+    if let Some(port) = launcher_port {
+        query_params.push(format!("launcher_port={}", port));
+    }
 
-    Ok(app_data.join("byond"))
+    if query_params.is_empty() {
+        format!("byond://{}:{}", host, port)
+    } else {
+        format!("byond://{}:{}?{}", host, port, query_params.join("&"))
+    }
 }
 
-/// Get the directory for a specific BYOND version
+fn get_byond_base_dir(_app: &AppHandle) -> Result<PathBuf, String> {
+    let local_data = dirs::data_local_dir()
+        .ok_or("Failed to get local data directory")?
+        .join("com.cm-ss13.launcher");
+
+    Ok(local_data.join("byond"))
+}
+
 fn get_byond_version_dir(app: &AppHandle, version: &str) -> Result<PathBuf, String> {
     let base = get_byond_base_dir(app)?;
     Ok(base.join(version))
 }
 
-/// Get the path to DreamSeeker executable for a specific version
 #[cfg(target_os = "windows")]
 fn get_dreamseeker_path(app: &AppHandle, version: &str) -> Result<PathBuf, String> {
     let version_dir = get_byond_version_dir(app, version)?;
@@ -64,7 +110,6 @@ fn get_dreamseeker_path(_app: &AppHandle, _version: &str) -> Result<PathBuf, Str
     Err("BYOND is only supported on Windows and Linux (via Wine)".to_string())
 }
 
-/// Check if a specific BYOND version is installed
 #[tauri::command]
 pub async fn check_byond_version(
     app: AppHandle,
@@ -85,8 +130,7 @@ pub async fn check_byond_version(
     })
 }
 
-/// Get the download URL for a specific BYOND version
-fn get_byond_download_url(version: &str) -> Result<String, String> {
+fn get_byond_download_urls(version: &str) -> Result<(String, String), String> {
     let parts: Vec<&str> = version.split('.').collect();
     if parts.len() != 2 {
         return Err(format!("Invalid BYOND version format: {}", version));
@@ -94,13 +138,80 @@ fn get_byond_download_url(version: &str) -> Result<String, String> {
 
     let major = parts[0];
 
-    Ok(format!(
+    let primary = format!(
         "https://www.byond.com/download/build/{}/{}_byond.zip",
         major, version
-    ))
+    );
+    let fallback = format!(
+        "https://byond-builds.dm-lang.org/{}/{}_byond.zip",
+        major, version
+    );
+
+    Ok((primary, fallback))
 }
 
-/// Download and install a specific BYOND version
+async fn try_download(url: &str) -> Result<Vec<u8>, String> {
+    let response = reqwest::get(url)
+        .await
+        .map_err(|e| format!("Request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("HTTP {}", response.status()));
+    }
+
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| format!("Failed to read response: {}", e))?;
+
+    Ok(bytes.to_vec())
+}
+
+#[derive(Debug, Deserialize)]
+struct ByondHashResponse {
+    sha256: Option<String>,
+}
+
+async fn fetch_expected_hash(version: &str) -> Result<Option<String>, String> {
+    let url = format!("https://db.cm-ss13.com/api/ByondHash?byond_ver={}", version);
+
+    let response = reqwest::get(&url)
+        .await
+        .map_err(|e| format!("Failed to fetch hash: {}", e))?;
+
+    if !response.status().is_success() {
+        tracing::warn!(
+            "Hash API returned HTTP {} for version {}",
+            response.status(),
+            version
+        );
+        return Ok(None);
+    }
+
+    let hash_response: ByondHashResponse = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse hash response: {}", e))?;
+
+    Ok(hash_response.sha256)
+}
+
+fn verify_sha256(data: &[u8], expected_hex: &str) -> Result<(), String> {
+    let mut hasher = Sha256::new();
+    hasher.update(data);
+    let result = hasher.finalize();
+    let actual_hex = hex::encode(result);
+
+    if actual_hex.eq_ignore_ascii_case(expected_hex) {
+        Ok(())
+    } else {
+        Err(format!(
+            "SHA-256 mismatch: expected {}, got {}",
+            expected_hex, actual_hex
+        ))
+    }
+}
+
 #[tauri::command]
 pub async fn install_byond_version(
     app: AppHandle,
@@ -113,29 +224,55 @@ pub async fn install_byond_version(
     }
 
     tracing::info!("Installing BYOND version: {}", version);
-    let download_url = get_byond_download_url(&version)?;
+    let (primary_url, fallback_url) = get_byond_download_urls(&version)?;
     let version_dir = get_byond_version_dir(&app, &version)?;
 
     fs::create_dir_all(&version_dir).map_err(|e| format!("Failed to create directory: {}", e))?;
 
     let zip_path = version_dir.join("byond.zip");
 
-    let response = reqwest::get(&download_url)
-        .await
-        .map_err(|e| format!("Failed to download BYOND: {}", e))?;
+    let bytes = match try_download(&primary_url).await {
+        Ok(b) => b,
+        Err(primary_err) => {
+            tracing::warn!(
+                "Primary download failed ({}), trying fallback URL",
+                primary_err
+            );
+            try_download(&fallback_url).await.map_err(|fallback_err| {
+                format!(
+                    "Failed to download BYOND version {}: primary error: {}, fallback error: {}",
+                    version, primary_err, fallback_err
+                )
+            })?
+        }
+    };
 
-    if !response.status().is_success() {
-        return Err(format!(
-            "Failed to download BYOND version {}: HTTP {}",
-            version,
-            response.status()
-        ));
+    // Verify download integrity using SHA-256 hash from API
+    match fetch_expected_hash(&version).await {
+        Ok(Some(expected_hash)) => {
+            verify_sha256(&bytes, &expected_hash).map_err(|e| {
+                tracing::error!("BYOND {} integrity check failed: {}", version, e);
+                format!(
+                    "Download integrity verification failed for BYOND {}: {}",
+                    version, e
+                )
+            })?;
+            tracing::info!("BYOND {} SHA-256 verified successfully", version);
+        }
+        Ok(None) => {
+            tracing::warn!(
+                "No SHA-256 hash available for BYOND {}, skipping verification",
+                version
+            );
+        }
+        Err(e) => {
+            tracing::warn!(
+                "Failed to fetch hash for BYOND {}: {}, skipping verification",
+                version,
+                e
+            );
+        }
     }
-
-    let bytes = response
-        .bytes()
-        .await
-        .map_err(|e| format!("Failed to read download: {}", e))?;
 
     fs::write(&zip_path, &bytes).map_err(|e| format!("Failed to save download: {}", e))?;
 
@@ -229,9 +366,9 @@ pub async fn install_byond_version(
     check_byond_version(app, version).await
 }
 
-/// Connect to a server using a specific BYOND version
-#[tauri::command]
-pub async fn connect_to_server(
+/// Internal function for connecting with explicit auth params.
+/// Used by autoconnect and the simplified connect_to_server command.
+pub async fn connect_to_server_internal(
     app: AppHandle,
     version: String,
     host: String,
@@ -239,8 +376,219 @@ pub async fn connect_to_server(
     access_type: Option<String>,
     access_token: Option<String>,
     server_name: String,
+    map_name: Option<String>,
+    source: Option<String>,
 ) -> Result<ConnectionResult, String> {
-    tracing::info!("Connecting to server {} (BYOND {})", server_name, version);
+    let source_str = source.as_deref().unwrap_or("unknown");
+
+    if CONNECTING.swap(true, Ordering::SeqCst) {
+        tracing::warn!(
+            "[connect_to_server] BLOCKED duplicate connection attempt, source={} server={}",
+            source_str,
+            server_name
+        );
+        return Ok(ConnectionResult {
+            success: false,
+            message: "Connection already in progress".to_string(),
+            auth_error: None,
+        });
+    }
+
+    tracing::info!(
+        "[connect_to_server] source={} server={} version={}",
+        source_str,
+        server_name,
+        version
+    );
+
+    let result = connect_to_server_impl(
+        app,
+        version,
+        host,
+        port,
+        access_type,
+        access_token,
+        server_name,
+        map_name,
+        source,
+    )
+    .await;
+
+    CONNECTING.store(false, Ordering::SeqCst);
+    result
+}
+
+async fn get_auth_for_connection(
+    app: &AppHandle,
+) -> Result<(Option<String>, Option<String>), AuthError> {
+    let settings = load_settings(app).map_err(|e| AuthError {
+        code: "settings_error".to_string(),
+        message: e,
+        linking_url: None,
+    })?;
+
+    match settings.auth_mode {
+        AuthMode::CmSs13 => {
+            let tokens = TokenStorage::get_tokens().map_err(|e| AuthError {
+                code: "token_error".to_string(),
+                message: e,
+                linking_url: None,
+            })?;
+
+            match tokens {
+                Some(t) if !TokenStorage::is_expired() => {
+                    Ok((Some("cm_ss13".to_string()), Some(t.access_token)))
+                }
+                _ => Err(AuthError {
+                    code: "auth_required".to_string(),
+                    message: "Please log in to CM-SS13".to_string(),
+                    linking_url: None,
+                }),
+            }
+        }
+        AuthMode::Steam => {
+            #[cfg(feature = "steam")]
+            {
+                let steam_state = app
+                    .try_state::<Arc<SteamState>>()
+                    .ok_or_else(|| AuthError {
+                        code: "steam_unavailable".to_string(),
+                        message: "Steam is not available".to_string(),
+                        linking_url: None,
+                    })?;
+
+                let result = authenticate_with_steam(&steam_state, false)
+                    .await
+                    .map_err(|e| AuthError {
+                        code: "steam_error".to_string(),
+                        message: e,
+                        linking_url: None,
+                    })?;
+
+                if result.success {
+                    Ok((Some("steam".to_string()), result.access_token))
+                } else if result.requires_linking {
+                    Err(AuthError {
+                        code: "steam_linking_required".to_string(),
+                        message: "Steam account linking required".to_string(),
+                        linking_url: result.linking_url,
+                    })
+                } else {
+                    Err(AuthError {
+                        code: "steam_auth_failed".to_string(),
+                        message: result
+                            .error
+                            .unwrap_or_else(|| "Steam authentication failed".to_string()),
+                        linking_url: None,
+                    })
+                }
+            }
+
+            #[cfg(not(feature = "steam"))]
+            {
+                Err(AuthError {
+                    code: "steam_unavailable".to_string(),
+                    message: "Steam support not compiled".to_string(),
+                    linking_url: None,
+                })
+            }
+        }
+        AuthMode::Byond => {
+            if !check_byond_pager_running() {
+                return Err(AuthError {
+                    code: "byond_pager_not_running".to_string(),
+                    message: "BYOND pager is not running. Please open BYOND and log in before connecting.".to_string(),
+                    linking_url: None,
+                });
+            }
+            Ok((Some("byond".to_string()), None))
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn connect_to_server(
+    app: AppHandle,
+    server_name: String,
+    source: Option<String>,
+) -> Result<ConnectionResult, String> {
+    let source_str = source.as_deref().unwrap_or("unknown");
+
+    let server_state = app
+        .try_state::<Arc<ServerState>>()
+        .ok_or("Server state not available")?;
+    let servers = server_state.get_servers().await;
+    let server = servers
+        .iter()
+        .find(|s| s.name == server_name)
+        .ok_or_else(|| format!("Server '{}' not found", server_name))?
+        .clone();
+
+    let version = server
+        .recommended_byond_version
+        .ok_or("Server has no recommended BYOND version")?;
+
+    let port = server
+        .url
+        .split(':')
+        .nth(1)
+        .ok_or("Invalid server URL format")?
+        .to_string();
+
+    let relay_state = app
+        .try_state::<Arc<RelayState>>()
+        .ok_or("Relay state not available")?;
+    let host = relay_state
+        .get_selected_host()
+        .await
+        .ok_or("No relay selected")?;
+
+    let (access_type, access_token) = match get_auth_for_connection(&app).await {
+        Ok((t, tok)) => (t, tok),
+        Err(auth_error) => {
+            return Ok(ConnectionResult {
+                success: false,
+                message: auth_error.message.clone(),
+                auth_error: Some(auth_error),
+            });
+        }
+    };
+
+    let map_name = server.data.map(|d| d.map_name);
+
+    tracing::info!(
+        "[connect_to_server] source={} server={} version={} host={}",
+        source_str,
+        server_name,
+        version,
+        host
+    );
+
+    connect_to_server_internal(
+        app,
+        version,
+        host,
+        port,
+        access_type,
+        access_token,
+        server_name,
+        map_name,
+        source,
+    )
+    .await
+}
+
+async fn connect_to_server_impl(
+    app: AppHandle,
+    version: String,
+    host: String,
+    port: String,
+    access_type: Option<String>,
+    access_token: Option<String>,
+    server_name: String,
+    map_name: Option<String>,
+    source: Option<String>,
+) -> Result<ConnectionResult, String> {
     let version_info = install_byond_version(app.clone(), version.clone()).await?;
 
     if !version_info.installed {
@@ -251,22 +599,29 @@ pub async fn connect_to_server(
 
     let dreamseeker_path = version_info.path.ok_or("DreamSeeker path not found")?;
 
-    let connect_url = match (access_type, access_token) {
-        (Some(access_type), Some(token)) => {
-            format!("byond://{}:{}?{}={}", host, port, access_type, token)
-        }
-        _ => format!("byond://{}:{}", host, port),
-    };
-
     #[cfg(target_os = "windows")]
     {
+        if let Some(control_server) = app.try_state::<ControlServer>() {
+            control_server.reset_connected_flag();
+        }
+
+        if source.as_deref() != Some("control_server_restart") {
+            app.emit("game-connecting", &server_name).ok();
+        }
+
+        let control_port = app.try_state::<ControlServer>().map(|s| s.port.to_string());
+
+        let connect_url = build_connect_url(
+            &host,
+            &port,
+            access_type.as_deref(),
+            access_token.as_deref(),
+            control_port.as_deref(),
+        );
+
         // Set a unique WebView2 user data folder to avoid conflicts with the system BYOND pager.
         // When the BYOND pager is running, it locks the default WebView2 user data directory,
         // preventing our DreamSeeker from using WebView2. Using a separate folder resolves this.
-
-        use std::sync::Arc;
-
-        use crate::presence::PresenceManager;
         let webview2_data_dir = get_byond_base_dir(&app)?.join("webview2_data");
 
         let child = Command::new(&dreamseeker_path)
@@ -276,16 +631,23 @@ pub async fn connect_to_server(
             .map_err(|e| format!("Failed to launch DreamSeeker: {}", e))?;
 
         if let Some(manager) = app.try_state::<Arc<PresenceManager>>() {
-            manager.start_game_session(
-                server_name,
-                "https://db.cm-ss13.com/api/Round".to_string(),
-                child,
-            );
+            manager.set_last_connection_params(ConnectionParams {
+                version: version.clone(),
+                host: host.clone(),
+                port: port.clone(),
+                access_type,
+                access_token,
+                server_name: server_name.clone(),
+                map_name: map_name.clone(),
+            });
+
+            manager.start_game_session(server_name, map_name, child);
         }
 
         Ok(ConnectionResult {
             success: true,
             message: format!("Connecting to {} with BYOND {}", host, version),
+            auth_error: None,
         })
     }
 
@@ -332,12 +694,20 @@ pub async fn connect_to_server(
     #[cfg(not(any(target_os = "windows", target_os = "linux")))]
     {
         // Suppress unused warnings
-        let _ = (dreamseeker_path, connect_url, server_name);
+        let _ = (
+            dreamseeker_path,
+            host,
+            port,
+            server_name,
+            access_type,
+            access_token,
+            source,
+            map_name,
+        );
         Err("BYOND is only supported on Windows and Linux (via Wine)".to_string())
     }
 }
 
-/// List all installed BYOND versions
 #[tauri::command]
 pub async fn list_installed_byond_versions(
     app: AppHandle,
@@ -370,7 +740,6 @@ pub async fn list_installed_byond_versions(
     Ok(versions)
 }
 
-/// Delete a specific BYOND version
 #[tauri::command]
 pub async fn delete_byond_version(app: AppHandle, version: String) -> Result<bool, String> {
     let version_dir = get_byond_version_dir(&app, &version)?;
@@ -382,5 +751,93 @@ pub async fn delete_byond_version(app: AppHandle, version: String) -> Result<boo
         Ok(true)
     } else {
         Ok(false)
+    }
+}
+
+fn check_byond_pager_running() -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        use sysinfo::System;
+
+        let s = System::new_all();
+        s.processes().values().any(|p| {
+            p.name()
+                .to_str()
+                .map(|name| name.eq_ignore_ascii_case("byond.exe"))
+                .unwrap_or(false)
+        })
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        false
+    }
+}
+
+#[tauri::command]
+pub async fn is_byond_pager_running() -> Result<bool, String> {
+    Ok(check_byond_pager_running())
+}
+#[tauri::command]
+pub fn is_dev_mode() -> bool {
+    cfg!(feature = "dev")
+}
+
+#[tauri::command]
+pub async fn connect_to_url(
+    app: AppHandle,
+    url: String,
+    version: String,
+    source: Option<String>,
+) -> Result<ConnectionResult, String> {
+    #[cfg(not(feature = "dev"))]
+    {
+        let _ = (app, url, version, source);
+        return Err("Dev mode is not enabled".to_string());
+    }
+
+    #[cfg(feature = "dev")]
+    {
+        let url = url.strip_prefix("byond://").unwrap_or(&url).to_string();
+
+        let parts: Vec<&str> = url.split(':').collect();
+        if parts.len() != 2 {
+            return Err("Invalid URL format. Expected 'host:port'".to_string());
+        }
+
+        let host = parts[0].to_string();
+        let port = parts[1].to_string();
+
+        // Get auth
+        let (access_type, access_token) = match get_auth_for_connection(&app).await {
+            Ok((t, tok)) => (t, tok),
+            Err(auth_error) => {
+                return Ok(ConnectionResult {
+                    success: false,
+                    message: auth_error.message.clone(),
+                    auth_error: Some(auth_error),
+                });
+            }
+        };
+
+        tracing::info!(
+            "[connect_to_url] dev mode connection to {}:{} version={}",
+            host,
+            port,
+            version
+        );
+
+        connect_to_server_internal(
+            app,
+            version,
+            host,
+            port,
+            access_type,
+            access_token,
+            format!("Dev Server ({})", url),
+            None, // No map_name for dev server connections
+            source,
+        )
+        .await
     }
 }

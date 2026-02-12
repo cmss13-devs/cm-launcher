@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::fs;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
@@ -14,15 +15,39 @@ pub enum AuthMode {
     Steam,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum Theme {
+    #[default]
+    Default,
+    Ntos,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppSettings {
     pub auth_mode: AuthMode,
+    #[serde(default)]
+    pub theme: Theme,
+    #[serde(default)]
+    pub notification_servers: HashSet<String>,
 }
 
 impl Default for AppSettings {
+    #[cfg(feature = "steam")]
+    fn default() -> Self {
+        Self {
+            auth_mode: AuthMode::Steam,
+            theme: Theme::Default,
+            notification_servers: HashSet::new(),
+        }
+    }
+
+    #[cfg(not(feature = "steam"))]
     fn default() -> Self {
         Self {
             auth_mode: AuthMode::CmSs13,
+            theme: Theme::Default,
+            notification_servers: HashSet::new(),
         }
     }
 }
@@ -47,10 +72,26 @@ pub fn load_settings(app: &AppHandle) -> Result<AppSettings, String> {
         return Ok(AppSettings::default());
     }
 
-    let contents =
-        fs::read_to_string(&path).map_err(|e| format!("Failed to read settings file: {}", e))?;
+    let contents = match fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!("Failed to read settings file, using defaults: {}", e);
+            return Ok(AppSettings::default());
+        }
+    };
 
-    serde_json::from_str(&contents).map_err(|e| format!("Failed to parse settings: {}", e))
+    if contents.trim().is_empty() {
+        tracing::warn!("Settings file is empty, using defaults");
+        return Ok(AppSettings::default());
+    }
+
+    match serde_json::from_str(&contents) {
+        Ok(settings) => Ok(settings),
+        Err(e) => {
+            tracing::warn!("Failed to parse settings file, using defaults: {}", e);
+            Ok(AppSettings::default())
+        }
+    }
 }
 
 pub fn save_settings(app: &AppHandle, settings: &AppSettings) -> Result<(), String> {
@@ -73,5 +114,30 @@ pub async fn set_auth_mode(app: AppHandle, mode: AuthMode) -> Result<AppSettings
     let mut settings = load_settings(&app)?;
     settings.auth_mode = mode;
     save_settings(&app, &settings)?;
+    Ok(settings)
+}
+
+#[tauri::command]
+pub async fn set_theme(app: AppHandle, theme: Theme) -> Result<AppSettings, String> {
+    let mut settings = load_settings(&app)?;
+    settings.theme = theme;
+    save_settings(&app, &settings)?;
+    Ok(settings)
+}
+
+#[tauri::command]
+pub async fn toggle_server_notifications(
+    app: AppHandle,
+    server_name: String,
+    enabled: bool,
+) -> Result<AppSettings, String> {
+    let mut settings = load_settings(&app)?;
+    if enabled {
+        settings.notification_servers.insert(server_name);
+    } else {
+        settings.notification_servers.remove(&server_name);
+    }
+    save_settings(&app, &settings)?;
+
     Ok(settings)
 }
