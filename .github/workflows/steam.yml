@@ -176,15 +176,16 @@ jobs:
           LD_LIBRARY_PATH: /usr/lib:${{ github.workspace }}/src-tauri/resources
           STEAM_APP_ID: ${{ matrix.steam_app_id }}
           STEAM_APP_NAME: ${{ matrix.steam_app_name }}
-
         with:
           args: --features steam --config src-tauri/tauri.steam.conf.json --config src-tauri/tauri.linux.conf.json
 
-      - name: Prepare Linux artifacts
+      - name: Extract AppImage and prepare artifacts
         run: |
-          mkdir -p steam-build/linux
           APPIMAGE=$(find src-tauri/target/release/bundle -name "*.AppImage" | head -1)
-          cp "$APPIMAGE" "steam-build/linux/CM-SS13.AppImage"
+          chmod +x "$APPIMAGE"
+          "$APPIMAGE" --appimage-extract
+          mkdir -p steam-build/linux
+          cp -r squashfs-root/* steam-build/linux/
           cp src-tauri/resources/libsteam_api.so steam-build/linux/
 
       - name: Upload Linux build
