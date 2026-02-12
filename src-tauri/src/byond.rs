@@ -654,6 +654,7 @@ async fn connect_to_server_impl(
     #[cfg(target_os = "linux")]
     {
         use std::sync::Arc;
+        use tauri::Emitter;
 
         use crate::control_server::ControlServer;
         use crate::presence::{ConnectionParams, PresenceManager};

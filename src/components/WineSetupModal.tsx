@@ -11,7 +11,6 @@ interface WineSetupModalProps {
   onRetry: () => void;
 }
 
-
 function WineNotInstalledContent({
   status,
   onRetry,
@@ -113,11 +112,10 @@ function SetupRequiredContent({ onSetup }: { onSetup: () => void }) {
   return (
     <ModalContent title="Wine Setup Required">
       <p>
-        BYOND requires a Wine environment with VC++ runtime, DirectX, fonts, and WebView2.
+        BYOND requires a Wine environment with VC++ runtime, DirectX, fonts, and
+        WebView2.
       </p>
-      <p className="wine-setup-note">
-        One-time setup, may take 5-10 minutes.
-      </p>
+      <p className="wine-setup-note">One-time setup, may take 5-10 minutes.</p>
       <div className="wine-modal-actions">
         <button type="button" className="button" onClick={onSetup}>
           Start Setup
@@ -143,16 +141,6 @@ function SetupErrorContent({
         <li>Check if Wine and winetricks are properly installed</li>
         <li>Check the logs for more details</li>
       </ul>
-      <p className="wine-help-link">
-        For help, see:{" "}
-        <a
-          href="https://github.com/kinggoldcatter/Wine-Byond-help"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Wine-Byond-help
-        </a>
-      </p>
       <div className="wine-modal-actions">
         <button type="button" className="button" onClick={onRetry}>
           Try Again
@@ -166,11 +154,8 @@ function SetupCompleteContent({ onClose }: { onClose: () => void }) {
   return (
     <ModalContent title="Setup Complete">
       <div className="wine-setup-complete">
-        <p className="wine-check-item">Wine prefix created</p>
-        <p className="wine-check-item">Dependencies installed</p>
-        <p className="wine-check-item">WebView2 installed</p>
+        <p className="wine-check-item">Wine setup complete!</p>
       </div>
-      <p>You can now connect to servers!</p>
       <div className="wine-modal-actions">
         <button type="button" className="button" onClick={onClose}>
           Continue
