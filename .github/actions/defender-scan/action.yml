@@ -27,11 +27,13 @@ runs:
       run: |
         $exePath = "${{ inputs.exe_path }}"
         if (Test-Path $exePath) {
+          # MpCmdRun requires absolute paths
+          $exePath = (Resolve-Path $exePath).Path
           Write-Host "Scanning $exePath with Windows Defender..."
           $scanResult = & "C:\Program Files\Windows Defender\MpCmdRun.exe" -Scan -ScanType 3 -File $exePath 2>&1
           $exitCode = $LASTEXITCODE
           Write-Host $scanResult
-          # Exit code 2 = threat found, 0x80508023 in HRESULT also indicates threat quarantined
+          # Exit code 2 = threat found
           if ($exitCode -ne 0) {
             Write-Host "::warning::Windows Defender detected a threat in the executable (exit code: $exitCode)"
             echo "detection=true" >> $env:GITHUB_OUTPUT
