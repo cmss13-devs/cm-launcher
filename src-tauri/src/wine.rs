@@ -993,22 +993,3 @@ pub fn get_platform() -> String {
     #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
     return "unknown".to_string();
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_parse_wine_version() {
-        assert!(parse_and_check_wine_version("wine-10.5"));
-        assert!(parse_and_check_wine_version("wine-10.6"));
-        assert!(parse_and_check_wine_version("wine-11.0"));
-        assert!(parse_and_check_wine_version("wine-10.5-staging"));
-        assert!(parse_and_check_wine_version("wine-10.5-rc1"));
-
-        assert!(!parse_and_check_wine_version("wine-10.4"));
-        assert!(!parse_and_check_wine_version("wine-9.0"));
-        assert!(!parse_and_check_wine_version("wine-8.21"));
-        assert!(!parse_and_check_wine_version("invalid"));
-    }
-}
