@@ -4,7 +4,8 @@
     "targets": ["appimage"],
     "resources": {
       "wine.tar.zst": "./",
-      "winetricks": "./"
+      "winetricks": "./",
+      "cabextract": "./"
     }
   }
 }

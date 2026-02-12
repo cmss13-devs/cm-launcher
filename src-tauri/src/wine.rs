@@ -31,6 +31,7 @@ const INIT_VERSION: u32 = 1;
 /// Resource names for bundled Wine
 const WINE_ARCHIVE_RESOURCE: &str = "wine.tar.zst";
 const WINETRICKS_RESOURCE: &str = "winetricks";
+const CABEXTRACT_RESOURCE: &str = "cabextract";
 /// Directory name for extracted Wine in app data
 const WINE_EXTRACTED_DIR: &str = "wine";
 
@@ -93,6 +94,9 @@ pub enum WineError {
     #[error("Bundled winetricks not found. The application may be corrupted - try reinstalling.")]
     WinetricksNotFound,
 
+    #[error("Bundled cabextract not found. The application may be corrupted - try reinstalling.")]
+    CabextractNotFound,
+
     #[error("Failed to create Wine prefix: {0}")]
     PrefixCreationFailed(String),
 
@@ -135,6 +139,8 @@ pub struct WinePaths {
     pub wineserver: PathBuf,
     /// Path to winetricks script
     pub winetricks: PathBuf,
+    /// Path to cabextract binary (needed by winetricks)
+    pub cabextract: PathBuf,
 }
 
 impl WinePaths {
@@ -149,7 +155,7 @@ impl WinePaths {
         ]
     }
 
-    /// Get environment variables for winetricks (includes WINE and WINE64)
+    /// Get environment variables for winetricks (includes WINE, WINE64, and PATH with cabextract)
     pub fn get_winetricks_env_vars(&self) -> Vec<(String, String)> {
         let mut vars = self.get_env_vars();
 
@@ -158,6 +164,12 @@ impl WinePaths {
             "WINE64".to_string(),
             self.wine64.to_string_lossy().to_string(),
         ));
+
+        if let Some(cabextract_dir) = self.cabextract.parent() {
+            let current_path = std::env::var("PATH").unwrap_or_default();
+            let new_path = format!("{}:{}", cabextract_dir.to_string_lossy(), current_path);
+            vars.push(("PATH".to_string(), new_path));
+        }
 
         vars
     }
@@ -275,6 +287,28 @@ fn get_bundled_winetricks(app: &AppHandle) -> Option<PathBuf> {
     None
 }
 
+/// Get the bundled cabextract path
+fn get_bundled_cabextract(app: &AppHandle) -> Option<PathBuf> {
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        let cabextract_path = resource_dir.join(CABEXTRACT_RESOURCE);
+        if cabextract_path.exists() {
+            return Some(cabextract_path);
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    {
+        if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
+            let dev_cabextract = PathBuf::from(manifest_dir).join("cabextract");
+            if dev_cabextract.exists() {
+                return Some(dev_cabextract);
+            }
+        }
+    }
+
+    None
+}
+
 /// Resolve Wine paths from bundled Wine
 pub fn resolve_wine_paths(app: &AppHandle) -> Result<WinePaths, WineError> {
     let wine_dir = get_bundled_wine_dir(app).ok_or(WineError::WineNotFound)?;
@@ -297,6 +331,7 @@ pub fn resolve_wine_paths(app: &AppHandle) -> Result<WinePaths, WineError> {
     }
 
     let winetricks = get_bundled_winetricks(app).ok_or(WineError::WinetricksNotFound)?;
+    let cabextract = get_bundled_cabextract(app).ok_or(WineError::CabextractNotFound)?;
 
     tracing::info!("Using bundled Wine from: {:?}", wine_dir);
     Ok(WinePaths {
@@ -304,6 +339,7 @@ pub fn resolve_wine_paths(app: &AppHandle) -> Result<WinePaths, WineError> {
         wine64,
         wineserver,
         winetricks,
+        cabextract,
     })
 }
 
