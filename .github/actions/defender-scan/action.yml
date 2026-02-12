@@ -31,14 +31,17 @@ runs:
           $scanResult = & "C:\Program Files\Windows Defender\MpCmdRun.exe" -Scan -ScanType 3 -File $exePath 2>&1
           $exitCode = $LASTEXITCODE
           Write-Host $scanResult
-          if ($exitCode -eq 2) {
-            Write-Host "::warning::Windows Defender detected a threat in the executable"
+          # Exit code 2 = threat found, 0x80508023 in HRESULT also indicates threat quarantined
+          if ($exitCode -ne 0) {
+            Write-Host "::warning::Windows Defender detected a threat in the executable (exit code: $exitCode)"
             echo "detection=true" >> $env:GITHUB_OUTPUT
             # Write scan output to a file to avoid multiline env var issues
             $scanResult | Out-File -FilePath "defender_output.txt" -Encoding utf8
+            exit 0  # Exit successfully so workflow continues to create issue
           } else {
             Write-Host "Windows Defender scan completed - no threats detected"
             echo "detection=false" >> $env:GITHUB_OUTPUT
+            exit 0
           }
         } else {
           Write-Host "::error::Executable not found at $exePath"

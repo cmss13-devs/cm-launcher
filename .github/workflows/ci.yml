@@ -50,6 +50,20 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
+      - name: Cache Wine build
+        if: matrix.platform == 'ubuntu-22.04'
+        id: cache-wine
+        uses: actions/cache@v4
+        with:
+          path: |
+            src-tauri/wine.tar.zst
+            src-tauri/winetricks
+          key: wine-10.5-${{ hashFiles('scripts/download-wine.sh') }}
+
+      - name: Download Wine (ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04' && steps.cache-wine.outputs.cache-hit != 'true'
+        run: ./scripts/download-wine.sh
+
       - name: Install frontend dependencies
         run: npm install
 
