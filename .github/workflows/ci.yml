@@ -58,6 +58,7 @@ jobs:
           path: |
             src-tauri/wine.tar.zst
             src-tauri/winetricks
+            src-tauri/cabextract
           key: wine-10.5-${{ hashFiles('scripts/download-wine.sh') }}
 
       - name: Download Wine (ubuntu only)
