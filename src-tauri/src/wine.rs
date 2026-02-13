@@ -147,27 +147,41 @@ pub struct WinePaths {
 /// AppImage environments may not include these in PATH, breaking xdg-open etc.
 const SYSTEM_PATHS: &[&str] = &["/usr/bin", "/usr/local/bin", "/bin"];
 
-/// Find xdg-open in standard locations
+/// Check if a path looks like a system path (not bundled inside app/Steam/AppImage)
+fn is_system_path(path: &str) -> bool {
+    let dominated_by_system =
+        path.starts_with("/usr/") || path.starts_with("/bin/") || path.starts_with("/sbin/");
+
+    let contains_bundled = path.contains("CM-SS13");
+
+    dominated_by_system && !contains_bundled
+}
+
+/// Find xdg-open in standard system locations.
+/// We check system paths FIRST to avoid finding bundled versions inside AppImage/Steam.
 fn find_xdg_open() -> Option<String> {
+    // Check if user has explicitly set BROWSER to a real system path
     if let Ok(browser) = std::env::var("BROWSER") {
-        if !browser.is_empty() {
+        if !browser.is_empty() && is_system_path(&browser) {
             return Some(browser);
         }
     }
 
-    if let Ok(output) = Command::new("which").arg("xdg-open").output() {
-        if output.status.success() {
-            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if !path.is_empty() {
-                return Some(path);
-            }
-        }
-    }
-
+    // Check standard system paths FIRST - these are the real system utilities
     for dir in SYSTEM_PATHS {
         let path = format!("{}/xdg-open", dir);
         if std::path::Path::new(&path).exists() {
             return Some(path);
+        }
+    }
+
+    // Fall back to which, but filter out bundled paths
+    if let Ok(output) = Command::new("which").arg("xdg-open").output() {
+        if output.status.success() {
+            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !path.is_empty() && is_system_path(&path) {
+                return Some(path);
+            }
         }
     }
 
