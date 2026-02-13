@@ -57,7 +57,7 @@ pub async fn start_login(app: AppHandle) -> Result<AuthState, String> {
 
     server.set_expected_state(auth_request.state.clone());
 
-    open::that(&auth_request.auth_url).map_err(|e| format!("Failed to open browser: {}", e))?;
+    crate::open_url::open(&auth_request.auth_url)?;
 
     let callback_result = tokio::task::spawn_blocking(move || server.wait_for_callback())
         .await
