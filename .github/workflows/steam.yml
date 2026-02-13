@@ -184,9 +184,24 @@ jobs:
           APPIMAGE=$(find src-tauri/target/release/bundle -name "*.AppImage" | head -1)
           chmod +x "$APPIMAGE"
           "$APPIMAGE" --appimage-extract
+
           mkdir -p steam-build/linux
+
           cp -r squashfs-root/* steam-build/linux/
-          cp src-tauri/resources/libsteam_api.so steam-build/linux/
+
+          cp src-tauri/resources/libsteam_api.so steam-build/linux/usr/lib/
+
+          LIB_DIR="steam-build/linux/usr/lib/x86_64-linux-gnu"
+          mkdir -p "$LIB_DIR"
+          for lib in libfreetype libfontconfig libharfbuzz libpng libbrotlidec libbrotlicommon; do
+            cp -L /usr/lib/x86_64-linux-gnu/${lib}.so* "$LIB_DIR/" 2>/dev/null || true
+          done
+
+          mkdir -p steam-build/linux/usr/etc/fonts
+          cp -r /etc/fonts/* steam-build/linux/usr/etc/fonts/ 2>/dev/null || true
+
+          cp scripts/steam-launch.sh steam-build/linux/launch.sh
+          chmod +x steam-build/linux/launch.sh
 
       - name: Upload Linux build
         uses: actions/upload-artifact@v4
