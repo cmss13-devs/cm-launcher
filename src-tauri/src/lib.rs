@@ -22,6 +22,9 @@ mod webview2;
 
 use tauri::Manager;
 
+#[cfg(target_os = "linux")]
+use std::process::Command;
+
 use auth::{
     background_refresh_task, get_access_token, get_auth_state, logout, refresh_auth, start_login,
 };
@@ -113,6 +116,54 @@ fn kill_game(
     presence_manager.kill_game_process()
 }
 
+/// Open a URL in the default browser.
+/// On Linux (especially AppImage), tries multiple methods to work around sandboxing issues.
+#[cfg(target_os = "linux")]
+#[tauri::command]
+fn open_url(url: String) -> Result<(), String> {
+    // Try methods in order of preference
+    let methods: &[(&str, &[&str])] = &[
+        // Standard paths for xdg-open (AppImage may not have it in PATH)
+        ("/usr/bin/xdg-open", &[]),
+        // gio open is another common method
+        ("/usr/bin/gio", &["open"]),
+        // Direct browser fallbacks
+        ("firefox", &[]),
+        ("chromium", &[]),
+        ("chromium-browser", &[]),
+        ("google-chrome", &[]),
+        ("google-chrome-stable", &[]),
+    ];
+
+    for (cmd, extra_args) in methods {
+        let mut command = Command::new(cmd);
+        command.args(*extra_args);
+        command.arg(&url);
+
+        // Detach from our process group so the browser doesn't get killed with us
+        command.stdout(std::process::Stdio::null());
+        command.stderr(std::process::Stdio::null());
+
+        if let Ok(mut child) = command.spawn() {
+            // Don't wait for the browser, just let it run
+            std::thread::spawn(move || {
+                let _ = child.wait();
+            });
+            tracing::info!("Opened URL with {}: {}", cmd, url);
+            return Ok(());
+        }
+    }
+
+    // Last resort: try the open crate
+    open::that(&url).map_err(|e| format!("Failed to open URL: {}", e))
+}
+
+#[cfg(not(target_os = "linux"))]
+#[tauri::command]
+fn open_url(url: String) -> Result<(), String> {
+    open::that(&url).map_err(|e| format!("Failed to open URL: {}", e))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let _guard = logging::init_logging();
@@ -169,6 +220,7 @@ pub fn run() {
             check_wine_status,
             initialize_wine_prefix,
             reset_wine_prefix,
+            open_url,
         ]);
     }
 
@@ -208,6 +260,7 @@ pub fn run() {
             check_wine_status,
             initialize_wine_prefix,
             reset_wine_prefix,
+            open_url,
         ]);
     }
 

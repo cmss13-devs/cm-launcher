@@ -143,33 +143,110 @@ pub struct WinePaths {
     pub cabextract: PathBuf,
 }
 
+/// Standard system paths that should always be available.
+/// AppImage environments may not include these in PATH, breaking xdg-open etc.
+const SYSTEM_PATHS: &[&str] = &["/usr/bin", "/usr/local/bin", "/bin"];
+
+/// Find xdg-open in standard locations
+fn find_xdg_open() -> Option<String> {
+    if let Ok(browser) = std::env::var("BROWSER") {
+        if !browser.is_empty() {
+            return Some(browser);
+        }
+    }
+
+    if let Ok(output) = Command::new("which").arg("xdg-open").output() {
+        if output.status.success() {
+            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !path.is_empty() {
+                return Some(path);
+            }
+        }
+    }
+
+    for dir in SYSTEM_PATHS {
+        let path = format!("{}/xdg-open", dir);
+        if std::path::Path::new(&path).exists() {
+            return Some(path);
+        }
+    }
+
+    None
+}
+
 impl WinePaths {
+    /// Build a PATH that includes system paths (for AppImage compatibility)
+    fn build_path_with_system_dirs(extra_dirs: &[&str]) -> String {
+        let current_path = std::env::var("PATH").unwrap_or_default();
+        let mut paths: Vec<&str> = extra_dirs.to_vec();
+
+        // Add current PATH components
+        for p in current_path.split(':') {
+            if !p.is_empty() && !paths.contains(&p) {
+                paths.push(p);
+            }
+        }
+
+        // Ensure standard system paths are included (for AppImage compatibility)
+        for sys_path in SYSTEM_PATHS {
+            if !paths.contains(sys_path) {
+                paths.push(sys_path);
+            }
+        }
+
+        paths.join(":")
+    }
+
     /// Get environment variables needed to run Wine commands
     pub fn get_env_vars(&self) -> Vec<(String, String)> {
-        vec![
+        let mut vars = vec![
             (
                 "WINESERVER".to_string(),
                 self.wineserver.to_string_lossy().to_string(),
             ),
             ("WINEDEBUG".to_string(), "-all".to_string()),
-        ]
+            // Ensure system paths are available for xdg-open etc.
+            ("PATH".to_string(), Self::build_path_with_system_dirs(&[])),
+        ];
+
+        // Set BROWSER explicitly for winebrowser
+        if let Some(browser) = find_xdg_open() {
+            vars.push(("BROWSER".to_string(), browser));
+        }
+
+        vars
     }
 
     /// Get environment variables for winetricks (includes WINE, WINE64, and PATH with cabextract)
     pub fn get_winetricks_env_vars(&self) -> Vec<(String, String)> {
-        let mut vars = self.get_env_vars();
+        let mut vars = vec![
+            (
+                "WINESERVER".to_string(),
+                self.wineserver.to_string_lossy().to_string(),
+            ),
+            ("WINEDEBUG".to_string(), "-all".to_string()),
+            ("WINE".to_string(), self.wine.to_string_lossy().to_string()),
+            (
+                "WINE64".to_string(),
+                self.wine64.to_string_lossy().to_string(),
+            ),
+        ];
 
-        vars.push(("WINE".to_string(), self.wine.to_string_lossy().to_string()));
+        // Build PATH with cabextract dir and system paths
+        let cabextract_dir = self
+            .cabextract
+            .parent()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let extra_dirs: Vec<&str> = if cabextract_dir.is_empty() {
+            vec![]
+        } else {
+            vec![cabextract_dir.as_str()]
+        };
         vars.push((
-            "WINE64".to_string(),
-            self.wine64.to_string_lossy().to_string(),
+            "PATH".to_string(),
+            Self::build_path_with_system_dirs(&extra_dirs),
         ));
-
-        if let Some(cabextract_dir) = self.cabextract.parent() {
-            let current_path = std::env::var("PATH").unwrap_or_default();
-            let new_path = format!("{}:{}", cabextract_dir.to_string_lossy(), current_path);
-            vars.push(("PATH".to_string(), new_path));
-        }
 
         vars
     }

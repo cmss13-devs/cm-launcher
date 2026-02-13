@@ -1,7 +1,7 @@
 import { faDiscord, faTwitch } from "@fortawesome/free-brands-svg-icons";
 import { faBook, faComments } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { invoke } from "@tauri-apps/api/core";
 
 const socialLinks = [
   {
@@ -28,7 +28,7 @@ const socialLinks = [
 
 export function SocialLinks() {
   const handleClick = async (url: string) => {
-    await openUrl(url);
+    await invoke("open_url", { url });
   };
 
   return (

@@ -1,6 +1,5 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useState } from "react";
 import type { ConnectionResult } from "../hooks/useConnect";
 import type { AuthMode, Platform, Theme, WineStatus } from "../types";
@@ -278,7 +277,7 @@ export function SettingsModal({
           type="button"
           className="help-link"
           onClick={() =>
-            openUrl("https://github.com/cmss13-devs/cm-launcher/issues")
+            invoke("open_url", { url: "https://github.com/cmss13-devs/cm-launcher/issues" })
           }
           title="Report an issue"
         >

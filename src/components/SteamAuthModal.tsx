@@ -1,4 +1,4 @@
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { invoke } from "@tauri-apps/api/core";
 import { Modal, ModalCloseButton, ModalContent, ModalSpinner } from "./Modal";
 
 export type SteamAuthModalState = "idle" | "loading" | "linking" | "error";
@@ -22,7 +22,7 @@ export function SteamAuthModal({
 }: SteamAuthModalProps) {
   const openLinkingUrl = async () => {
     if (linkingUrl) {
-      await openUrl(linkingUrl);
+      await invoke("open_url", { url: linkingUrl });
       onClose();
     }
   };
