@@ -287,11 +287,27 @@ fn get_bundled_winetricks(app: &AppHandle) -> Option<PathBuf> {
     None
 }
 
-/// Get the bundled cabextract path
-fn get_bundled_cabextract(app: &AppHandle) -> Option<PathBuf> {
+/// Get cabextract path, preferring system cabextract over bundled for performance
+fn get_cabextract(app: &AppHandle) -> Option<PathBuf> {
+    // Prefer system cabextract - it's typically faster than bundled
+    if let Ok(output) = Command::new("which").arg("cabextract").output() {
+        if output.status.success() {
+            let path_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !path_str.is_empty() {
+                let system_path = PathBuf::from(&path_str);
+                if system_path.exists() {
+                    tracing::info!("Using system cabextract: {:?}", system_path);
+                    return Some(system_path);
+                }
+            }
+        }
+    }
+
+    // Fall back to bundled cabextract
     if let Ok(resource_dir) = app.path().resource_dir() {
         let cabextract_path = resource_dir.join(CABEXTRACT_RESOURCE);
         if cabextract_path.exists() {
+            tracing::info!("Using bundled cabextract: {:?}", cabextract_path);
             return Some(cabextract_path);
         }
     }
@@ -331,7 +347,7 @@ pub fn resolve_wine_paths(app: &AppHandle) -> Result<WinePaths, WineError> {
     }
 
     let winetricks = get_bundled_winetricks(app).ok_or(WineError::WinetricksNotFound)?;
-    let cabextract = get_bundled_cabextract(app).ok_or(WineError::CabextractNotFound)?;
+    let cabextract = get_cabextract(app).ok_or(WineError::CabextractNotFound)?;
 
     tracing::info!("Using bundled Wine from: {:?}", wine_dir);
     Ok(WinePaths {

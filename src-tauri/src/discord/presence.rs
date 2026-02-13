@@ -68,33 +68,6 @@ impl DiscordState {
         })
     }
 
-    pub async fn wait_for_connection(&self, timeout: Duration) -> bool {
-        let mut rx = self.connected_rx.clone();
-
-        if *rx.borrow() {
-            return true;
-        }
-
-        match tokio::time::timeout(timeout, async {
-            loop {
-                if rx.changed().await.is_err() {
-                    return false;
-                }
-                if *rx.borrow() {
-                    return true;
-                }
-            }
-        })
-        .await
-        {
-            Ok(connected) => connected,
-            Err(_) => {
-                tracing::warn!("Timed out waiting for Discord connection");
-                false
-            }
-        }
-    }
-
     #[allow(dead_code)]
     pub fn is_connected(&self) -> bool {
         *self.connected_rx.borrow()

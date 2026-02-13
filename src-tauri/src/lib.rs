@@ -245,28 +245,14 @@ pub fn run() {
 
     {
         use std::sync::Arc;
-        use std::time::Duration;
 
         match tauri::async_runtime::block_on(discord::DiscordState::init()) {
             Ok(discord_state) => {
                 let discord_state = Arc::new(discord_state);
-
-                // Wait for Discord connection before adding the provider
-                // This ensures the initial "In Launcher" presence is sent after connection
-                let connected = tauri::async_runtime::block_on(
-                    discord_state.wait_for_connection(Duration::from_secs(10)),
-                );
-
-                if connected {
-                    tracing::info!("Discord connection established, adding presence provider");
-                } else {
-                    tracing::warn!(
-                        "Discord connection not established within timeout, adding provider anyway"
-                    );
-                }
-
+                // Add provider immediately - updates are queued and sent once connected
                 let discord_presence = discord::DiscordPresence::new(Arc::clone(&discord_state));
                 manager.add_provider(Box::new(discord_presence));
+                tracing::info!("Discord presence provider added (connecting in background)");
             }
             Err(e) => {
                 tracing::error!("Failed to initialize Discord: {:?}", e);
