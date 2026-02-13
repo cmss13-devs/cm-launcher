@@ -189,22 +189,24 @@ fn find_xdg_open() -> Option<String> {
 }
 
 impl WinePaths {
-    /// Build a PATH that includes system paths (for AppImage compatibility)
+    /// Build a PATH with system paths FIRST (so system xdg-open is found before bundled)
     fn build_path_with_system_dirs(extra_dirs: &[&str]) -> String {
         let current_path = std::env::var("PATH").unwrap_or_default();
-        let mut paths: Vec<&str> = extra_dirs.to_vec();
 
-        // Add current PATH components
-        for p in current_path.split(':') {
-            if !p.is_empty() && !paths.contains(&p) {
+        // Start with system paths FIRST so system xdg-open is found before bundled
+        let mut paths: Vec<&str> = SYSTEM_PATHS.to_vec();
+
+        // Add any extra dirs
+        for p in extra_dirs {
+            if !paths.contains(p) {
                 paths.push(p);
             }
         }
 
-        // Ensure standard system paths are included (for AppImage compatibility)
-        for sys_path in SYSTEM_PATHS {
-            if !paths.contains(sys_path) {
-                paths.push(sys_path);
+        // Add current PATH components after system paths
+        for p in current_path.split(':') {
+            if !p.is_empty() && !paths.contains(&p) {
+                paths.push(p);
             }
         }
 
