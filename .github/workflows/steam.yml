@@ -14,15 +14,6 @@ jobs:
     permissions:
       contents: read
       issues: write
-    strategy:
-      matrix:
-        include:
-          - variant: production
-            steam_app_id: "4313790"
-            steam_app_name: "production"
-          - variant: playtest
-            steam_app_id: "4313850"
-            steam_app_name: "playtest"
     steps:
       - uses: actions/checkout@v4
 
@@ -70,8 +61,8 @@ jobs:
         uses: tauri-apps/tauri-action@v0.6.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          STEAM_APP_ID: ${{ matrix.steam_app_id }}
-          STEAM_APP_NAME: ${{ matrix.steam_app_name }}
+          STEAM_APP_ID: "4313790"
+          STEAM_APP_NAME: "production"
         with:
           args: --features steam --config src-tauri/tauri.steam.conf.json
 
@@ -86,28 +77,18 @@ jobs:
         uses: ./.github/actions/defender-scan
         with:
           exe_path: steam-build/windows/CM_Launcher.exe
-          build_name: "Steam ${{ github.ref_name }} (${{ matrix.variant }})"
+          build_name: "Steam ${{ github.ref_name }}"
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Windows build
         uses: actions/upload-artifact@v4
         with:
-          name: windows-build-${{ matrix.variant }}
+          name: windows-build-production
           path: steam-build/windows/
           retention-days: 1
 
   build-linux:
     runs-on: ubuntu-22.04
-    strategy:
-      matrix:
-        include:
-          - variant: production
-            steam_app_id: "4313790"
-            steam_app_name: "production"
-
-          - variant: playtest
-            steam_app_id: "4313850"
-            steam_app_name: "playtest"
     steps:
       - uses: actions/checkout@v4
 
@@ -175,8 +156,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APPIMAGE_EXTRACT_AND_RUN: 1
           LD_LIBRARY_PATH: /usr/lib:${{ github.workspace }}/src-tauri/resources
-          STEAM_APP_ID: ${{ matrix.steam_app_id }}
-          STEAM_APP_NAME: ${{ matrix.steam_app_name }}
+          STEAM_APP_ID: "4313790"
+          STEAM_APP_NAME: "production"
         with:
           args: --features steam --config src-tauri/tauri.steam.conf.json --config src-tauri/tauri.linux.conf.json
 
@@ -207,93 +188,12 @@ jobs:
       - name: Upload Linux build
         uses: actions/upload-artifact@v4
         with:
-          name: linux-build-${{ matrix.variant }}
+          name: linux-build-production
           path: steam-build/linux/
           retention-days: 1
 
-  build-macos:
-    runs-on: macos-latest
-    strategy:
-      matrix:
-        include:
-          - variant: production
-            steam_app_id: "4313790"
-            steam_app_name: "production"
-
-          - variant: playtest
-            steam_app_id: "4313850"
-            steam_app_name: "playtest"
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-          cache: 'npm'
-
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-apple-darwin,x86_64-apple-darwin
-
-      - name: Rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-          shared-key: steam-macos
-
-      - name: Cache Steamworks SDK
-        id: cache-steamworks
-        uses: actions/cache@v4
-        with:
-          path: steamworks_sdk
-          key: steamworks-sdk-${{ env.STEAMWORKS_SDK_COMMIT }}
-
-      - name: Download Steamworks SDK
-        if: steps.cache-steamworks.outputs.cache-hit != 'true'
-        run: |
-          curl -L "https://github.com/rlabrecque/SteamworksSDK/archive/$STEAMWORKS_SDK_COMMIT.zip" -o steamworks_sdk.zip
-          unzip steamworks_sdk.zip
-          mv "SteamworksSDK-$STEAMWORKS_SDK_COMMIT" steamworks_sdk
-
-      - name: Install Steam SDK library
-        run: |
-          mkdir -p src-tauri/resources
-          cp steamworks_sdk/redistributable_bin/osx/libsteam_api.dylib src-tauri/resources/
-
-      - name: Install frontend dependencies
-        run: npm install
-
-      - name: Build Tauri app (Universal Binary)
-        uses: tauri-apps/tauri-action@v0.6.1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          STEAM_APP_ID: ${{ matrix.steam_app_id }}
-          STEAM_APP_NAME: ${{ matrix.steam_app_name }}
-
-        with:
-          args: --features steam --target universal-apple-darwin --config src-tauri/tauri.steam.conf.json
-
-      - name: Prepare macOS artifacts
-        run: |
-          mkdir -p steam-build/macos
-
-          APP_PATH=$(find src-tauri/target/universal-apple-darwin/release/bundle -name "*.app" -type d | head -1)
-          if [ -n "$APP_PATH" ]; then
-            cp -R "$APP_PATH" steam-build/macos/
-          fi
-          cp src-tauri/resources/libsteam_api.dylib steam-build/macos/
-
-      - name: Upload macOS build
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-build-${{ matrix.variant }}
-          path: steam-build/macos/
-          retention-days: 1
-
   deploy-steam-production:
-    needs: [build-windows, build-linux, build-macos]
+    needs: [build-windows, build-linux]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -304,22 +204,6 @@ jobs:
           variant: production
           steam_app_id: "4313790"
           steam_app_name: "production"
-          steam_username: ${{ secrets.STEAM_USERNAME }}
-          steam_password: ${{ secrets.STEAM_PASSWORD }}
-          steam_shared_secret: ${{ secrets.STEAM_SHARED_SECRET }}
-
-  deploy-steam-playtest:
-    needs: [build-windows, build-linux, build-macos, deploy-steam-production]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Deploy to Steam
-        uses: ./.github/actions/steam-deploy
-        with:
-          variant: playtest
-          steam_app_id: "4313850"
-          steam_app_name: "playtest"
           steam_username: ${{ secrets.STEAM_USERNAME }}
           steam_password: ${{ secrets.STEAM_PASSWORD }}
           steam_shared_secret: ${{ secrets.STEAM_SHARED_SECRET }}

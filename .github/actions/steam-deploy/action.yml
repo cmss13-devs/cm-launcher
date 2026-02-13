@@ -39,12 +39,6 @@ runs:
         name: linux-build-${{ inputs.variant }}
         path: build/linux
 
-    - name: Download macOS build
-      uses: actions/download-artifact@v4
-      with:
-        name: macos-build-${{ inputs.variant }}
-        path: build/macos
-
     - name: Get version from Cargo.toml
       id: version
       shell: bash
@@ -63,5 +57,4 @@ runs:
         rootPath: build
         depot1Path: windows
         depot2Path: linux
-        depot3Path: macos
         releaseBranch: latest

@@ -15,12 +15,6 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Update Windows Defender signatures
-      shell: pwsh
-      run: |
-        Write-Host "Updating Windows Defender signatures..."
-        & "C:\Program Files\Windows Defender\MpCmdRun.exe" -SignatureUpdate
-
     - name: Scan executable with Windows Defender
       id: scan
       shell: pwsh
