@@ -28,6 +28,8 @@ pub struct Server {
     #[serde(default)]
     pub data: Option<ServerData>,
     pub recommended_byond_version: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

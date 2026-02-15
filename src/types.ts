@@ -81,6 +81,7 @@ export interface Server {
   status: string;
   data?: ServerData;
   recommended_byond_version?: string;
+  tags?: string[];
 }
 
 export interface WineStatus {

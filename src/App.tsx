@@ -1,5 +1,5 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 
 import {
@@ -170,12 +170,39 @@ function AppContent() {
   const [pendingServerName, setPendingServerName] = useState<string | null>(
     null,
   );
+  const [selectedCategory, setSelectedCategory] = useState<string>("pvp");
+
+  const categories = useMemo(() => {
+    const tagSet = new Set<string>();
+    for (const server of servers) {
+      if (server.tags) {
+        for (const tag of server.tags) {
+          tagSet.add(tag);
+        }
+      }
+    }
+    const sorted = Array.from(tagSet).sort();
+
+    const pvpIndex = sorted.findIndex((t) => t.toLowerCase() === "pvp");
+    if (pvpIndex > 0) {
+      const [pvp] = sorted.splice(pvpIndex, 1);
+      sorted.unshift(pvp);
+    }
+    return sorted;
+  }, [servers]);
+
+  const filteredServers = useMemo(() => {
+    return servers.filter((server) =>
+      server.tags?.some(
+        (t) => t.toLowerCase() === selectedCategory.toLowerCase(),
+      ),
+    );
+  }, [servers, selectedCategory]);
 
   useEffect(() => {
     document.documentElement.className = `theme-${theme}`;
   }, [theme]);
 
-  // Check Wine status on Linux
   useEffect(() => {
     if (platform === "linux") {
       checkWineStatus().then((status) => {
@@ -483,6 +510,20 @@ function AppContent() {
 
         <main className="main-content">
           <section className="section servers-section">
+            {categories.length > 0 && (
+              <div className="category-tabs">
+                {categories.map((category) => (
+                  <button
+                    key={category}
+                    type="button"
+                    className={`category-tab ${selectedCategory.toLowerCase() === category.toLowerCase() ? "active" : ""}`}
+                    onClick={() => setSelectedCategory(category)}
+                  >
+                    {category.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="server-list">
               {serversLoading && servers.length === 0 && (
                 <div className="server-loading">Loading servers...</div>
@@ -490,7 +531,7 @@ function AppContent() {
               {serversError && (
                 <div className="server-error">Error: {serversError}</div>
               )}
-              {servers.map((server, index) => (
+              {filteredServers.map((server, index) => (
                 <ServerItem
                   key={server.name || index}
                   server={server}
