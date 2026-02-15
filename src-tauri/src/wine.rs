@@ -382,7 +382,6 @@ fn get_bundled_winetricks(app: &AppHandle) -> Option<PathBuf> {
 
 /// Get cabextract path, preferring system cabextract over bundled for performance
 fn get_cabextract(app: &AppHandle) -> Option<PathBuf> {
-    // Prefer system cabextract - it's typically faster than bundled
     if let Ok(output) = Command::new("which").arg("cabextract").output() {
         if output.status.success() {
             let path_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -457,7 +456,6 @@ pub fn check_wine_installed_with_paths(paths: &WinePaths) -> Result<(String, boo
     let mut cmd = Command::new(&paths.wine);
     cmd.arg("--version");
 
-    // Apply environment variables for bundled Wine
     for (key, value) in paths.get_env_vars() {
         cmd.env(key, value);
     }
@@ -482,11 +480,6 @@ pub fn check_wine_installed_with_paths(paths: &WinePaths) -> Result<(String, boo
 
 /// Parse Wine version string and check if it meets minimum requirements
 fn parse_and_check_wine_version(version_str: &str) -> bool {
-    // Wine version formats:
-    // - "wine-10.5" (stable)
-    // - "wine-10.5-rc1" (release candidate)
-    // - "wine-10.5-staging" (staging)
-
     let version_part = version_str
         .strip_prefix("wine-")
         .unwrap_or(version_str)
@@ -538,7 +531,6 @@ fn check_prefix_initialized(prefix: &Path) -> bool {
         return false;
     }
 
-    // Check initialization version
     if let Ok(contents) = fs::read_to_string(&marker_path) {
         if let Ok(version) = contents.trim().parse::<u32>() {
             return version >= INIT_VERSION;
@@ -550,7 +542,6 @@ fn check_prefix_initialized(prefix: &Path) -> bool {
 
 /// Check if WebView2 is installed in the prefix
 fn check_webview2_installed(prefix: &Path) -> bool {
-    // WebView2 installs to Program Files
     let webview2_path = prefix
         .join("drive_c")
         .join("Program Files (x86)")
@@ -573,7 +564,6 @@ pub async fn check_prefix_status(app: &AppHandle) -> WineStatus {
         }
     };
 
-    // Check Wine
     match check_wine_installed_with_paths(&paths) {
         Ok((version, meets_min)) => {
             status.installed = true;
@@ -586,10 +576,8 @@ pub async fn check_prefix_status(app: &AppHandle) -> WineStatus {
         }
     }
 
-    // Check winetricks
     status.winetricks_installed = check_winetricks_installed_with_paths(&paths).is_ok();
 
-    // Check prefix
     if let Ok(prefix) = get_wine_prefix(app) {
         status.prefix_initialized = check_prefix_initialized(&prefix);
         status.webview2_installed = check_webview2_installed(&prefix);
@@ -623,7 +611,6 @@ fn run_wine_command_with_paths(
     cmd.args(args);
     cmd.env("WINEPREFIX", prefix);
 
-    // Apply environment variables for bundled Wine
     for (key, value) in paths.get_env_vars() {
         cmd.env(key, value);
     }
@@ -647,7 +634,6 @@ fn run_winetricks_with_paths(
     cmd.args(["-q", verb]);
     cmd.env("WINEPREFIX", prefix);
 
-    // Apply environment variables for bundled Wine (includes WINE and WINE64)
     for (key, value) in paths.get_winetricks_env_vars() {
         cmd.env(key, value);
     }
@@ -677,7 +663,6 @@ fn set_registry_key_with_paths(
     value: &str,
     reg_type: &str,
 ) -> Result<(), WineError> {
-    // Use wine reg add command
     let full_path = format!("{}\\{}", path, key);
 
     let mut cmd = Command::new(&paths.wine);
@@ -686,7 +671,6 @@ fn set_registry_key_with_paths(
     ]);
     cmd.env("WINEPREFIX", prefix);
 
-    // Apply environment variables for bundled Wine
     for (k, v) in paths.get_env_vars() {
         cmd.env(k, v);
     }
@@ -742,7 +726,6 @@ fn kill_wine_process_with_paths(
     cmd.args(["taskkill", "/f", "/im", process_name]);
     cmd.env("WINEPREFIX", prefix);
 
-    // Apply environment variables for bundled Wine
     for (key, value) in paths.get_env_vars() {
         cmd.env(key, value);
     }
@@ -765,7 +748,6 @@ pub async fn initialize_prefix(app: &AppHandle) -> Result<(), WineError> {
         "Checking Wine installation...",
     );
 
-    // Resolve Wine paths (bundled or system)
     let paths = resolve_wine_paths(app)?;
 
     let (version, meets_min) = check_wine_installed_with_paths(&paths)?;
@@ -850,7 +832,6 @@ pub async fn initialize_prefix(app: &AppHandle) -> Result<(), WineError> {
 
     let installer_path = webview2_installer.to_string_lossy().to_string();
 
-    // Spawn installer with timeout - it spawns background processes that never exit
     let mut cmd = Command::new(&paths.wine);
     cmd.args([installer_path.as_str(), "/silent", "/install"]);
     cmd.env("WINEPREFIX", &prefix);
