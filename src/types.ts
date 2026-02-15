@@ -103,3 +103,18 @@ export interface WineSetupProgress {
 }
 
 export type Platform = "windows" | "linux" | "macos" | "unknown";
+
+export interface SinglePlayerStatus {
+  installed: boolean;
+  version: string | null;
+  release_tag: string | null;
+  path: string | null;
+}
+
+export interface ReleaseInfo {
+  tag_name: string;
+  name: string;
+  published_at: string;
+  download_url: string | null;
+  size: number | null;
+}

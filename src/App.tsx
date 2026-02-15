@@ -10,6 +10,7 @@ import {
   RelayDropdown,
   ServerItem,
   SettingsModal,
+  SinglePlayerPanel,
   SocialLinks,
   SteamAuthModal,
   Titlebar,
@@ -188,6 +189,10 @@ function AppContent() {
       const [pvp] = sorted.splice(pvpIndex, 1);
       sorted.unshift(pvp);
     }
+
+    // Add sandbox as a special tab at the end
+    sorted.push("sandbox");
+
     return sorted;
   }, [servers]);
 
@@ -524,23 +529,27 @@ function AppContent() {
                 ))}
               </div>
             )}
-            <div className="server-list">
-              {serversLoading && servers.length === 0 && (
-                <div className="server-loading">Loading servers...</div>
-              )}
-              {serversError && (
-                <div className="server-error">Error: {serversError}</div>
-              )}
-              {filteredServers.map((server, index) => (
-                <ServerItem
-                  key={server.name || index}
-                  server={server}
-                  onLoginRequired={onLoginRequired}
-                  onSteamAuthRequired={onSteamAuthRequired}
-                  autoConnecting={autoConnecting}
-                />
-              ))}
-            </div>
+            {selectedCategory === "sandbox" ? (
+              <SinglePlayerPanel />
+            ) : (
+              <div className="server-list">
+                {serversLoading && servers.length === 0 && (
+                  <div className="server-loading">Loading servers...</div>
+                )}
+                {serversError && (
+                  <div className="server-error">Error: {serversError}</div>
+                )}
+                {filteredServers.map((server, index) => (
+                  <ServerItem
+                    key={server.name || index}
+                    server={server}
+                    onLoginRequired={onLoginRequired}
+                    onSteamAuthRequired={onSteamAuthRequired}
+                    autoConnecting={autoConnecting}
+                  />
+                ))}
+              </div>
+            )}
             {lastUpdated !== null && (
               <div className="refresh-bar">
                 <div key={lastUpdated} className="refresh-bar-fill" />
