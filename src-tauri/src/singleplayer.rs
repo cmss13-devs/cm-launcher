@@ -7,9 +7,11 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io;
 use std::path::PathBuf;
-use tauri::AppHandle;
+use std::sync::Arc;
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::byond::install_byond_version;
+use crate::presence::PresenceManager;
 
 const GITHUB_REPO: &str = "cmss13-devs/cmss13";
 const BUILD_ASSET_NAME: &str = "colonialmarines-build.tar.zst";
@@ -368,6 +370,8 @@ pub async fn launch_singleplayer(app: AppHandle) -> Result<(), String> {
     let byond_version = get_byond_version_from_dependencies()?;
     tracing::info!("Launching singleplayer with BYOND {}", byond_version);
 
+    app.emit("game-connecting", "Sandbox").ok();
+
     let version_info = install_byond_version(app.clone(), byond_version.clone()).await?;
 
     if !version_info.installed {
@@ -388,11 +392,15 @@ pub async fn launch_singleplayer(app: AppHandle) -> Result<(), String> {
     {
         use std::process::Command;
 
-        Command::new(&dreamseeker_path)
+        let child = Command::new(&dreamseeker_path)
             .arg("-trusted")
             .arg(&dmb_path)
             .spawn()
             .map_err(|e| format!("Failed to launch DreamSeeker: {}", e))?;
+
+        if let Some(manager) = app.try_state::<Arc<PresenceManager>>() {
+            manager.start_game_session("Sandbox".to_string(), None, child);
+        }
     }
 
     #[cfg(target_os = "linux")]
@@ -410,13 +418,17 @@ pub async fn launch_singleplayer(app: AppHandle) -> Result<(), String> {
         let dmb_path_str = dmb_path.to_str().unwrap_or("");
         let wine_dmb_path = format!("Z:{}", dmb_path_str.replace('/', "\\"));
 
-        wine::launch_with_wine(
+        let child = wine::launch_with_wine(
             &app,
             std::path::Path::new(&dreamseeker_path),
             &["-trusted", &wine_dmb_path],
             &[],
         )
         .map_err(|e| format!("Failed to launch DreamSeeker via Wine: {}", e))?;
+
+        if let Some(manager) = app.try_state::<Arc<PresenceManager>>() {
+            manager.start_game_session("Sandbox".to_string(), None, child);
+        }
     }
 
     #[cfg(target_os = "macos")]
