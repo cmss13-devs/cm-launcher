@@ -370,8 +370,6 @@ pub async fn launch_singleplayer(app: AppHandle) -> Result<(), String> {
     let byond_version = get_byond_version_from_dependencies()?;
     tracing::info!("Launching singleplayer with BYOND {}", byond_version);
 
-    app.emit("game-connecting", "Sandbox").ok();
-
     let version_info = install_byond_version(app.clone(), byond_version.clone()).await?;
 
     if !version_info.installed {
@@ -398,6 +396,7 @@ pub async fn launch_singleplayer(app: AppHandle) -> Result<(), String> {
             .spawn()
             .map_err(|e| format!("Failed to launch DreamSeeker: {}", e))?;
 
+        app.emit("game-connected", "Sandbox").ok();
         if let Some(manager) = app.try_state::<Arc<PresenceManager>>() {
             manager.start_game_session("Sandbox".to_string(), None, child);
         }
@@ -426,6 +425,7 @@ pub async fn launch_singleplayer(app: AppHandle) -> Result<(), String> {
         )
         .map_err(|e| format!("Failed to launch DreamSeeker via Wine: {}", e))?;
 
+        app.emit("game-connected", "Sandbox").ok();
         if let Some(manager) = app.try_state::<Arc<PresenceManager>>() {
             manager.start_game_session("Sandbox".to_string(), None, child);
         }
