@@ -1,8 +1,13 @@
+use futures_util::{SinkExt, StreamExt};
+use std::net::TcpListener;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 use tauri::{Emitter, Manager};
 use tiny_http::{Response, Server};
+use tokio::net::TcpListener as TokioTcpListener;
+use tokio::sync::broadcast;
+use tokio_tungstenite::tungstenite::Message;
 use url::Url;
 
 use crate::presence::{ConnectionParams, PresenceManager};
@@ -41,9 +46,15 @@ fn preflight_response() -> Response<std::io::Empty> {
 
 pub struct ControlServer {
     pub port: u16,
+    #[allow(dead_code)]
+    pub ws_port: u16,
 
     #[allow(dead_code)]
     pub game_connected: Arc<AtomicBool>,
+
+    /// Broadcast channel for sending events to connected WebSocket clients
+    #[allow(dead_code)]
+    event_tx: broadcast::Sender<String>,
 }
 
 impl ControlServer {
@@ -83,6 +94,20 @@ impl ControlServer {
             port
         );
 
+        let ws_listener = TcpListener::bind("127.0.0.1:0")
+            .map_err(|e| format!("Failed to bind WebSocket server: {}", e))?;
+        let ws_port = ws_listener
+            .local_addr()
+            .map_err(|e| format!("Failed to get WebSocket server address: {}", e))?
+            .port();
+        tracing::info!(
+            "WebSocket server started on 127.0.0.1:{} (for launcher events)",
+            ws_port
+        );
+
+        let (event_tx, _) = broadcast::channel::<String>(32);
+        let event_tx_clone = event_tx.clone();
+
         let game_connected = Arc::new(AtomicBool::new(false));
         let game_connected_clone = Arc::clone(&game_connected);
 
@@ -90,10 +115,133 @@ impl ControlServer {
             Self::run_server(server, app_handle, presence_manager, game_connected_clone);
         });
 
+        let event_tx_ws = event_tx.clone();
+        std::thread::spawn(move || {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed to create tokio runtime for WebSocket server");
+
+            rt.block_on(async move {
+                Self::run_websocket_server(ws_listener, event_tx_ws).await;
+            });
+        });
+
         Ok(Self {
             port,
+            ws_port,
             game_connected,
+            event_tx: event_tx_clone,
         })
+    }
+
+    /// Send an event to all connected WebSocket clients
+    #[allow(dead_code)]
+    pub fn broadcast_event(&self, event: &str) {
+        if self.event_tx.receiver_count() > 0 {
+            if let Err(e) = self.event_tx.send(event.to_string()) {
+                tracing::warn!("Failed to broadcast event: {}", e);
+            }
+        }
+    }
+
+    /// Send a JSON event to all connected WebSocket clients
+    #[allow(dead_code)]
+    pub fn broadcast_json<T: serde::Serialize>(&self, event_type: &str, data: &T) {
+        let json = serde_json::json!({
+            "type": event_type,
+            "data": data,
+        });
+        self.broadcast_event(&json.to_string());
+    }
+
+    async fn run_websocket_server(listener: TcpListener, event_tx: broadcast::Sender<String>) {
+        listener.set_nonblocking(true).ok();
+        let listener =
+            TokioTcpListener::from_std(listener).expect("Failed to convert TcpListener to tokio");
+
+        loop {
+            match listener.accept().await {
+                Ok((stream, addr)) => {
+                    tracing::info!("New WebSocket connection from {}", addr);
+                    let event_rx = event_tx.subscribe();
+
+                    tokio::spawn(async move {
+                        Self::handle_websocket_connection(stream, event_rx).await;
+                    });
+                }
+                Err(e) => {
+                    tracing::error!("Failed to accept WebSocket connection: {}", e);
+                }
+            }
+        }
+    }
+
+    async fn handle_websocket_connection(
+        stream: tokio::net::TcpStream,
+        mut event_rx: broadcast::Receiver<String>,
+    ) {
+        let ws_stream = match tokio_tungstenite::accept_async(stream).await {
+            Ok(ws) => ws,
+            Err(e) => {
+                tracing::error!("WebSocket handshake failed: {}", e);
+                return;
+            }
+        };
+
+        let (mut write, mut read) = ws_stream.split();
+
+        let welcome = serde_json::json!({
+            "type": "connected",
+            "data": { "message": "Connected to CM Launcher" }
+        });
+        if let Err(e) = write.send(Message::Text(welcome.to_string())).await {
+            tracing::error!("Failed to send welcome message: {}", e);
+            return;
+        }
+
+        loop {
+            tokio::select! {
+                event = event_rx.recv() => {
+                    match event {
+                        Ok(msg) => {
+                            if let Err(e) = write.send(Message::Text(msg)).await {
+                                tracing::debug!("WebSocket send error (client disconnected): {}", e);
+                                break;
+                            }
+                        }
+                        Err(broadcast::error::RecvError::Lagged(n)) => {
+                            tracing::warn!("WebSocket client lagged, skipped {} messages", n);
+                        }
+                        Err(broadcast::error::RecvError::Closed) => {
+                            break;
+                        }
+                    }
+                }
+                msg = read.next() => {
+                    match msg {
+                        Some(Ok(Message::Ping(data))) => {
+                            if let Err(e) = write.send(Message::Pong(data)).await {
+                                tracing::debug!("Failed to send pong: {}", e);
+                                break;
+                            }
+                        }
+                        Some(Ok(Message::Close(_))) | None => {
+                            tracing::info!("WebSocket client disconnected");
+                            break;
+                        }
+                        Some(Ok(Message::Text(text))) => {
+                            tracing::debug!("Received WebSocket message: {}", text);
+                        }
+                        Some(Err(e)) => {
+                            tracing::debug!("WebSocket error: {}", e);
+                            break;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
     }
 
     #[allow(dead_code)]
@@ -250,6 +398,9 @@ impl ControlServer {
             let control_port = app_handle
                 .try_state::<ControlServer>()
                 .map(|s| s.port.to_string());
+            let websocket_port = app_handle
+                .try_state::<ControlServer>()
+                .map(|s| s.ws_port.to_string());
 
             let url = crate::byond::build_connect_url(
                 &fresh_params.host,
@@ -257,6 +408,7 @@ impl ControlServer {
                 fresh_params.access_type.as_deref(),
                 fresh_params.access_token.as_deref(),
                 control_port.as_deref(),
+                websocket_port.as_deref(),
             );
 
             Ok(url)

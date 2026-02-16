@@ -3,10 +3,10 @@ mod autoconnect;
 mod byond;
 mod control_server;
 mod discord;
-mod open_url;
 #[cfg(target_os = "windows")]
 mod job_object;
 mod logging;
+mod open_url;
 mod presence;
 mod relays;
 mod servers;
@@ -240,7 +240,7 @@ pub fn run() {
     let mut steam_poll_callback: Option<Box<dyn Fn() + Send + Sync>> = None;
 
     #[cfg(feature = "steam")]
-    {
+    let steam_overlay_rx: Option<tokio::sync::broadcast::Receiver<bool>> = {
         use std::sync::Arc;
 
         use crate::steam::get_steam_app_id;
@@ -259,13 +259,20 @@ pub fn run() {
                 let steam_state_clone = Arc::clone(&steam_state);
                 steam_poll_callback = Some(Box::new(move || steam_state_clone.run_callbacks()));
 
+                let overlay_rx = steam_state.subscribe_overlay_events();
+
                 builder = builder.manage(steam_state);
+                Some(overlay_rx)
             }
             Err(e) => {
                 tracing::error!("Failed to initialize Steam: {:?}", e);
+                None
             }
         }
-    }
+    };
+
+    #[cfg(not(feature = "steam"))]
+    let steam_overlay_rx: Option<tokio::sync::broadcast::Receiver<bool>> = None;
 
     {
         use std::sync::Arc;
@@ -347,7 +354,41 @@ pub fn run() {
                 relays::init_relays(&relay_state_init, &handle_for_relay_init).await;
             });
 
-            autoconnect::check_and_start_autoconnect(handle);
+            autoconnect::check_and_start_autoconnect(handle.clone());
+
+            if let Some(mut overlay_rx) = steam_overlay_rx {
+                let handle_for_overlay = handle;
+                tauri::async_runtime::spawn(async move {
+                    loop {
+                        match overlay_rx.recv().await {
+                            Ok(active) => {
+                                if let Some(server) =
+                                    handle_for_overlay.try_state::<control_server::ControlServer>()
+                                {
+                                    server.broadcast_json(
+                                        "steam_overlay",
+                                        &serde_json::json!({ "active": active }),
+                                    );
+                                    tracing::debug!(
+                                        "Broadcast steam_overlay event: active={}",
+                                        active
+                                    );
+                                }
+                            }
+                            Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                                tracing::warn!(
+                                    "Overlay event receiver lagged, skipped {} events",
+                                    n
+                                );
+                            }
+                            Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                                tracing::debug!("Overlay event channel closed");
+                                break;
+                            }
+                        }
+                    }
+                });
+            }
 
             Ok(())
         })

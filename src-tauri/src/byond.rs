@@ -2,11 +2,11 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::io;
+#[cfg(target_os = "linux")]
+use std::path::Path;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-#[cfg(target_os = "linux")]
-use std::path::Path;
 use tauri::{AppHandle, Manager};
 
 use crate::auth::TokenStorage;
@@ -51,20 +51,26 @@ pub struct ConnectionResult {
     pub auth_error: Option<AuthError>,
 }
 
-/// Build a BYOND connection URL with optional auth and launcher port.
+/// Build a BYOND connection URL with optional auth and launcher ports.
 pub fn build_connect_url(
     host: &str,
     port: &str,
     access_type: Option<&str>,
     access_token: Option<&str>,
     launcher_port: Option<&str>,
+    websocket_port: Option<&str>,
 ) -> String {
     let mut query_params = Vec::new();
     if let (Some(access_type), Some(token)) = (access_type, access_token) {
         query_params.push(format!("{}={}", access_type, token));
     }
+
     if let Some(port) = launcher_port {
         query_params.push(format!("launcher_port={}", port));
+    }
+
+    if let Some(port) = websocket_port {
+        query_params.push(format!("websocket_port={}", port));
     }
 
     if query_params.is_empty() {
@@ -610,6 +616,9 @@ async fn connect_to_server_impl(
         }
 
         let control_port = app.try_state::<ControlServer>().map(|s| s.port.to_string());
+        let websocket_port = app
+            .try_state::<ControlServer>()
+            .map(|s| s.ws_port.to_string());
 
         let connect_url = build_connect_url(
             &host,
@@ -617,6 +626,7 @@ async fn connect_to_server_impl(
             access_type.as_deref(),
             access_token.as_deref(),
             control_port.as_deref(),
+            websocket_port.as_deref(),
         );
 
         // Set a unique WebView2 user data folder to avoid conflicts with the system BYOND pager.
@@ -675,6 +685,9 @@ async fn connect_to_server_impl(
         }
 
         let control_port = app.try_state::<ControlServer>().map(|s| s.port.to_string());
+        let websocket_port = app
+            .try_state::<ControlServer>()
+            .map(|s| s.ws_port.to_string());
 
         let connect_url = build_connect_url(
             &host,
@@ -682,6 +695,7 @@ async fn connect_to_server_impl(
             access_type.as_deref(),
             access_token.as_deref(),
             control_port.as_deref(),
+            websocket_port.as_deref(),
         );
 
         let webview2_data_dir = get_byond_base_dir(&app)?.join("webview2_data");
@@ -820,7 +834,7 @@ pub async fn connect_to_url(
     #[cfg(not(feature = "dev"))]
     {
         let _ = (app, url, version, source);
-        return Err("Dev mode is not enabled".to_string());
+        Err("Dev mode is not enabled".to_string())
     }
 
     #[cfg(feature = "dev")]
