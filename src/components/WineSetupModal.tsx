@@ -11,13 +11,13 @@ interface WineSetupModalProps {
   onRetry: () => void;
 }
 
-function WineErrorContent({
+const WineErrorContent = ({
   status,
   onRetry,
 }: {
   status: WineStatus;
   onRetry: () => void;
-}) {
+}) => {
   return (
     <ModalContent title="Wine Error">
       <p>
@@ -31,13 +31,13 @@ function WineErrorContent({
       </div>
     </ModalContent>
   );
-}
+};
 
-function SetupProgressContent({
+const SetupProgressContent = ({
   progress,
 }: {
   progress: WineSetupProgress | null;
-}) {
+}) => {
   const displayProgress = progress?.progress ?? 0;
   const displayMessage =
     progress?.message ?? "Starting Wine environment setup...";
@@ -56,9 +56,9 @@ function SetupProgressContent({
       <ModalSpinner />
     </ModalContent>
   );
-}
+};
 
-function SetupRequiredContent({ onSetup }: { onSetup: () => void }) {
+const SetupRequiredContent = ({ onSetup }: { onSetup: () => void }) => {
   return (
     <ModalContent title="Wine Setup Required">
       <p>
@@ -72,15 +72,15 @@ function SetupRequiredContent({ onSetup }: { onSetup: () => void }) {
       </div>
     </ModalContent>
   );
-}
+};
 
-function SetupErrorContent({
+const SetupErrorContent = ({
   error,
   onRetry,
 }: {
   error: string;
   onRetry: () => void;
-}) {
+}) => {
   return (
     <ModalContent title="Setup Failed">
       <p>{error}</p>
@@ -96,9 +96,9 @@ function SetupErrorContent({
       </div>
     </ModalContent>
   );
-}
+};
 
-function SetupCompleteContent({ onClose }: { onClose: () => void }) {
+const SetupCompleteContent = ({ onClose }: { onClose: () => void }) => {
   return (
     <ModalContent title="Setup Complete">
       <div>
@@ -111,9 +111,9 @@ function SetupCompleteContent({ onClose }: { onClose: () => void }) {
       </div>
     </ModalContent>
   );
-}
+};
 
-export function WineSetupModal({
+export const WineSetupModal = ({
   visible,
   status,
   progress,
@@ -121,7 +121,7 @@ export function WineSetupModal({
   onSetup,
   onClose,
   onRetry,
-}: WineSetupModalProps) {
+}: WineSetupModalProps) => {
   // Determine which state to show
   const wineError = status.error || !status.installed;
   const setupComplete =
@@ -154,4 +154,4 @@ export function WineSetupModal({
       )}
     </Modal>
   );
-}
+};

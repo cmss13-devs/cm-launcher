@@ -26,7 +26,7 @@ const socialLinks = [
   },
 ];
 
-export function SocialLinks() {
+export const SocialLinks = () => {
   const handleClick = async (url: string) => {
     await invoke("open_url", { url });
   };
@@ -46,4 +46,4 @@ export function SocialLinks() {
       ))}
     </div>
   );
-}
+};

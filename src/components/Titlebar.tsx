@@ -2,7 +2,7 @@ import { faMinus, faXmark } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
-export function Titlebar() {
+export const Titlebar = () => {
   const handleMinimize = async () => {
     const window = getCurrentWindow();
     await window.minimize();
@@ -34,4 +34,4 @@ export function Titlebar() {
       </div>
     </div>
   );
-}
+};

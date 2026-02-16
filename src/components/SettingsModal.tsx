@@ -13,13 +13,13 @@ interface AuthModeOptionProps {
   onChange: (mode: AuthMode) => void;
 }
 
-function AuthModeOption({
+const AuthModeOption = ({
   mode,
   currentMode,
   name,
   description,
   onChange,
-}: AuthModeOptionProps) {
+}: AuthModeOptionProps) => {
   return (
     <label
       className={`auth-mode-option ${currentMode === mode ? "selected" : ""}`}
@@ -37,7 +37,7 @@ function AuthModeOption({
       </div>
     </label>
   );
-}
+};
 
 interface ThemeOptionProps {
   theme: Theme;
@@ -47,13 +47,13 @@ interface ThemeOptionProps {
   onChange: (theme: Theme) => void;
 }
 
-function ThemeOption({
+const ThemeOption = ({
   theme,
   currentTheme,
   name,
   description,
   onChange,
-}: ThemeOptionProps) {
+}: ThemeOptionProps) => {
   return (
     <label
       className={`theme-option ${currentTheme === theme ? "selected" : ""}`}
@@ -71,7 +71,7 @@ function ThemeOption({
       </div>
     </label>
   );
-}
+};
 
 interface WineSettingsProps {
   platform: Platform;
@@ -80,12 +80,12 @@ interface WineSettingsProps {
   onResetPrefix: () => void;
 }
 
-function WineSettings({
+const WineSettings = ({
   platform,
   wineStatus,
   isResetting,
   onResetPrefix,
-}: WineSettingsProps) {
+}: WineSettingsProps) => {
   if (platform !== "linux") {
     return null;
   }
@@ -133,17 +133,17 @@ function WineSettings({
       </p>
     </div>
   );
-}
+};
 
 interface DevConnectSectionProps {
   onLoginRequired: () => void;
   onSteamAuthRequired: () => void;
 }
 
-function DevConnectSection({
+const DevConnectSection = ({
   onLoginRequired,
   onSteamAuthRequired,
-}: DevConnectSectionProps) {
+}: DevConnectSectionProps) => {
   const [url, setUrl] = useState("localhost:1337");
   const [version, setVersion] = useState("516.1667");
   const [connecting, setConnecting] = useState(false);
@@ -211,7 +211,7 @@ function DevConnectSection({
       </button>
     </div>
   );
-}
+};
 
 interface SettingsModalProps {
   visible: boolean;
@@ -230,7 +230,7 @@ interface SettingsModalProps {
   onClose: () => void;
 }
 
-export function SettingsModal({
+export const SettingsModal = ({
   visible,
   authMode,
   theme,
@@ -245,7 +245,7 @@ export function SettingsModal({
   onSteamAuthRequired,
   onResetWinePrefix,
   onClose,
-}: SettingsModalProps) {
+}: SettingsModalProps) => {
   const [byondPagerRunning, setByondPagerRunning] = useState<boolean | null>(
     null,
   );
@@ -372,4 +372,4 @@ export function SettingsModal({
       </div>
     </Modal>
   );
-}
+};

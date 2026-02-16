@@ -7,7 +7,7 @@ interface GameRestartingEvent {
   reason: string | null;
 }
 
-export function useGameConnection() {
+export const useGameConnection = () => {
   const [gameConnectionState, setGameConnectionState] =
     useState<GameConnectionState>("idle");
   const [connectedServerName, setConnectedServerName] = useState<string | null>(
@@ -64,4 +64,4 @@ export function useGameConnection() {
     closeGameConnectionModal,
     showGameConnectionModal: gameConnectionState !== "idle",
   };
-}
+};

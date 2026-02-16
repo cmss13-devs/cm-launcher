@@ -15,19 +15,19 @@ interface ErrorContextType {
 
 const ErrorContext = createContext<ErrorContextType | null>(null);
 
-export function useError() {
+export const useError = () => {
   const context = useContext(ErrorContext);
   if (!context) {
     throw new Error("useError must be used within ErrorProvider");
   }
   return context;
-}
+};
 
 interface ErrorProviderProps {
   children: ReactNode;
 }
 
-export function ErrorProvider({ children }: ErrorProviderProps) {
+export const ErrorProvider = ({ children }: ErrorProviderProps) => {
   const [errors, setErrors] = useState<ErrorNotification[]>([]);
   const [errorIdCounter, setErrorIdCounter] = useState(0);
 
@@ -49,4 +49,4 @@ export function ErrorProvider({ children }: ErrorProviderProps) {
       {children}
     </ErrorContext.Provider>
   );
-}
+};

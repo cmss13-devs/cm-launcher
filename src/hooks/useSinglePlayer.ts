@@ -9,7 +9,7 @@ const initialStatus: SinglePlayerStatus = {
   path: null,
 };
 
-export function useSinglePlayer() {
+export const useSinglePlayer = () => {
   const [status, setStatus] = useState<SinglePlayerStatus>(initialStatus);
   const [latestRelease, setLatestRelease] = useState<ReleaseInfo | null>(null);
   const [loading, setLoading] = useState(false);
@@ -119,4 +119,4 @@ export function useSinglePlayer() {
     remove,
     launch,
   };
-}
+};

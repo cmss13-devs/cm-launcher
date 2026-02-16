@@ -14,12 +14,12 @@ interface ServerItemProps {
   autoConnecting?: boolean;
 }
 
-export function ServerItem({
+export const ServerItem = ({
   server,
   onLoginRequired,
   onSteamAuthRequired,
   autoConnecting = false,
-}: ServerItemProps) {
+}: ServerItemProps) => {
   const [connecting, setConnecting] = useState(false);
   const { showError } = useError();
   const { connect } = useConnect();
@@ -115,4 +115,4 @@ export function ServerItem({
       </div>
     </div>
   );
-}
+};

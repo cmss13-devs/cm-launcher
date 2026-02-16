@@ -48,7 +48,7 @@ interface AutoConnectEvent {
   linking_url: string | null;
 }
 
-function AppContent() {
+const AppContent = () => {
   const { errors, dismissError, showError } = useError();
 
   const {
@@ -588,14 +588,14 @@ function AppContent() {
       </div>
     </div>
   );
-}
+};
 
-function App() {
+const App = () => {
   return (
     <ErrorProvider>
       <AppContent />
     </ErrorProvider>
   );
-}
+};
 
 export default App;

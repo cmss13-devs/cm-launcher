@@ -10,13 +10,13 @@ interface AuthModalProps {
   onClose: () => void;
 }
 
-export function AuthModal({
+export const AuthModal = ({
   visible,
   state,
   error,
   onLogin,
   onClose,
-}: AuthModalProps) {
+}: AuthModalProps) => {
   return (
     <Modal visible={visible} onClose={onClose}>
       <ModalCloseButton onClick={onClose} />
@@ -44,4 +44,4 @@ export function AuthModal({
       )}
     </Modal>
   );
-}
+};

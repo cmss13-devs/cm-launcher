@@ -11,7 +11,7 @@ interface AccountDisplayProps {
   };
 }
 
-function AccountDisplay({ avatar, name, status, action }: AccountDisplayProps) {
+const AccountDisplay = ({ avatar, name, status, action }: AccountDisplayProps) => {
   return (
     <>
       <div className="account-avatar">{avatar}</div>
@@ -30,7 +30,7 @@ function AccountDisplay({ avatar, name, status, action }: AccountDisplayProps) {
       )}
     </>
   );
-}
+};
 
 interface AccountInfoProps {
   onLogin: () => void;
@@ -38,11 +38,11 @@ interface AccountInfoProps {
   onSteamLogout: () => void;
 }
 
-export function AccountInfo({
+export const AccountInfo = ({
   onLogin,
   onLogout,
   onSteamLogout,
-}: AccountInfoProps) {
+}: AccountInfoProps) => {
   const authMode = useSettingsStore((s) => s.authMode);
   const authState = useAuthStore((s) => s.authState);
   const steamUser = useSteamStore((s) => s.user);
@@ -99,4 +99,4 @@ export function AccountInfo({
       action={{ label: "Login", onClick: onLogin, primary: true }}
     />
   );
-}
+};

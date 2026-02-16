@@ -10,13 +10,13 @@ interface RelayDropdownProps {
   onSelect: (relayId: string) => void;
 }
 
-export function RelayDropdown({
+export const RelayDropdown = ({
   relays,
   selectedRelay,
   isOpen,
   onToggle,
   onSelect,
-}: RelayDropdownProps) {
+}: RelayDropdownProps) => {
   const allChecking = relays.length > 0 && relays.every((r) => r.checking);
   const selectedRelayData = relays.find((r) => r.id === selectedRelay);
 
@@ -85,4 +85,4 @@ export function RelayDropdown({
       )}
     </div>
   );
-}
+};

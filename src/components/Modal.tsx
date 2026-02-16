@@ -11,14 +11,14 @@ interface ModalProps {
   closeOnOverlayClick?: boolean;
 }
 
-export function Modal({
+export const Modal = ({
   visible,
   onClose,
   children,
   className = "auth-modal",
   overlayClassName = "auth-modal-overlay",
   closeOnOverlayClick = false,
-}: ModalProps) {
+}: ModalProps) => {
   if (!visible) return null;
 
   const handleOverlayClick = (e: MouseEvent<HTMLDivElement>) => {
@@ -44,34 +44,34 @@ export function Modal({
       <div className={className}>{children}</div>
     </div>
   );
-}
+};
 
 interface ModalCloseButtonProps {
   onClick: () => void;
 }
 
-export function ModalCloseButton({ onClick }: ModalCloseButtonProps) {
+export const ModalCloseButton = ({ onClick }: ModalCloseButtonProps) => {
   return (
     <button type="button" className="modal-close-button" onClick={onClick}>
       <FontAwesomeIcon icon={faXmark} />
     </button>
   );
-}
+};
 
 interface ModalContentProps {
   title: string;
   children: ReactNode;
 }
 
-export function ModalContent({ title, children }: ModalContentProps) {
+export const ModalContent = ({ title, children }: ModalContentProps) => {
   return (
     <>
       <h2>{title}</h2>
       {children}
     </>
   );
-}
+};
 
-export function ModalSpinner() {
+export const ModalSpinner = () => {
   return <div className="auth-spinner" />;
-}
+};

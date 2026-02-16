@@ -25,9 +25,9 @@ interface ServerStore {
   initRelays: () => Promise<UnlistenFn>;
 }
 
-function hasValidPing(relays: RelayWithPing[]): boolean {
+const hasValidPing = (relays: RelayWithPing[]): boolean => {
   return relays.some((r) => r.ping !== null && !r.checking);
-}
+};
 
 export const useServerStore = create<ServerStore>()((set) => ({
   servers: [],

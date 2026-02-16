@@ -12,14 +12,14 @@ interface SteamAuthModalProps {
   onClose: () => void;
 }
 
-export function SteamAuthModal({
+export const SteamAuthModal = ({
   visible,
   state,
   error,
   linkingUrl,
   onAuthenticate,
   onClose,
-}: SteamAuthModalProps) {
+}: SteamAuthModalProps) => {
   const openLinkingUrl = async () => {
     if (linkingUrl) {
       await invoke("open_url", { url: linkingUrl });
@@ -74,4 +74,4 @@ export function SteamAuthModal({
       )}
     </Modal>
   );
-}
+};

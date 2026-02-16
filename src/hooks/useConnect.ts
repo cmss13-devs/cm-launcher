@@ -13,7 +13,7 @@ export interface ConnectionResult {
   auth_error: AuthError | null;
 }
 
-export function useConnect() {
+export const useConnect = () => {
   const connect = useCallback(
     async (serverName: string, source: string): Promise<ConnectionResult> => {
       console.log(`[useConnect] connect called, source=${source}`);
@@ -27,4 +27,4 @@ export function useConnect() {
   );
 
   return { connect };
-}
+};

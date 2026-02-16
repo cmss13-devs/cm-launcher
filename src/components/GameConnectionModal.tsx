@@ -13,13 +13,13 @@ interface GameConnectionModalProps {
   onClose: () => void;
 }
 
-export function GameConnectionModal({
+export const GameConnectionModal = ({
   visible,
   state,
   serverName,
   restartReason,
   onClose,
-}: GameConnectionModalProps) {
+}: GameConnectionModalProps) => {
   const [closing, setClosing] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(CONNECTION_TIMEOUT_SECONDS);
 
@@ -90,4 +90,4 @@ export function GameConnectionModal({
       </div>
     </div>
   );
-}
+};

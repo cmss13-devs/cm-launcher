@@ -7,10 +7,10 @@ interface ErrorNotificationsProps {
   onDismiss: (id: number) => void;
 }
 
-export function ErrorNotifications({
+export const ErrorNotifications = ({
   errors,
   onDismiss,
-}: ErrorNotificationsProps) {
+}: ErrorNotificationsProps) => {
   return (
     <div className="error-notifications">
       {errors.map((error) => (
@@ -27,4 +27,4 @@ export function ErrorNotifications({
       ))}
     </div>
   );
-}
+};

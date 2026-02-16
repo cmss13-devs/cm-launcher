@@ -1,13 +1,13 @@
 import { useSinglePlayer } from "../hooks";
 
-function formatBytes(bytes: number): string {
+const formatBytes = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-}
+};
 
-export function SinglePlayerPanel() {
+export const SinglePlayerPanel = () => {
   const {
     status,
     latestRelease,
@@ -129,4 +129,4 @@ export function SinglePlayerPanel() {
       </div>
     </div>
   );
-}
+};

@@ -13,7 +13,7 @@ const initialWineStatus: WineStatus = {
   error: null,
 };
 
-export function useWine() {
+export const useWine = () => {
   const [platform, setPlatform] = useState<Platform>("unknown");
   const [status, setStatus] = useState<WineStatus>(initialWineStatus);
   const [setupProgress, setSetupProgress] = useState<WineSetupProgress | null>(
@@ -151,4 +151,4 @@ export function useWine() {
     initializePrefix,
     resetPrefix,
   };
-}
+};
