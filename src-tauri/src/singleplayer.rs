@@ -390,9 +390,15 @@ pub async fn launch_singleplayer(app: AppHandle) -> Result<(), String> {
     {
         use std::process::Command;
 
+        // Set a unique WebView2 user data folder to avoid conflicts with the system BYOND pager.
+        // When the BYOND pager is running, it locks the default WebView2 user data directory,
+        // preventing our DreamSeeker from using WebView2. Using a separate folder resolves this.
+        let webview2_data_dir = get_byond_base_dir(&app)?.join("webview2_data");
+
         let child = Command::new(&dreamseeker_path)
             .arg("-trusted")
             .arg(&dmb_path)
+            .env("WEBVIEW2_USER_DATA_FOLDER", &webview2_data_dir)
             .spawn()
             .map_err(|e| format!("Failed to launch DreamSeeker: {}", e))?;
 
@@ -417,11 +423,16 @@ pub async fn launch_singleplayer(app: AppHandle) -> Result<(), String> {
         let dmb_path_str = dmb_path.to_str().unwrap_or("");
         let wine_dmb_path = format!("Z:{}", dmb_path_str.replace('/', "\\"));
 
+        let webview2_data_dir = get_byond_base_dir(&app)?.join("webview2_data");
+
         let child = wine::launch_with_wine(
             &app,
             std::path::Path::new(&dreamseeker_path),
             &["-trusted", &wine_dmb_path],
-            &[],
+            &[(
+                "WEBVIEW2_USER_DATA_FOLDER",
+                webview2_data_dir.to_str().unwrap(),
+            )],
         )
         .map_err(|e| format!("Failed to launch DreamSeeker via Wine: {}", e))?;
 
