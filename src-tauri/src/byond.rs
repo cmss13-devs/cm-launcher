@@ -80,7 +80,7 @@ pub fn build_connect_url(
     }
 }
 
-fn get_byond_base_dir(_app: &AppHandle) -> Result<PathBuf, String> {
+pub fn get_byond_base_dir(_app: &AppHandle) -> Result<PathBuf, String> {
     let local_data = dirs::data_local_dir()
         .ok_or("Failed to get local data directory")?
         .join("com.cm-ss13.launcher");

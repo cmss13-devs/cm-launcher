@@ -10,6 +10,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager};
 
+use crate::byond::get_byond_base_dir;
 use crate::byond::install_byond_version;
 use crate::presence::PresenceManager;
 
