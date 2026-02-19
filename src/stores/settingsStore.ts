@@ -7,6 +7,7 @@ interface SettingsStore {
   theme: Theme;
   devMode: boolean;
   notificationServers: Set<string>;
+  fullscreenOverlay: boolean;
 
   setAuthMode: (mode: AuthMode) => void;
   setTheme: (theme: Theme) => void;
@@ -15,6 +16,7 @@ interface SettingsStore {
   saveTheme: (theme: Theme) => Promise<void>;
   toggleServerNotifications: (serverName: string, enabled: boolean) => Promise<void>;
   isServerNotificationsEnabled: (serverName: string) => boolean;
+  saveFullscreenOverlay: (enabled: boolean) => Promise<void>;
 }
 
 export const useSettingsStore = create<SettingsStore>()((set, get) => ({
@@ -22,6 +24,7 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
   theme: "default",
   devMode: false,
   notificationServers: new Set<string>(),
+  fullscreenOverlay: true,
 
   setAuthMode: (authMode) => set({ authMode }),
   setTheme: (theme) => set({ theme }),
@@ -37,6 +40,7 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
         theme: settings.theme,
         devMode,
         notificationServers: new Set(settings.notification_servers),
+        fullscreenOverlay: settings.fullscreen_overlay,
       });
       return settings;
     } catch (err) {
@@ -65,5 +69,10 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
 
   isServerNotificationsEnabled: (serverName: string) => {
     return get().notificationServers.has(serverName);
+  },
+
+  saveFullscreenOverlay: async (enabled: boolean) => {
+    const settings = await invoke<AppSettings>("set_fullscreen_overlay", { enabled });
+    set({ fullscreenOverlay: settings.fullscreen_overlay });
   },
 }));

@@ -33,7 +33,7 @@ use byond::{
 };
 use relays::{get_relays, get_selected_relay, set_selected_relay};
 use servers::get_servers;
-use settings::{get_settings, set_auth_mode, set_theme, toggle_server_notifications};
+use settings::{get_settings, set_auth_mode, set_fullscreen_overlay, set_theme, toggle_server_notifications};
 
 use singleplayer::{
     delete_singleplayer, get_latest_singleplayer_release, get_singleplayer_status,
@@ -170,6 +170,7 @@ pub fn run() {
             get_settings,
             set_auth_mode,
             set_theme,
+            set_fullscreen_overlay,
             toggle_server_notifications,
             get_control_server_port,
             kill_game,
@@ -210,6 +211,7 @@ pub fn run() {
             get_settings,
             set_auth_mode,
             set_theme,
+            set_fullscreen_overlay,
             toggle_server_notifications,
             get_control_server_port,
             kill_game,
@@ -362,15 +364,27 @@ pub fn run() {
                     loop {
                         match overlay_rx.recv().await {
                             Ok(active) => {
-                                if let Some(server) =
-                                    handle_for_overlay.try_state::<control_server::ControlServer>()
-                                {
-                                    server.broadcast_json(
-                                        "steam_overlay",
-                                        &serde_json::json!({ "active": active }),
-                                    );
+                                // Check if fullscreen overlay events are enabled
+                                let should_broadcast = settings::load_settings(&handle_for_overlay)
+                                    .map(|s| s.fullscreen_overlay)
+                                    .unwrap_or(true);
+
+                                if should_broadcast {
+                                    if let Some(server) =
+                                        handle_for_overlay.try_state::<control_server::ControlServer>()
+                                    {
+                                        server.broadcast_json(
+                                            "steam_overlay",
+                                            &serde_json::json!({ "active": active }),
+                                        );
+                                        tracing::debug!(
+                                            "Broadcast steam_overlay event: active={}",
+                                            active
+                                        );
+                                    }
+                                } else {
                                     tracing::debug!(
-                                        "Broadcast steam_overlay event: active={}",
+                                        "Skipped steam_overlay event (disabled in settings): active={}",
                                         active
                                     );
                                 }

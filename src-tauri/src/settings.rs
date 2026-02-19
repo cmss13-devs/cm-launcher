@@ -30,6 +30,12 @@ pub struct AppSettings {
     pub theme: Theme,
     #[serde(default)]
     pub notification_servers: HashSet<String>,
+    #[serde(default = "default_true")]
+    pub fullscreen_overlay: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl Default for AppSettings {
@@ -39,6 +45,7 @@ impl Default for AppSettings {
             auth_mode: AuthMode::Steam,
             theme: Theme::Default,
             notification_servers: HashSet::new(),
+            fullscreen_overlay: true,
         }
     }
 
@@ -48,6 +55,7 @@ impl Default for AppSettings {
             auth_mode: AuthMode::CmSs13,
             theme: Theme::Default,
             notification_servers: HashSet::new(),
+            fullscreen_overlay: true,
         }
     }
 }
@@ -139,5 +147,16 @@ pub async fn toggle_server_notifications(
     }
     save_settings(&app, &settings)?;
 
+    Ok(settings)
+}
+
+#[tauri::command]
+pub async fn set_fullscreen_overlay(
+    app: AppHandle,
+    enabled: bool,
+) -> Result<AppSettings, String> {
+    let mut settings = load_settings(&app)?;
+    settings.fullscreen_overlay = enabled;
+    save_settings(&app, &settings)?;
     Ok(settings)
 }

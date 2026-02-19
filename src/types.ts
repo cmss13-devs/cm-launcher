@@ -48,6 +48,7 @@ export interface AppSettings {
   auth_mode: AuthMode;
   theme: Theme;
   notification_servers: string[];
+  fullscreen_overlay: boolean;
 }
 
 export interface ErrorNotification {
