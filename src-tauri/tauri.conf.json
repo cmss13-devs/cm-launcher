@@ -27,7 +27,7 @@
   },
   "bundle": {
     "resources": [
-      "icons/icon.png"
+      "icons/ss13/icon.png"
     ],
     "publisher": "SS13",
     "copyright": "Copyright 2026 SS13",
@@ -36,26 +36,24 @@
     "longDescription": "Launcher for SS13 servers. Manages BYOND game client installations.",
     "windows": {
       "allowDowngrades": true,
-      "certificateThumbprint": null,
-      "digestAlgorithm": null,
-      "nsis": null,
-      "signCommand": null,
-      "timestampUrl": null,
-      "tsp": false,
+      "nsis": {
+        "installMode": "both",
+        "installerIcon": "icons/ss13/icon.ico"
+      },
+      "wix": null,
       "webviewInstallMode": {
         "silent": true,
         "type": "embedBootstrapper"
-      },
-      "wix": null
+      }
     },
     "active": true,
     "targets": "all",
     "icon": [
-      "icons/32x32.png",
-      "icons/128x128.png",
-      "icons/128x128@2x.png",
-      "icons/icon.icns",
-      "icons/icon.ico"
+      "icons/ss13/32x32.png",
+      "icons/ss13/128x128.png",
+      "icons/ss13/128x128@2x.png",
+      "icons/ss13/icon.icns",
+      "icons/ss13/icon.ico"
     ]
   }
 }
