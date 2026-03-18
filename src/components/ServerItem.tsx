@@ -1,5 +1,7 @@
 import { faBell, faBellSlash, faShield, faUsers } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { invoke } from "@tauri-apps/api/core";
+import type { MouseEvent } from "react";
 import { useState } from "react";
 import { useConnect, useError } from "../hooks";
 import { useConfigStore, useServerStore, useSettingsStore } from "../stores";
@@ -33,6 +35,15 @@ export const ServerItem = ({
   const toggleServerNotifications = useSettingsStore(
     (s) => s.toggleServerNotifications,
   );
+
+  const handleHubStatusClick = (e: MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    const anchor = target.closest("a");
+    if (anchor?.href) {
+      e.preventDefault();
+      invoke("open_url", { url: anchor.href });
+    }
+  };
 
   const isOnline = server.status === "available";
   const data = server.data;
@@ -97,6 +108,8 @@ export const ServerItem = ({
         {showHubStatus ? (
           <div
             className="hub-status"
+            onClick={handleHubStatusClick}
+            onKeyDown={() => {}}
             // biome-ignore lint/security/noDangerouslySetInnerHtml: HTML from BYOND hub
             dangerouslySetInnerHTML={{ __html: server.hub_status }}
           />
@@ -162,7 +175,7 @@ export const ServerItem = ({
             onClick={handleConnect}
             disabled={!canConnect || connecting || autoConnecting}
           >
-            {connecting || autoConnecting ? "Connecting..." : "Connect"}
+            {connecting || autoConnecting ? "..." : "Connect"}
           </button>
           {data?.round_id != null && (
             <button

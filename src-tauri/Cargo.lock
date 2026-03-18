@@ -3,7 +3,7 @@
 version = 4
 
 [[package]]
-name = "CM_Launcher"
+name = "SS13_Launcher"
 version = "0.16.5"
 dependencies = [
  "aes-gcm",

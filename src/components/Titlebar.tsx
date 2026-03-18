@@ -17,7 +17,10 @@ export const Titlebar = () => {
 
   return (
     <div className="titlebar" data-tauri-drag-region>
-      <div className="titlebar-title">{config?.product_name || "SS13 Launcher"}</div>
+      <div className="titlebar-title">
+        {config?.logo && <img src={config.logo} alt="" className="titlebar-logo" />}
+        {config?.product_name || "SS13 Launcher"}
+      </div>
       <div className="titlebar-buttons">
         <button
           type="button"

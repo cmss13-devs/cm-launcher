@@ -6,6 +6,7 @@ use serde::Serialize;
 pub struct LauncherConfig {
     pub variant: &'static str,
     pub product_name: &'static str,
+    pub logo: &'static str,
     pub default_theme: &'static str,
     pub app_identifier: &'static str,
     pub discord_app_id: i64,
@@ -74,6 +75,7 @@ pub fn get_config() -> LauncherConfig {
     LauncherConfig {
         variant: "cm_ss13",
         product_name: "CM-SS13 Launcher",
+        logo: "/logo-cm.png",
         default_theme: "crt",
         app_identifier: "com.cm-ss13.launcher",
         discord_app_id: 1383904378154651768,
@@ -142,6 +144,7 @@ pub fn get_config() -> LauncherConfig {
     LauncherConfig {
         variant: "ss13",
         product_name: "SS13 Launcher",
+        logo: "/logo-ss13.png",
         default_theme: "tgui",
         app_identifier: "com.ss13.launcher",
         discord_app_id: 1483901387086761994,

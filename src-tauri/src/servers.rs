@@ -9,9 +9,6 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_notification::NotificationExt;
 use tokio::sync::RwLock;
 
-fn get_server_api_url() -> &'static str {
-    get_config().urls.server_api
-}
 const SERVER_FETCH_INTERVAL_SECS: u64 = 20;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -50,8 +47,12 @@ pub struct Server {
     pub tags: Vec<String>,
 }
 
-// Hub API response structure (topic_status can have arbitrary fields)
-#[derive(Debug, Clone, Deserialize)]
+trait ServerApi: Send + Sync {
+    fn parse(&self, body: &str) -> Result<Vec<Server>, String>;
+}
+struct HubApi;
+
+#[derive(Debug, Deserialize)]
 struct HubServer {
     address: String,
     name: String,
@@ -64,12 +65,76 @@ struct HubServer {
     players: i32,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+impl ServerApi for HubApi {
+    fn parse(&self, body: &str) -> Result<Vec<Server>, String> {
+        let hub_servers: Vec<HubServer> =
+            serde_json::from_str(body).map_err(|e| format!("Failed to parse response: {}", e))?;
+
+        Ok(hub_servers.into_iter().map(Self::convert).collect())
+    }
+}
+
+impl HubApi {
+    fn convert(hub: HubServer) -> Server {
+        let topic = hub.topic_status.as_ref();
+
+        let data = topic.and_then(|ts| {
+            ts.get("round_id")
+                .and_then(|v| v.as_i64())
+                .map(|round_id| ServerData {
+                    round_id,
+                    mode: Self::get_str(ts, "mode").unwrap_or_default(),
+                    map_name: Self::get_str(ts, "map_name")
+                        .or_else(|| Self::get_str(ts, "map"))
+                        .unwrap_or_default(),
+                    round_duration: Self::get_f64(ts, "round_duration").unwrap_or(0.0),
+                    gamestate: Self::get_i32(ts, "gamestate").unwrap_or(0),
+                    players: Self::get_i32(ts, "players").unwrap_or(hub.players),
+                    admins: Self::get_i32(ts, "admins"),
+                    popcap: Self::get_i32(ts, "popcap"),
+                    security_level: Self::get_str(ts, "security_level"),
+                })
+        });
+
+        let address = topic
+            .and_then(|ts| Self::get_str(ts, "public_address"))
+            .unwrap_or_else(|| hub.address.clone());
+
+        Server {
+            name: hub.name,
+            url: format!("byond://{}", address),
+            status: if hub.online { "available" } else { "offline" }.to_string(),
+            hub_status: hub.status.clone(),
+            players: hub.players,
+            data,
+            is_18_plus: hub.status.contains("18+"),
+            version: topic.and_then(|ts| Self::get_str(ts, "version")),
+            recommended_byond_version: None,
+            tags: Vec::new(),
+        }
+    }
+
+    fn get_str(value: &Value, key: &str) -> Option<String> {
+        value.get(key).and_then(|v| v.as_str()).map(String::from)
+    }
+
+    fn get_i32(value: &Value, key: &str) -> Option<i32> {
+        value.get(key).and_then(|v| v.as_i64()).map(|v| v as i32)
+    }
+
+    fn get_f64(value: &Value, key: &str) -> Option<f64> {
+        value.get(key).and_then(|v| v.as_f64())
+    }
+}
+
+struct CmApi;
+
+#[derive(Debug, Deserialize)]
 struct CmApiResponse {
     servers: Vec<CmServer>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Deserialize)]
 struct CmServer {
     name: String,
     url: String,
@@ -83,8 +148,7 @@ struct CmServer {
     tags: Option<Vec<String>>,
 }
 
-// CM-SS13 API server data (nested under "data")
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Deserialize)]
 struct CmServerData {
     #[serde(default)]
     round_id: Option<i64>,
@@ -102,6 +166,57 @@ struct CmServerData {
     admins: Option<i32>,
     #[serde(default)]
     security_level: Option<String>,
+}
+
+impl ServerApi for CmApi {
+    fn parse(&self, body: &str) -> Result<Vec<Server>, String> {
+        let response: CmApiResponse =
+            serde_json::from_str(body).map_err(|e| format!("Failed to parse response: {}", e))?;
+
+        Ok(response.servers.into_iter().map(Self::convert).collect())
+    }
+}
+
+impl CmApi {
+    fn convert(cm: CmServer) -> Server {
+        let players = cm.data.as_ref().and_then(|d| d.players).unwrap_or(0);
+
+        let data = cm.data.as_ref().and_then(|d| {
+            d.round_id.map(|round_id| ServerData {
+                round_id,
+                mode: d.mode.clone().unwrap_or_default(),
+                map_name: d.map_name.clone().unwrap_or_default(),
+                round_duration: d.round_duration.unwrap_or(0.0),
+                gamestate: d.gamestate.unwrap_or(0),
+                players,
+                admins: d.admins,
+                popcap: None,
+                security_level: d.security_level.clone(),
+            })
+        });
+
+        Server {
+            name: cm.name,
+            url: format!("byond://{}", cm.url),
+            status: cm.status,
+            hub_status: String::new(),
+            players,
+            data,
+            is_18_plus: false,
+            version: None,
+            recommended_byond_version: cm.recommended_byond_version,
+            tags: cm.tags.unwrap_or_default(),
+        }
+    }
+}
+
+fn get_api_adapter() -> Box<dyn ServerApi> {
+    let config = get_config();
+    if config.features.hub_server_list {
+        Box::new(HubApi)
+    } else {
+        Box::new(CmApi)
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -138,8 +253,9 @@ impl ServerState {
 
 async fn fetch_servers_internal() -> Result<Vec<Server>, String> {
     let config = get_config();
+    let adapter = get_api_adapter();
 
-    let response = reqwest::get(get_server_api_url())
+    let response = reqwest::get(config.urls.server_api)
         .await
         .map_err(|e| format!("Failed to fetch servers: {}", e))?;
 
@@ -147,131 +263,12 @@ async fn fetch_servers_internal() -> Result<Vec<Server>, String> {
         return Err(format!("HTTP error: {}", response.status()));
     }
 
-    // Use different parsing based on which API we're using
-    if config.features.hub_server_list {
-        // Hub API format
-        let hub_servers: Vec<HubServer> = response
-            .json()
-            .await
-            .map_err(|e| format!("Failed to parse server response: {}", e))?;
+    let body = response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read response: {}", e))?;
 
-        let servers = hub_servers
-            .into_iter()
-            .map(|hub| {
-                let data = hub.topic_status.as_ref().and_then(|ts| {
-                    ts.get("round_id")
-                        .and_then(|v| v.as_i64())
-                        .map(|round_id| ServerData {
-                            round_id,
-                            mode: ts
-                                .get("mode")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("")
-                                .to_string(),
-                            map_name: ts
-                                .get("map_name")
-                                .and_then(|v| v.as_str())
-                                .or_else(|| ts.get("map").and_then(|v| v.as_str()))
-                                .unwrap_or("")
-                                .to_string(),
-                            round_duration: ts
-                                .get("round_duration")
-                                .and_then(|v| v.as_f64())
-                                .unwrap_or(0.0),
-                            gamestate: ts.get("gamestate").and_then(|v| v.as_i64()).unwrap_or(0)
-                                as i32,
-                            players: ts
-                                .get("players")
-                                .and_then(|v| v.as_i64())
-                                .unwrap_or(hub.players as i64)
-                                as i32,
-                            admins: ts.get("admins").and_then(|v| v.as_i64()).map(|v| v as i32),
-                            popcap: ts.get("popcap").and_then(|v| v.as_i64()).map(|v| v as i32),
-                            security_level: ts
-                                .get("security_level")
-                                .and_then(|v| v.as_str())
-                                .map(|s| s.to_string()),
-                        })
-                });
-
-                let address = hub
-                    .topic_status
-                    .as_ref()
-                    .and_then(|ts| ts.get("public_address").and_then(|v| v.as_str()))
-                    .unwrap_or(&hub.address);
-
-                let version = hub
-                    .topic_status
-                    .as_ref()
-                    .and_then(|ts| ts.get("version").and_then(|v| v.as_str()))
-                    .map(|s| s.to_string());
-
-                let is_18_plus = hub.status.contains("18+");
-
-                Server {
-                    name: hub.name,
-                    url: format!("byond://{}", address),
-                    status: if hub.online {
-                        "available".to_string()
-                    } else {
-                        "offline".to_string()
-                    },
-                    hub_status: hub.status,
-                    players: hub.players,
-                    data,
-                    is_18_plus,
-                    version,
-                    recommended_byond_version: None,
-                    tags: Vec::new(),
-                }
-            })
-            .collect();
-
-        Ok(servers)
-    } else {
-        // CM-SS13 API format (wrapped in {"servers": [...]})
-        let cm_response: CmApiResponse = response
-            .json()
-            .await
-            .map_err(|e| format!("Failed to parse server response: {}", e))?;
-
-        let servers = cm_response
-            .servers
-            .into_iter()
-            .map(|cm| {
-                let players = cm.data.as_ref().and_then(|d| d.players).unwrap_or(0);
-
-                let data = cm.data.as_ref().and_then(|d| {
-                    d.round_id.map(|round_id| ServerData {
-                        round_id,
-                        mode: d.mode.clone().unwrap_or_default(),
-                        map_name: d.map_name.clone().unwrap_or_default(),
-                        round_duration: d.round_duration.unwrap_or(0.0),
-                        gamestate: d.gamestate.unwrap_or(0),
-                        players,
-                        admins: d.admins,
-                        popcap: None,
-                        security_level: d.security_level.clone(),
-                    })
-                });
-
-                Server {
-                    name: cm.name,
-                    url: format!("byond://{}", cm.url),
-                    status: cm.status.clone(),
-                    hub_status: String::new(),
-                    players,
-                    data,
-                    is_18_plus: false,
-                    version: None,
-                    recommended_byond_version: cm.recommended_byond_version,
-                    tags: cm.tags.unwrap_or_default(),
-                }
-            })
-            .collect();
-
-        Ok(servers)
-    }
+    adapter.parse(&body)
 }
 
 /// Fetch servers and populate the cache. Called during app setup.

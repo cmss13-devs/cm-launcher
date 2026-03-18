@@ -29,7 +29,7 @@ echo "Updating version to $VERSION..."
 sed -i.bak "s/^version = \".*\"/version = \"$VERSION\"/" src-tauri/Cargo.toml
 rm -f src-tauri/Cargo.toml.bak
 
-(cd src-tauri && cargo update -p cm_launcher_rs_lib --precise "$VERSION" 2>/dev/null || cargo check --quiet)
+(cd src-tauri && cargo update -p ss13_launcher_rs_lib --precise "$VERSION" 2>/dev/null || cargo check --quiet)
 
 echo "Committing changes..."
 git add src-tauri/Cargo.toml src-tauri/Cargo.lock

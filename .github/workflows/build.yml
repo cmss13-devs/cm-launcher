@@ -76,7 +76,7 @@ jobs:
         if: matrix.platform == 'windows-latest'
         uses: ./.github/actions/defender-scan
         with:
-          exe_path: src-tauri/target/release/CM_Launcher.exe
+          exe_path: src-tauri/target/release/SS13_Launcher.exe
           build_name: ${{ github.ref_name }}-cm
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -153,6 +153,6 @@ jobs:
         if: matrix.platform == 'windows-latest'
         uses: ./.github/actions/defender-scan
         with:
-          exe_path: src-tauri/target/release/CM_Launcher.exe
+          exe_path: src-tauri/target/release/SS13_Launcher.exe
           build_name: ${{ github.ref_name }}-ss13
           github_token: ${{ secrets.GITHUB_TOKEN }}

@@ -49,6 +49,7 @@ export interface OidcConfig {
 export interface LauncherConfig {
   variant: string;
   product_name: string;
+  logo: string;
   default_theme: string;
   app_identifier: string;
   discord_app_id: number;

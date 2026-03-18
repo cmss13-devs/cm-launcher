@@ -70,7 +70,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path steam-build/windows
-          Copy-Item "src-tauri/target/release/CM_Launcher.exe" -Destination "steam-build/windows/"
+          Copy-Item "src-tauri/target/release/SS13_Launcher.exe" -Destination "steam-build/windows/CM_Launcher.exe"
           Copy-Item "src-tauri/resources/steam_api64.dll" -Destination "steam-build/windows/"
 
       - name: Scan with Windows Defender
