@@ -155,8 +155,13 @@ pub fn run() {
     let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init());
+
+    // Only include updater for non-CM builds (CM uses Steam for updates)
+    #[cfg(not(feature = "cm_ss13"))]
+    {
+        builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    }
 
     #[cfg(not(feature = "steam"))]
     {

@@ -4,7 +4,7 @@
   "identifier": "com.ss13.launcher",
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU1ODhDNjVCMjUxQ0Q5RDcKUldUWDJSd2xXOGFJVlY1S1p4Vy82Y1hnQlJPOWcvUWFZTFh3dm03V0hiY0NrSTFMMDBSeGRwTzYK%",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU1ODhDNjVCMjUxQ0Q5RDcKUldUWDJSd2xXOGFJVlY1S1p4Vy82Y1hnQlJPOWcvUWFZTFh3dm03V0hiY0NrSTFMMDBSeGRwTzYK",
       "endpoints": [
         "https://github.com/cmss13-devs/launcher/releases/latest/download/latest.json"
       ],
@@ -58,7 +58,7 @@
       }
     },
     "active": true,
-    "targets": "all",
+    "targets": ["nsis"],
     "icon": [
       "icons/ss13/32x32.png",
       "icons/ss13/128x128.png",

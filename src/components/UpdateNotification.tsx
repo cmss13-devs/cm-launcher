@@ -1,4 +1,3 @@
-import { check } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { useCallback, useEffect, useState } from "react";
 
@@ -16,6 +15,7 @@ export const UpdateNotification = () => {
   useEffect(() => {
     const checkForUpdate = async () => {
       try {
+        const { check } = await import("@tauri-apps/plugin-updater");
         const update = await check();
         if (update) {
           setUpdateAvailable({
@@ -24,7 +24,7 @@ export const UpdateNotification = () => {
           });
         }
       } catch (err) {
-        console.error("Failed to check for updates:", err);
+        console.debug("Updater not available:", err);
       }
     };
 
@@ -37,6 +37,7 @@ export const UpdateNotification = () => {
     setProgress(0);
 
     try {
+      const { check } = await import("@tauri-apps/plugin-updater");
       const update = await check();
       if (!update) {
         setError("Update no longer available");
