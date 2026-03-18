@@ -535,11 +535,13 @@ const AppContent = () => {
       <ErrorNotifications errors={errors} onDismiss={dismissError} />
       <AuthModal
         {...authModal}
+        loginPrompt={config?.strings.login_prompt ?? "Please log in to continue."}
         onLogin={handleLogin}
         onClose={handleAuthModalClose}
       />
       <SteamAuthModal
         {...steamModal}
+        authProviderName={config?.strings.auth_provider_name ?? ""}
         onAuthenticate={handleSteamAuthenticate}
         onClose={handleSteamModalClose}
       />
@@ -704,7 +706,9 @@ const AppContent = () => {
             />
           </div>
           <div className="footer-actions">
-            {config?.features.social_links && <SocialLinks />}
+            {config && config.social_links.length > 0 && (
+              <SocialLinks links={config.social_links} />
+            )}
             {config?.features.relay_selector && (
               <RelayDropdown
                 relays={relays}

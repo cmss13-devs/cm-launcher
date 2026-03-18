@@ -2,7 +2,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { create } from "zustand";
 
 export interface LauncherFeatures {
-  social_links: boolean;
   relay_selector: boolean;
   hub_server_list: boolean;
   singleplayer: boolean;
@@ -12,6 +11,12 @@ export interface LauncherFeatures {
   server_stats: boolean;
   auto_launch_byond: boolean;
   connection_timeout_fallback: boolean;
+}
+
+export interface SocialLink {
+  name: string;
+  url: string;
+  icon: string;
 }
 
 export interface SingleplayerConfig {
@@ -53,6 +58,7 @@ export interface LauncherConfig {
   strings: LauncherStrings;
   singleplayer: SingleplayerConfig;
   oidc: OidcConfig | null;
+  social_links: SocialLink[];
 }
 
 interface ConfigStore {

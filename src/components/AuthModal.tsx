@@ -6,6 +6,7 @@ interface AuthModalProps {
   visible: boolean;
   state: AuthModalState;
   error?: string;
+  loginPrompt: string;
   onLogin: () => void;
   onClose: () => void;
 }
@@ -14,6 +15,7 @@ export const AuthModal = ({
   visible,
   state,
   error,
+  loginPrompt,
   onLogin,
   onClose,
 }: AuthModalProps) => {
@@ -22,7 +24,7 @@ export const AuthModal = ({
       <ModalCloseButton onClick={onClose} />
       {state === "idle" && (
         <ModalContent title="Authentication Required">
-          <p>Please log in with your CM-SS13 account to continue.</p>
+          <p>{loginPrompt}</p>
           <button type="button" className="button" onClick={onLogin}>
             Login
           </button>

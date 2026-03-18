@@ -8,6 +8,7 @@ interface SteamAuthModalProps {
   state: SteamAuthModalState;
   error?: string;
   linkingUrl?: string;
+  authProviderName: string;
   onAuthenticate: (createAccount: boolean) => void;
   onClose: () => void;
 }
@@ -17,6 +18,7 @@ export const SteamAuthModal = ({
   state,
   error,
   linkingUrl,
+  authProviderName,
   onAuthenticate,
   onClose,
 }: SteamAuthModalProps) => {
@@ -44,8 +46,8 @@ export const SteamAuthModal = ({
       )}
       {state === "linking" && (
         <ModalContent title="Account Linking">
-          <p>No CM-SS13 account is linked to your Steam account.</p>
-          <p>Do you have an existing CM-SS13 account?</p>
+          <p>No {authProviderName} account is linked to your Steam account.</p>
+          <p>Do you have an existing {authProviderName} account?</p>
           <div className="auth-modal-buttons">
             <button type="button" className="button" onClick={openLinkingUrl}>
               Yes, link my account

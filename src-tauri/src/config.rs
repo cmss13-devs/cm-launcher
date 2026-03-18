@@ -15,11 +15,11 @@ pub struct LauncherConfig {
     pub strings: LauncherStrings,
     pub singleplayer: SingleplayerConfig,
     pub oidc: Option<OidcConfig>,
+    pub social_links: &'static [SocialLink],
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct LauncherFeatures {
-    pub social_links: bool,
     pub relay_selector: bool,
     pub hub_server_list: bool,
     pub singleplayer: bool,
@@ -29,6 +29,13 @@ pub struct LauncherFeatures {
     pub server_stats: bool,
     pub auto_launch_byond: bool,
     pub connection_timeout_fallback: bool,
+}
+
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct SocialLink {
+    pub name: &'static str,
+    pub url: &'static str,
+    pub icon: &'static str, // "discord", "twitch", "forums", "wiki"
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -72,7 +79,6 @@ pub fn get_config() -> LauncherConfig {
         discord_app_id: 1383904378154651768,
         default_byond_version: None,
         features: LauncherFeatures {
-            social_links: true,
             relay_selector: true,
             hub_server_list: false,
             singleplayer: true,
@@ -106,6 +112,28 @@ pub fn get_config() -> LauncherConfig {
             token_url: "https://login.cm-ss13.com/application/o/token/",
             userinfo_url: "https://login.cm-ss13.com/application/o/userinfo/",
         }),
+        social_links: &[
+            SocialLink {
+                name: "Discord",
+                url: "https://discord.gg/cmss13",
+                icon: "discord",
+            },
+            SocialLink {
+                name: "Twitch",
+                url: "https://twitch.tv/cm_ss13",
+                icon: "twitch",
+            },
+            SocialLink {
+                name: "Forums",
+                url: "https://forum.cm-ss13.com",
+                icon: "forums",
+            },
+            SocialLink {
+                name: "Wiki",
+                url: "https://cm-ss13.com/wiki",
+                icon: "wiki",
+            },
+        ],
     }
 }
 
@@ -119,7 +147,6 @@ pub fn get_config() -> LauncherConfig {
         discord_app_id: 1483901387086761994,
         default_byond_version: Some("516.1667"),
         features: LauncherFeatures {
-            social_links: false,
             relay_selector: false,
             hub_server_list: true,
             singleplayer: false,
@@ -148,6 +175,7 @@ pub fn get_config() -> LauncherConfig {
             dmb_name: None,
         },
         oidc: None,
+        social_links: &[],
     }
 }
 
