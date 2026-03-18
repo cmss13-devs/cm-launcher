@@ -521,14 +521,15 @@ async fn refresh_auth_token(
                 Err("Steam feature not enabled".to_string())
             }
         }
-        Some("cm_ss13") => {
-            tracing::info!("Fetching current CM-SS13 access token");
+        Some(access_type) if access_type == crate::config::get_config().variant => {
+            let config = crate::config::get_config();
+            tracing::info!("Fetching current {} access token", config.strings.auth_provider_name);
             match crate::auth::TokenStorage::get_tokens()? {
                 Some(tokens) if !crate::auth::TokenStorage::is_expired() => {
                     params.access_token = Some(tokens.access_token);
                     Ok(params)
                 }
-                _ => Err("CM-SS13 authentication expired or not available".to_string()),
+                _ => Err(format!("{} authentication expired or not available", config.strings.auth_provider_name)),
             }
         }
         _ => Ok(params),

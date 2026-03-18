@@ -364,11 +364,15 @@ fn find_dmb_file() -> Result<PathBuf, String> {
         return Err("Single player not installed".to_string());
     }
 
-    let dmb_path = base_dir.join("colonialmarines.dmb");
-    if dmb_path.exists() {
-        return Ok(dmb_path);
+    // Try configured DMB name first
+    if let Some(dmb_name) = crate::config::get_config().singleplayer.dmb_name {
+        let dmb_path = base_dir.join(dmb_name);
+        if dmb_path.exists() {
+            return Ok(dmb_path);
+        }
     }
 
+    // Fall back to searching for any .dmb file
     for entry in fs::read_dir(&base_dir)
         .map_err(|e| format!("Failed to read singleplayer directory: {}", e))?
     {

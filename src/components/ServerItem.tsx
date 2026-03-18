@@ -2,7 +2,7 @@ import { faBell, faBellSlash, faShield, faUsers } from "@fortawesome/free-solid-
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useState } from "react";
 import { useConnect, useError } from "../hooks";
-import { useServerStore, useSettingsStore } from "../stores";
+import { useConfigStore, useServerStore, useSettingsStore } from "../stores";
 import type { Server } from "../types";
 import { formatDuration } from "../utils";
 
@@ -25,6 +25,7 @@ export const ServerItem = ({
   const { showError } = useError();
   const { connect } = useConnect();
 
+  const config = useConfigStore((s) => s.config);
   const relaysReady = useServerStore((s) => s.relaysReady);
   const notificationsEnabled = useSettingsStore((s) =>
     s.notificationServers.has(server.name),
@@ -35,6 +36,7 @@ export const ServerItem = ({
 
   const isOnline = server.status === "available";
   const data = server.data;
+  const needsRelays = config?.features.relay_selector ?? false;
 
   const handleConnect = async () => {
     setConnecting(true);
@@ -60,7 +62,7 @@ export const ServerItem = ({
     }
   };
 
-  const canConnect = isOnline && relaysReady;
+  const canConnect = isOnline && (!needsRelays || relaysReady);
 
   const handleToggleNotifications = async () => {
     try {
@@ -70,19 +72,16 @@ export const ServerItem = ({
     }
   };
 
-  // Build mode/map line
   const modeMapParts = [
     data?.mode && data.mode.charAt(0).toUpperCase() + data.mode.slice(1),
     data?.map_name,
   ].filter(Boolean);
 
-  // Build round info line
   const roundInfoParts = [
     data?.round_id && `#${data.round_id}`,
     data?.round_duration != null && formatDuration(data.round_duration),
   ].filter(Boolean);
 
-  // Security level color
   const securityLevelColor =
     data?.security_level === "red"
       ? "#f87171"

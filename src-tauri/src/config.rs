@@ -8,6 +8,8 @@ pub struct LauncherConfig {
     pub product_name: &'static str,
     pub default_theme: &'static str,
     pub app_identifier: &'static str,
+    pub discord_app_id: i64,
+    pub default_byond_version: Option<&'static str>,
     pub features: LauncherFeatures,
     pub urls: LauncherUrls,
     pub strings: LauncherStrings,
@@ -26,12 +28,15 @@ pub struct LauncherFeatures {
     pub server_filters: bool,
     pub show_offline_servers: bool,
     pub server_stats: bool,
+    pub auto_launch_byond: bool,
+    pub connection_timeout_fallback: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct SingleplayerConfig {
     pub github_repo: Option<&'static str>,
     pub build_asset_name: Option<&'static str>,
+    pub dmb_name: Option<&'static str>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize)]
@@ -55,6 +60,7 @@ pub struct LauncherUrls {
 pub struct LauncherStrings {
     pub auth_provider_name: &'static str,
     pub login_prompt: &'static str,
+    pub discord_game_name: &'static str,
 }
 
 #[cfg(feature = "cm_ss13")]
@@ -64,6 +70,8 @@ pub fn get_config() -> LauncherConfig {
         product_name: "CM-SS13 Launcher",
         default_theme: "crt",
         app_identifier: "com.cm-ss13.launcher",
+        discord_app_id: 1383904378154651768,
+        default_byond_version: None,
         features: LauncherFeatures {
             social_links: true,
             relay_selector: true,
@@ -74,6 +82,8 @@ pub fn get_config() -> LauncherConfig {
             server_filters: false,
             show_offline_servers: true,
             server_stats: false,
+            auto_launch_byond: false,
+            connection_timeout_fallback: false,
         },
         urls: LauncherUrls {
             server_api: "https://db.cm-ss13.com/api/Round",
@@ -85,10 +95,12 @@ pub fn get_config() -> LauncherConfig {
         strings: LauncherStrings {
             auth_provider_name: "CM-SS13",
             login_prompt: "Please log in with your CM-SS13 account to continue.",
+            discord_game_name: "Colonial Marines",
         },
         singleplayer: SingleplayerConfig {
             github_repo: Some("cmss13-devs/cmss13"),
             build_asset_name: Some("colonialmarines-build.tar.zst"),
+            dmb_name: Some("colonialmarines.dmb"),
         },
         oidc: Some(OidcConfig {
             client_id: "6hm46av41Q5fb47CU8en8B9zZzDsIsKw3BRhSlyo",
@@ -106,6 +118,8 @@ pub fn get_config() -> LauncherConfig {
         product_name: "SS13 Launcher",
         default_theme: "tgui",
         app_identifier: "com.ss13.launcher",
+        discord_app_id: 1483901387086761994,
+        default_byond_version: Some("516.1667"),
         features: LauncherFeatures {
             social_links: false,
             relay_selector: false,
@@ -116,6 +130,8 @@ pub fn get_config() -> LauncherConfig {
             server_filters: true,
             show_offline_servers: false,
             server_stats: true,
+            auto_launch_byond: true,
+            connection_timeout_fallback: true,
         },
         urls: LauncherUrls {
             server_api: "https://hub.cm-ss13.com/servers",
@@ -127,10 +143,12 @@ pub fn get_config() -> LauncherConfig {
         strings: LauncherStrings {
             auth_provider_name: "SS13",
             login_prompt: "Please log in to continue.",
+            discord_game_name: "Space Station 13",
         },
         singleplayer: SingleplayerConfig {
             github_repo: None,
             build_asset_name: None,
+            dmb_name: None,
         },
         oidc: None,
     }

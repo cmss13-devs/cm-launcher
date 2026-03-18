@@ -11,11 +11,14 @@ export interface LauncherFeatures {
   server_filters: boolean;
   show_offline_servers: boolean;
   server_stats: boolean;
+  auto_launch_byond: boolean;
+  connection_timeout_fallback: boolean;
 }
 
 export interface SingleplayerConfig {
   github_repo: string | null;
   build_asset_name: string | null;
+  dmb_name: string | null;
 }
 
 export interface LauncherUrls {
@@ -29,6 +32,7 @@ export interface LauncherUrls {
 export interface LauncherStrings {
   auth_provider_name: string;
   login_prompt: string;
+  discord_game_name: string;
 }
 
 export interface LauncherConfig {
@@ -36,6 +40,8 @@ export interface LauncherConfig {
   product_name: string;
   default_theme: string;
   app_identifier: string;
+  discord_app_id: number;
+  default_byond_version: string | null;
   features: LauncherFeatures;
   urls: LauncherUrls;
   strings: LauncherStrings;

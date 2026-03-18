@@ -64,13 +64,11 @@ struct HubServer {
     players: i32,
 }
 
-// CM-SS13 API response wrapper
 #[derive(Debug, Clone, Deserialize)]
 struct CmApiResponse {
     servers: Vec<CmServer>,
 }
 
-// CM-SS13 API server structure
 #[derive(Debug, Clone, Deserialize)]
 struct CmServer {
     name: String,

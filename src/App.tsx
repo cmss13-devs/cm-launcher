@@ -191,7 +191,6 @@ const AppContent = () => {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filtersRef = useRef<HTMLDivElement>(null);
 
-  // Close filters dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (filtersRef.current && !filtersRef.current.contains(event.target as Node)) {
@@ -219,7 +218,6 @@ const AppContent = () => {
       sorted.unshift(pvp);
     }
 
-    // Add sandbox as a special tab at the end (only if singleplayer is enabled)
     if (config?.features.singleplayer) {
       sorted.push("sandbox");
     }
@@ -228,7 +226,6 @@ const AppContent = () => {
   }, [servers, config?.features.singleplayer]);
 
   const filteredServers = useMemo(() => {
-    // Deduplicate servers by URL (address)
     const seen = new Set<string>();
     const uniqueServers = servers.filter((server) => {
       if (seen.has(server.url)) return false;
@@ -236,7 +233,6 @@ const AppContent = () => {
       return true;
     });
 
-    // If no servers have tags, show all servers
     const hasAnyTags = uniqueServers.some((s) => s.tags && s.tags.length > 0);
 
     let filtered = hasAnyTags
@@ -247,7 +243,6 @@ const AppContent = () => {
         )
       : uniqueServers;
 
-    // Apply search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter((server) =>
@@ -255,17 +250,14 @@ const AppContent = () => {
       );
     }
 
-    // Apply 18+ filter
     if (!show18Plus) {
       filtered = filtered.filter((server) => !server.is_18_plus);
     }
 
-    // Apply offline filter (skip if config says to always show offline servers)
     if (!showOffline && !config?.features.show_offline_servers) {
       filtered = filtered.filter((server) => server.status === "available");
     }
 
-    // Sort: offline at bottom, then by player count descending
     return filtered.sort((a, b) => {
       const aOnline = a.status === "available";
       const bOnline = b.status === "available";
@@ -377,7 +369,6 @@ const AppContent = () => {
     };
   }, [showError]);
 
-  // Auth handlers
   const handleLogin = useCallback(async () => {
     setAuthModal({ visible: true, state: "loading", error: undefined });
     const result = await login();
@@ -404,7 +395,6 @@ const AppContent = () => {
     setAuthModal({ visible: true, state: "idle", error: undefined });
   }, []);
 
-  // Steam handlers
   const handleSteamAuthenticate = useCallback(
     async (createAccountIfMissing: boolean) => {
       setSteamModal((prev) => ({
@@ -484,7 +474,6 @@ const AppContent = () => {
     [handleSteamAuthenticate],
   );
 
-  // Settings handlers
   const handleAuthModeChange = useCallback(
     async (mode: typeof authMode) => {
       try {
@@ -507,7 +496,6 @@ const AppContent = () => {
     [saveTheme, showError],
   );
 
-  // Wine handlers
   const handleWineSetup = useCallback(async () => {
     await initializeWinePrefix();
   }, [initializeWinePrefix]);
@@ -522,7 +510,6 @@ const AppContent = () => {
     }
   }, [wineIsSettingUp, wineNeedsSetup]);
 
-  // Relay handlers
   const handleRelaySelect = useCallback(
     (relayId: string) => {
       setSelectedRelay(relayId);

@@ -30,7 +30,8 @@ use auth::{
 };
 use byond::{
     check_byond_version, connect_to_server, connect_to_url, delete_byond_version,
-    install_byond_version, is_byond_pager_running, is_dev_mode, list_installed_byond_versions,
+    get_byond_username, install_byond_version, is_byond_pager_running, is_dev_mode,
+    list_installed_byond_versions,
 };
 use relays::{get_relays, get_selected_relay, set_selected_relay};
 use servers::get_servers;
@@ -165,6 +166,7 @@ pub fn run() {
             list_installed_byond_versions,
             delete_byond_version,
             is_byond_pager_running,
+            get_byond_username,
             start_login,
             logout,
             get_auth_state,
@@ -207,6 +209,7 @@ pub fn run() {
             list_installed_byond_versions,
             delete_byond_version,
             is_byond_pager_running,
+            get_byond_username,
             start_login,
             logout,
             get_auth_state,

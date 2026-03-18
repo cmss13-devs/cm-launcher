@@ -31,7 +31,8 @@ pub fn init_logging() -> WorkerGuard {
         .init();
 
     tracing::info!("Logging initialized, log directory: {}", log_dir.display());
-    tracing::info!("CM Launcher version: {}", env!("CARGO_PKG_VERSION"));
+    let config = crate::config::get_config();
+    tracing::info!("{} version: {}", config.product_name, env!("CARGO_PKG_VERSION"));
 
     cleanup_old_logs(&log_dir, 7);
 
