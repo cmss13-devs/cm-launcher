@@ -203,9 +203,6 @@ jobs:
 
           cp src-tauri/resources/libsteam_api.so steam-build/linux/shared/lib/
 
-          # Create symlink for WebKit path compatibility
-          ln -s . steam-build/linux/lib/x86_64-linux-gnu
-
           cp scripts/steam-launch.sh steam-build/linux/launch.sh
           chmod +x steam-build/linux/launch.sh
 

@@ -280,10 +280,19 @@ fn get_wine_extract_dir(app: &AppHandle) -> Result<PathBuf, WineError> {
 
 /// Get the bundled Wine archive path from resources
 fn get_wine_archive_path(app: &AppHandle) -> Option<PathBuf> {
-    if let Ok(resource_dir) = app.path().resource_dir() {
-        let archive_path = resource_dir.join(WINE_ARCHIVE_RESOURCE);
-        if archive_path.exists() {
-            return Some(archive_path);
+    match app.path().resource_dir() {
+        Ok(resource_dir) => {
+            tracing::info!("Resource dir: {:?}", resource_dir);
+            let archive_path = resource_dir.join(WINE_ARCHIVE_RESOURCE);
+            tracing::info!("Looking for Wine archive at: {:?}", archive_path);
+            if archive_path.exists() {
+                tracing::info!("Found Wine archive at: {:?}", archive_path);
+                return Some(archive_path);
+            }
+            tracing::warn!("Wine archive not found at: {:?}", archive_path);
+        }
+        Err(e) => {
+            tracing::error!("Failed to get resource dir: {:?}", e);
         }
     }
     None
