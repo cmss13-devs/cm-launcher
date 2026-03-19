@@ -754,35 +754,6 @@ async fn connect_to_server_impl(
             );
         }
 
-        let config = crate::config::get_config();
-        if config.features.auto_launch_byond && !check_byond_pager_running() {
-            let version_dir = get_byond_version_dir(&app, &version)?;
-            let byond_pager_path = version_dir.join("byond").join("bin").join("byond.exe");
-            if byond_pager_path.exists() {
-                tracing::info!(
-                    "Auto-launching BYOND pager via Wine: {:?}",
-                    byond_pager_path
-                );
-                let webview2_data_dir = get_byond_base_dir(&app)?.join("webview2_data");
-                wine::launch_with_wine(
-                    &app,
-                    &byond_pager_path,
-                    &[],
-                    &[(
-                        "WEBVIEW2_USER_DATA_FOLDER",
-                        webview2_data_dir.to_str().unwrap(),
-                    )],
-                )
-                .map_err(|e| format!("Failed to launch BYOND pager: {}", e))?;
-                return Ok(ConnectionResult {
-                    success: false,
-                    message: "BYOND has been launched. Please log in and try connecting again."
-                        .to_string(),
-                    auth_error: None,
-                });
-            }
-        }
-
         if let Some(control_server) = app.try_state::<ControlServer>() {
             control_server.reset_connected_flag();
         }
@@ -807,16 +778,26 @@ async fn connect_to_server_impl(
 
         let webview2_data_dir = get_byond_base_dir(&app)?.join("webview2_data");
 
+        // For BYOND auth when pager is not running, use byond.exe directly with the
+        // connection URL. This forces the pager to show the login modal without
+        // initialization issues. If pager is already running, use dreamseeker.exe.
+        let exe_path = if access_type.as_deref() == Some("byond") && !check_byond_pager_running() {
+            let version_dir = get_byond_version_dir(&app, &version)?;
+            version_dir.join("byond").join("bin").join("byond.exe")
+        } else {
+            PathBuf::from(&dreamseeker_path)
+        };
+
         let child = wine::launch_with_wine(
             &app,
-            Path::new(&dreamseeker_path),
+            &exe_path,
             &[&connect_url],
             &[(
                 "WEBVIEW2_USER_DATA_FOLDER",
                 webview2_data_dir.to_str().unwrap(),
             )],
         )
-        .map_err(|e| format!("Failed to launch DreamSeeker via Wine: {}", e))?;
+        .map_err(|e| format!("Failed to launch BYOND via Wine: {}", e))?;
 
         if let Some(manager) = app.try_state::<Arc<PresenceManager>>() {
             manager.set_last_connection_params(ConnectionParams {
