@@ -119,7 +119,8 @@ jobs:
             gir1.2-webkit2-4.1=2.44.0-2 \
             libappindicator3-dev \
             librsvg2-dev \
-            patchelf
+            patchelf \
+            musl-tools
 
       - name: Cache Wine build
         id: cache-wine
@@ -129,7 +130,7 @@ jobs:
             src-tauri/wine.tar.zst
             src-tauri/winetricks
             src-tauri/cabextract
-          key: wine-10.5-${{ hashFiles('scripts/download-wine.sh') }}
+          key: wine-10.5-musl-${{ hashFiles('scripts/download-wine.sh') }}
 
       - name: Download Wine
         if: steps.cache-wine.outputs.cache-hit != 'true'

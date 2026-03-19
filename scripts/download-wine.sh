@@ -31,12 +31,12 @@ echo "Downloading winetricks..."
 curl -fL -o "$WINETRICKS_OUTPUT" "$WINETRICKS_URL"
 chmod +x "$WINETRICKS_OUTPUT"
 
-echo "Building cabextract ${CABEXTRACT_VERSION}..."
+echo "Building cabextract ${CABEXTRACT_VERSION} (static/musl)..."
 cabextract_temp=$(mktemp -d)
 trap "rm -rf $temp_extract $temp_file $cabextract_temp" EXIT
 curl -fL "$CABEXTRACT_URL" | tar -xz -C "$cabextract_temp"
 pushd "$cabextract_temp/cabextract-${CABEXTRACT_VERSION}" > /dev/null
-./configure --quiet
+CC=musl-gcc ./configure --quiet --enable-static LDFLAGS="-static"
 make --quiet
 cp cabextract "$CABEXTRACT_OUTPUT"
 chmod +x "$CABEXTRACT_OUTPUT"
