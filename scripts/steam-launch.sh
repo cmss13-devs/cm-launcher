@@ -3,4 +3,6 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+export APPDIR="$SCRIPT_DIR"
+
 exec "$SCRIPT_DIR/AppRun" "$@"
