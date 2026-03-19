@@ -15,7 +15,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: "ubuntu-22.04"
+          - platform: "ubuntu-24.04"
             args: ""
           - platform: "windows-latest"
             args: ""
@@ -40,13 +40,22 @@ jobs:
           shared-key: ${{ matrix.platform }}-cm
 
       - name: install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04'
+        if: matrix.platform == 'ubuntu-24.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-0=2.44.0-2 \
+            libwebkit2gtk-4.1-dev=2.44.0-2 \
+            libjavascriptcoregtk-4.1-0=2.44.0-2 \
+            libjavascriptcoregtk-4.1-dev=2.44.0-2 \
+            gir1.2-javascriptcoregtk-4.1=2.44.0-2 \
+            gir1.2-webkit2-4.1=2.44.0-2 \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
 
       - name: Cache Wine build
-        if: matrix.platform == 'ubuntu-22.04'
+        if: matrix.platform == 'ubuntu-24.04'
         id: cache-wine
         uses: actions/cache@v4
         with:
@@ -57,7 +66,7 @@ jobs:
           key: wine-10.5-${{ hashFiles('scripts/download-wine.sh') }}
 
       - name: Download Wine (ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04' && steps.cache-wine.outputs.cache-hit != 'true'
+        if: matrix.platform == 'ubuntu-24.04' && steps.cache-wine.outputs.cache-hit != 'true'
         run: ./scripts/download-wine.sh
 
       - name: install frontend dependencies
@@ -70,7 +79,7 @@ jobs:
           tagName: v__VERSION__
           releaseName: "v__VERSION__"
           releaseBody: "See the assets to download this version and install."
-          args: --features cm_ss13 --config src-tauri/tauri.cm.conf.json ${{ matrix.args }} ${{ matrix.platform == 'ubuntu-22.04' && '--config src-tauri/tauri.linux.conf.json' || '' }}
+          args: --features cm_ss13 --config src-tauri/tauri.cm.conf.json ${{ matrix.args }} ${{ matrix.platform == 'ubuntu-24.04' && '--config src-tauri/tauri.linux.conf.json' || '' }}
 
       - name: Scan with Windows Defender
         if: matrix.platform == 'windows-latest'
@@ -89,7 +98,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: "ubuntu-22.04"
+          - platform: "ubuntu-24.04"
             args: ""
           - platform: "windows-latest"
             args: ""
@@ -114,13 +123,22 @@ jobs:
           shared-key: ${{ matrix.platform }}-ss13
 
       - name: install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04'
+        if: matrix.platform == 'ubuntu-24.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-0=2.44.0-2 \
+            libwebkit2gtk-4.1-dev=2.44.0-2 \
+            libjavascriptcoregtk-4.1-0=2.44.0-2 \
+            libjavascriptcoregtk-4.1-dev=2.44.0-2 \
+            gir1.2-javascriptcoregtk-4.1=2.44.0-2 \
+            gir1.2-webkit2-4.1=2.44.0-2 \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
 
       - name: Cache Wine build
-        if: matrix.platform == 'ubuntu-22.04'
+        if: matrix.platform == 'ubuntu-24.04'
         id: cache-wine
         uses: actions/cache@v4
         with:
@@ -131,7 +149,7 @@ jobs:
           key: wine-10.5-${{ hashFiles('scripts/download-wine.sh') }}
 
       - name: Download Wine (ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04' && steps.cache-wine.outputs.cache-hit != 'true'
+        if: matrix.platform == 'ubuntu-24.04' && steps.cache-wine.outputs.cache-hit != 'true'
         run: ./scripts/download-wine.sh
 
       - name: install frontend dependencies
@@ -146,7 +164,7 @@ jobs:
           tagName: v__VERSION__
           releaseName: "v__VERSION__"
           releaseBody: "See the assets to download this version and install."
-          args: ${{ matrix.args }} ${{ matrix.platform == 'ubuntu-22.04' && '--config src-tauri/tauri.linux.conf.json' || '' }}
+          args: ${{ matrix.args }} ${{ matrix.platform == 'ubuntu-24.04' && '--config src-tauri/tauri.linux.conf.json' || '' }}
           updaterJsonKeepUniversal: true
 
       - name: Scan with Windows Defender
