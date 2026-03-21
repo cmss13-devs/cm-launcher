@@ -6,7 +6,6 @@
 
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use tauri::{webview::PageLoadEvent, AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 use tokio::sync::oneshot;
 
@@ -75,20 +74,22 @@ impl ByondCookies {
 
 /// State for managing the login flow
 pub struct ByondLoginState {
-    result_tx: Arc<Mutex<Option<oneshot::Sender<Result<ByondCookies, String>>>>>,
+    result_tx: Mutex<Option<oneshot::Sender<Result<ByondCookies, String>>>>,
 }
 
 impl ByondLoginState {
     pub fn new() -> Self {
         Self {
-            result_tx: Arc::new(Mutex::new(None)),
+            result_tx: Mutex::new(None),
         }
     }
 
+    pub fn set_sender(&self, tx: oneshot::Sender<Result<ByondCookies, String>>) {
+        *self.result_tx.lock() = Some(tx);
+    }
+
     pub fn complete(&self, result: Result<ByondCookies, String>) {
-        let tx: Option<oneshot::Sender<Result<ByondCookies, String>>> =
-            self.result_tx.lock().take();
-        if let Some(tx) = tx {
+        if let Some(tx) = self.result_tx.lock().take() {
             let _ = tx.send(result);
         }
     }
@@ -154,10 +155,14 @@ pub async fn start_byond_login(app: AppHandle) -> Result<ByondCookies, String> {
 
     let (tx, rx) = oneshot::channel();
 
-    // Set up state to receive the result
-    let login_state = ByondLoginState::new();
-    *login_state.result_tx.lock() = Some(tx);
-    app.manage(login_state);
+    // Set up state to receive the result (get existing or create new)
+    if let Some(state) = app.try_state::<ByondLoginState>() {
+        state.set_sender(tx);
+    } else {
+        let login_state = ByondLoginState::new();
+        login_state.set_sender(tx);
+        app.manage(login_state);
+    }
 
     let init_script = r#"
         if (window.location.hostname === 'secure.byond.com' || window.location.hostname === 'www.byond.com' || window.location.hostname === 'byond.com') {
@@ -293,19 +298,22 @@ pub async fn start_byond_login(app: AppHandle) -> Result<ByondCookies, String> {
 }
 
 pub struct WebIdFetchState {
-    result_tx: Arc<Mutex<Option<oneshot::Sender<Result<String, String>>>>>,
+    result_tx: Mutex<Option<oneshot::Sender<Result<String, String>>>>,
 }
 
 impl WebIdFetchState {
     pub fn new() -> Self {
         Self {
-            result_tx: Arc::new(Mutex::new(None)),
+            result_tx: Mutex::new(None),
         }
     }
 
+    pub fn set_sender(&self, tx: oneshot::Sender<Result<String, String>>) {
+        *self.result_tx.lock() = Some(tx);
+    }
+
     pub fn complete(&self, result: Result<String, String>) {
-        let tx: Option<oneshot::Sender<Result<String, String>>> = self.result_tx.lock().take();
-        if let Some(tx) = tx {
+        if let Some(tx) = self.result_tx.lock().take() {
             let _ = tx.send(result);
         }
     }
@@ -346,9 +354,14 @@ pub async fn fetch_byond_web_id(app: AppHandle) -> Result<String, String> {
 
     let (tx, rx) = oneshot::channel();
 
-    let fetch_state = WebIdFetchState::new();
-    *fetch_state.result_tx.lock() = Some(tx);
-    app.manage(fetch_state);
+    // Set up state to receive the result (get existing or create new)
+    if let Some(state) = app.try_state::<WebIdFetchState>() {
+        state.set_sender(tx);
+    } else {
+        let fetch_state = WebIdFetchState::new();
+        fetch_state.set_sender(tx);
+        app.manage(fetch_state);
+    }
 
     let init_script = r#"
         if (window.location.hostname === 'www.byond.com' || window.location.hostname === 'byond.com') {
@@ -458,19 +471,22 @@ pub struct ByondSessionCheck {
 }
 
 pub struct SessionCheckState {
-    result_tx: Arc<Mutex<Option<oneshot::Sender<ByondSessionCheck>>>>,
+    result_tx: Mutex<Option<oneshot::Sender<ByondSessionCheck>>>,
 }
 
 impl SessionCheckState {
     pub fn new() -> Self {
         Self {
-            result_tx: Arc::new(Mutex::new(None)),
+            result_tx: Mutex::new(None),
         }
     }
 
+    pub fn set_sender(&self, tx: oneshot::Sender<ByondSessionCheck>) {
+        *self.result_tx.lock() = Some(tx);
+    }
+
     pub fn complete(&self, result: ByondSessionCheck) {
-        let tx: Option<oneshot::Sender<ByondSessionCheck>> = self.result_tx.lock().take();
-        if let Some(tx) = tx {
+        if let Some(tx) = self.result_tx.lock().take() {
             let _ = tx.send(result);
         }
     }
@@ -523,9 +539,14 @@ pub async fn check_byond_web_session(app: AppHandle) -> Result<ByondSessionCheck
 
     let (tx, rx) = oneshot::channel();
 
-    let check_state = SessionCheckState::new();
-    *check_state.result_tx.lock() = Some(tx);
-    app.manage(check_state);
+    // Set up state to receive the result (get existing or create new)
+    if let Some(state) = app.try_state::<SessionCheckState>() {
+        state.set_sender(tx);
+    } else {
+        let check_state = SessionCheckState::new();
+        check_state.set_sender(tx);
+        app.manage(check_state);
+    }
 
     let init_script = r#"
         if (window.location.hostname === 'www.byond.com' || window.location.hostname === 'byond.com') {
