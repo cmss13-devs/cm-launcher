@@ -346,13 +346,22 @@ export const SettingsModal = ({
               </div>
               <div className="byond-web-login">
                 {byondLoginState === "idle" && (
-                  <button
-                    type="button"
-                    className="button"
-                    onClick={handleByondWebLogin}
-                  >
-                    Login to BYOND
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      className="button"
+                      onClick={handleByondWebLogin}
+                    >
+                      Login to BYOND
+                    </button>
+                    <button
+                      type="button"
+                      className="button-secondary"
+                      onClick={() => invoke("open_url", { url: "https://secure.byond.com/Join" })}
+                    >
+                      Create Account
+                    </button>
+                  </>
                 )}
                 {byondLoginState === "loading" && (
                   <p className="byond-login-status">

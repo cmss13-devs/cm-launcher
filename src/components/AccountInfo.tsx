@@ -2,18 +2,20 @@ import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 import { useAuthStore, useByondStore, useSettingsStore, useSteamStore } from "../stores";
 
+interface AccountAction {
+  label: string;
+  onClick: () => void;
+  primary?: boolean;
+}
+
 interface AccountDisplayProps {
   avatar: string;
   name: string;
   status: string;
-  action?: {
-    label: string;
-    onClick: () => void;
-    primary?: boolean;
-  };
+  actions?: AccountAction[];
 }
 
-const AccountDisplay = ({ avatar, name, status, action }: AccountDisplayProps) => {
+const AccountDisplay = ({ avatar, name, status, actions }: AccountDisplayProps) => {
   return (
     <>
       <div className="account-avatar">{avatar}</div>
@@ -21,15 +23,16 @@ const AccountDisplay = ({ avatar, name, status, action }: AccountDisplayProps) =
         <div className="account-name">{name}</div>
         <div className="account-status">{status}</div>
       </div>
-      {action && (
+      {actions?.map((action) => (
         <button
+          key={action.label}
           type="button"
           className={action.primary ? "button" : "button-secondary"}
           onClick={action.onClick}
         >
           {action.label}
         </button>
-      )}
+      ))}
     </>
   );
 };
@@ -89,7 +92,7 @@ export const AccountInfo = ({
           avatar={byondWebUsername.charAt(0).toUpperCase()}
           name={byondWebUsername}
           status="Logged in via BYOND Web"
-          action={{ label: "Logout", onClick: onByondLogout }}
+          actions={[{ label: "Logout", onClick: onByondLogout }]}
         />
       );
     }
@@ -112,7 +115,10 @@ export const AccountInfo = ({
         avatar="B"
         name="BYOND"
         status={status}
-        action={{ label: "Login", onClick: onByondLogin, primary: true }}
+        actions={[
+          { label: "Login", onClick: onByondLogin, primary: true },
+          { label: "Create Account", onClick: () => invoke("open_url", { url: "https://secure.byond.com/Join" }) },
+        ]}
       />
     );
   }
@@ -124,7 +130,7 @@ export const AccountInfo = ({
           avatar="S"
           name={steamUser?.display_name || "Steam User"}
           status="Logged in via Steam"
-          action={{ label: "Logout", onClick: onSteamLogout }}
+          actions={[{ label: "Logout", onClick: onSteamLogout }]}
         />
       );
     }
@@ -145,7 +151,7 @@ export const AccountInfo = ({
         avatar={displayName.charAt(0).toUpperCase()}
         name={displayName}
         status={authState.user.email || "Logged in"}
-        action={{ label: "Logout", onClick: onLogout }}
+        actions={[{ label: "Logout", onClick: onLogout }]}
       />
     );
   }
@@ -155,7 +161,7 @@ export const AccountInfo = ({
       avatar="?"
       name="Not logged in"
       status={authState.loading ? "Checking..." : "Click to authenticate"}
-      action={{ label: "Login", onClick: onLogin, primary: true }}
+      actions={[{ label: "Login", onClick: onLogin, primary: true }]}
     />
   );
 };
