@@ -549,6 +549,10 @@ pub async fn check_byond_web_session(app: AppHandle) -> Result<ByondSessionCheck
     }
 
     let init_script = r#"
+        console.log('[BYOND Session] Init script executing, hostname:', window.location.hostname);
+        console.log('[BYOND Session] Document readyState:', document.readyState);
+        console.log('[BYOND Session] TAURI_INTERNALS available:', !!window.__TAURI_INTERNALS__);
+
         if (window.location.hostname === 'www.byond.com' || window.location.hostname === 'byond.com') {
             const CHECK_INTERVAL = 500;
             const MAX_RETRIES = 60;
@@ -560,11 +564,13 @@ pub async fn check_byond_web_session(app: AppHandle) -> Result<ByondSessionCheck
             }
 
             function checkSession() {
+                console.log('[BYOND Session] checkSession called, retry:', retries);
                 if (isCloudflareChallenge()) {
                     console.log('[BYOND Session] Cloudflare challenge in progress, waiting...');
                     if (retries++ < MAX_RETRIES) {
                         setTimeout(checkSession, CHECK_INTERVAL);
                     } else {
+                        console.log('[BYOND Session] Cloudflare timeout, sending null');
                         window.__TAURI_INTERNALS__.invoke('byond_session_check_complete', { webId: null, username: null });
                     }
                     return;
@@ -577,6 +583,7 @@ pub async fn check_byond_web_session(app: AppHandle) -> Result<ByondSessionCheck
                         setTimeout(checkSession, CHECK_INTERVAL);
                         return;
                     }
+                    console.log('[BYOND Session] No .join_link after retries, sending null');
                     window.__TAURI_INTERNALS__.invoke('byond_session_check_complete', { webId: null, username: null });
                     return;
                 }
@@ -597,11 +604,19 @@ pub async fn check_byond_web_session(app: AppHandle) -> Result<ByondSessionCheck
                 window.__TAURI_INTERNALS__.invoke('byond_session_check_complete', { webId, username });
             }
 
+            console.log('[BYOND Session] Setting up checkSession');
             if (document.readyState === 'complete') {
+                console.log('[BYOND Session] Document already complete, calling checkSession');
                 checkSession();
             } else {
-                window.addEventListener('load', checkSession);
+                console.log('[BYOND Session] Waiting for load event');
+                window.addEventListener('load', () => {
+                    console.log('[BYOND Session] Load event fired');
+                    checkSession();
+                });
             }
+        } else {
+            console.log('[BYOND Session] Wrong hostname, not running check');
         }
     "#;
 
@@ -613,7 +628,12 @@ pub async fn check_byond_web_session(app: AppHandle) -> Result<ByondSessionCheck
 
     let url = "https://www.byond.com/games/Exadv1.SpaceStation13";
 
-    let _window = WebviewWindowBuilder::new(
+    tracing::debug!("Creating session check webview (visible=false)");
+    tracing::debug!("Data directory: {:?}", data_dir);
+
+    let app_for_events = app.clone();
+
+    let window = WebviewWindowBuilder::new(
         &app,
         "byond_session_check",
         WebviewUrl::External(url.parse().unwrap()),
@@ -624,8 +644,43 @@ pub async fn check_byond_web_session(app: AppHandle) -> Result<ByondSessionCheck
     .user_agent(&get_user_agent())
     .data_directory(data_dir)
     .initialization_script(init_script)
+    .on_page_load(move |_webview, payload| {
+        tracing::debug!(
+            "Session check page load event: {:?} - {}",
+            payload.event(),
+            payload.url()
+        );
+        if payload.event() == PageLoadEvent::Finished {
+            tracing::info!("Session check page finished loading: {}", payload.url());
+        }
+    })
     .build()
     .map_err(|e| format!("Failed to create webview: {}", e))?;
+
+    tracing::info!("Session check webview created successfully");
+
+    // Monitor window events
+    window.on_window_event(move |event| {
+        match event {
+            tauri::WindowEvent::CloseRequested { .. } => {
+                tracing::warn!("Session check window close requested");
+            }
+            tauri::WindowEvent::Destroyed => {
+                tracing::warn!("Session check window destroyed");
+                // Complete with error if sender still exists
+                if let Some(state) = app_for_events.try_state::<SessionCheckState>() {
+                    state.complete(ByondSessionCheck {
+                        logged_in: false,
+                        username: None,
+                        web_id: None,
+                    });
+                }
+            }
+            _ => {}
+        }
+    });
+
+    tracing::debug!("Waiting for session check result (30s timeout)");
 
     match tokio::time::timeout(std::time::Duration::from_secs(30), rx).await {
         Ok(Ok(result)) => {
@@ -633,7 +688,11 @@ pub async fn check_byond_web_session(app: AppHandle) -> Result<ByondSessionCheck
             Ok(result)
         }
         Ok(Err(_)) => {
-            tracing::warn!("BYOND session check channel closed");
+            let window_exists = app.get_webview_window("byond_session_check").is_some();
+            tracing::warn!(
+                "BYOND session check channel closed (window still exists: {})",
+                window_exists
+            );
             if let Some(w) = app.get_webview_window("byond_session_check") {
                 let _ = w.close();
             }
