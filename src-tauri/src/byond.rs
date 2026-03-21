@@ -15,6 +15,8 @@ use crate::servers::ServerState;
 use crate::settings::{load_settings, AuthMode};
 
 #[cfg(target_os = "windows")]
+use crate::byond_login::{fetch_byond_web_id, start_byond_login};
+#[cfg(target_os = "windows")]
 use crate::control_server::ControlServer;
 #[cfg(target_os = "windows")]
 use crate::presence::{ConnectionParams, PresenceManager};
@@ -23,6 +25,8 @@ use std::process::Command;
 #[cfg(target_os = "windows")]
 use tauri::Emitter;
 
+#[cfg(target_os = "linux")]
+use crate::byond_login::{fetch_byond_web_id, start_byond_login};
 #[cfg(target_os = "linux")]
 use crate::wine;
 
@@ -649,24 +653,7 @@ async fn connect_to_server_impl(
 
     #[cfg(target_os = "windows")]
     {
-        // Auto-launch BYOND pager if enabled and not already running
         let config = crate::config::get_config();
-        if config.features.auto_launch_byond && !check_byond_pager_running() {
-            let byond_pager_path = get_byond_pager_path(&app, &version)?;
-            if byond_pager_path.exists() {
-                tracing::info!("Auto-launching BYOND pager: {:?}", byond_pager_path);
-                Command::new(&byond_pager_path)
-                    .spawn()
-                    .map_err(|e| format!("Failed to launch BYOND pager: {}", e))?;
-                // Exit early - user needs to log in to BYOND before connecting
-                return Ok(ConnectionResult {
-                    success: false,
-                    message: "BYOND has been launched. Please log in and try connecting again."
-                        .to_string(),
-                    auth_error: None,
-                });
-            }
-        }
 
         if let Some(control_server) = app.try_state::<ControlServer>() {
             control_server.reset_connected_flag();
@@ -681,38 +668,134 @@ async fn connect_to_server_impl(
             .try_state::<ControlServer>()
             .map(|s| s.ws_port.to_string());
 
-        let connect_url = build_connect_url(
-            &host,
-            &port,
-            access_type.as_deref(),
-            access_token.as_deref(),
-            control_port.as_deref(),
-            websocket_port.as_deref(),
-        );
-
         // Set a unique WebView2 user data folder to avoid conflicts with the system BYOND pager.
-        // When the BYOND pager is running, it locks the default WebView2 user data directory,
-        // preventing our DreamSeeker from using WebView2. Using a separate folder resolves this.
         let webview2_data_dir = get_byond_base_dir(&app)?.join("webview2_data");
 
-        let child = Command::new(&dreamseeker_path)
-            .arg(&connect_url)
-            .env("WEBVIEW2_USER_DATA_FOLDER", &webview2_data_dir)
-            .spawn()
-            .map_err(|e| format!("Failed to launch DreamSeeker: {}", e))?;
+        let is_byond_auth = access_type.as_deref() == Some("byond");
+        let pager_running = check_byond_pager_running();
 
-        if let Some(manager) = app.try_state::<Arc<PresenceManager>>() {
-            manager.set_last_connection_params(ConnectionParams {
-                version: version.clone(),
-                host: host.clone(),
-                port: port.clone(),
-                access_type,
-                access_token,
-                server_name: server_name.clone(),
-                map_name: map_name.clone(),
-            });
+        let web_id_check = if is_byond_auth {
+            fetch_byond_web_id(app.clone()).await.ok()
+        } else {
+            None
+        };
 
-            manager.start_game_session(server_name.clone(), map_name, child);
+        let using_webid = match &web_id_check {
+            Some(id) if id != "guest" => {
+                tracing::info!("User logged in via web (web_id present), using web authentication");
+                true
+            }
+            _ if !pager_running && is_byond_auth => {
+                // web_id is "guest" or fetch failed, and pager not running - need to login
+                tracing::info!("Not logged in to BYOND and pager not running, opening login flow");
+                let login_result = start_byond_login(app.clone()).await;
+                if login_result.is_err() {
+                    return Err("BYOND login required but was cancelled or failed".to_string());
+                }
+                true
+            }
+            _ => {
+                tracing::info!("Using BYOND pager for authentication");
+                false
+            }
+        };
+
+        if using_webid {
+            let web_id = fetch_byond_web_id(app.clone()).await?;
+            if web_id == "guest" {
+                return Err("BYOND login failed - still not authenticated".to_string());
+            }
+            tracing::info!("Got web_id, launching byond.exe with web authentication");
+
+            // Snapshot existing dreamseeker PIDs before launching
+            let existing_pids = get_dreamseeker_pids();
+
+            // Build URL with web_id: byond://host:port?params##webid={web_id}
+            let mut query_params = Vec::new();
+            if let Some(lp) = &control_port {
+                query_params.push(format!("launcher_port={}", lp));
+            }
+            if let Some(wp) = &websocket_port {
+                query_params.push(format!("websocket_port={}", wp));
+            }
+
+            let connect_url = if query_params.is_empty() {
+                format!("byond://{}:{}##webid={}", host, port, web_id)
+            } else {
+                format!(
+                    "byond://{}:{}?{}##webid={}",
+                    host,
+                    port,
+                    query_params.join("&"),
+                    web_id
+                )
+            };
+
+            let byond_pager_path = get_byond_pager_path(&app, &version)?;
+            let mut pager_child = Command::new(&byond_pager_path)
+                .arg(&connect_url)
+                .env("WEBVIEW2_USER_DATA_FOLDER", &webview2_data_dir)
+                .spawn()
+                .map_err(|e| format!("Failed to launch BYOND: {}", e))?;
+
+            let dreamseeker_pid = wait_for_new_dreamseeker(existing_pids, 30).await;
+
+            if dreamseeker_pid.is_some() {
+                tracing::info!("Waiting 5s for dreamseeker to authenticate before killing pager");
+                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                tracing::info!("Killing byond.exe pager");
+                let _ = pager_child.kill();
+            }
+
+            if let Some(manager) = app.try_state::<Arc<PresenceManager>>() {
+                manager.set_last_connection_params(ConnectionParams {
+                    version: version.clone(),
+                    host: host.clone(),
+                    port: port.clone(),
+                    access_type,
+                    access_token,
+                    server_name: server_name.clone(),
+                    map_name: map_name.clone(),
+                });
+
+                if let Some(pid) = dreamseeker_pid {
+                    manager.start_game_session_by_pid(server_name.clone(), map_name.clone(), pid);
+                } else {
+                    tracing::warn!(
+                        "Could not find dreamseeker.exe, presence tracking may not work"
+                    );
+                }
+            }
+        } else {
+            // Normal flow: use dreamseeker with standard auth
+            let connect_url = build_connect_url(
+                &host,
+                &port,
+                access_type.as_deref(),
+                access_token.as_deref(),
+                control_port.as_deref(),
+                websocket_port.as_deref(),
+            );
+
+            let child = Command::new(&dreamseeker_path)
+                .arg(&connect_url)
+                .env("WEBVIEW2_USER_DATA_FOLDER", &webview2_data_dir)
+                .spawn()
+                .map_err(|e| format!("Failed to launch DreamSeeker: {}", e))?;
+
+            if let Some(manager) = app.try_state::<Arc<PresenceManager>>() {
+                manager.set_last_connection_params(ConnectionParams {
+                    version: version.clone(),
+                    host: host.clone(),
+                    port: port.clone(),
+                    access_type,
+                    access_token,
+                    server_name: server_name.clone(),
+                    map_name: map_name.clone(),
+                });
+
+                manager.start_game_session(server_name.clone(), map_name.clone(), child);
+            }
         }
 
         // If connection_timeout_fallback is enabled, emit game-connected after 30s
@@ -767,50 +850,144 @@ async fn connect_to_server_impl(
             .try_state::<ControlServer>()
             .map(|s| s.ws_port.to_string());
 
-        let connect_url = build_connect_url(
-            &host,
-            &port,
-            access_type.as_deref(),
-            access_token.as_deref(),
-            control_port.as_deref(),
-            websocket_port.as_deref(),
-        );
-
         let webview2_data_dir = get_byond_base_dir(&app)?.join("webview2_data");
 
-        // For BYOND auth when pager is not running, use byond.exe directly with the
-        // connection URL. This forces the pager to show the login modal without
-        // initialization issues. If pager is already running, use dreamseeker.exe.
-        let exe_path = if access_type.as_deref() == Some("byond") && !check_byond_pager_running() {
-            let version_dir = get_byond_version_dir(&app, &version)?;
-            version_dir.join("byond").join("bin").join("byond.exe")
+        let is_byond_auth = access_type.as_deref() == Some("byond");
+        let pager_running = check_byond_pager_running();
+
+        let web_id_check = if is_byond_auth {
+            fetch_byond_web_id(app.clone()).await.ok()
         } else {
-            PathBuf::from(&dreamseeker_path)
+            None
         };
 
-        let child = wine::launch_with_wine(
-            &app,
-            &exe_path,
-            &[&connect_url],
-            &[(
-                "WEBVIEW2_USER_DATA_FOLDER",
-                webview2_data_dir.to_str().unwrap(),
-            )],
-        )
-        .map_err(|e| format!("Failed to launch BYOND via Wine: {}", e))?;
+        let using_webid = match &web_id_check {
+            Some(id) if id != "guest" => {
+                tracing::info!("User logged in via web (web_id present), using web authentication");
+                true
+            }
+            _ if !pager_running && is_byond_auth => {
+                tracing::info!("Not logged in to BYOND and pager not running, opening login flow");
+                let login_result = start_byond_login(app.clone()).await;
+                if login_result.is_err() {
+                    return Err("BYOND login required but was cancelled or failed".to_string());
+                }
+                true
+            }
+            _ => {
+                tracing::info!("Using BYOND pager for authentication");
+                false
+            }
+        };
 
-        if let Some(manager) = app.try_state::<Arc<PresenceManager>>() {
-            manager.set_last_connection_params(ConnectionParams {
-                version: version.clone(),
-                host: host.clone(),
-                port: port.clone(),
-                access_type,
-                access_token,
-                server_name: server_name.clone(),
-                map_name: map_name.clone(),
-            });
+        if using_webid {
+            let web_id = fetch_byond_web_id(app.clone()).await?;
+            if web_id == "guest" {
+                return Err("BYOND login failed - still not authenticated".to_string());
+            }
+            tracing::info!("Got web_id, launching byond.exe with web authentication");
 
-            manager.start_game_session(server_name.clone(), map_name, child);
+            // Snapshot existing dreamseeker PIDs before launching
+            let existing_pids = get_dreamseeker_pids();
+
+            // Build URL with web_id: byond://host:port?params##webid={web_id}
+            let mut query_params = Vec::new();
+            if let Some(lp) = &control_port {
+                query_params.push(format!("launcher_port={}", lp));
+            }
+            if let Some(wp) = &websocket_port {
+                query_params.push(format!("websocket_port={}", wp));
+            }
+
+            let connect_url = if query_params.is_empty() {
+                format!("byond://{}:{}##webid={}", host, port, web_id)
+            } else {
+                format!(
+                    "byond://{}:{}?{}##webid={}",
+                    host,
+                    port,
+                    query_params.join("&"),
+                    web_id
+                )
+            };
+
+            let version_dir = get_byond_version_dir(&app, &version)?;
+            let exe_path = version_dir.join("byond").join("bin").join("byond.exe");
+
+            let mut pager_child = wine::launch_with_wine(
+                &app,
+                &exe_path,
+                &[&connect_url],
+                &[(
+                    "WEBVIEW2_USER_DATA_FOLDER",
+                    webview2_data_dir.to_str().unwrap(),
+                )],
+            )
+            .map_err(|e| format!("Failed to launch BYOND via Wine: {}", e))?;
+
+            let dreamseeker_pid = wait_for_new_dreamseeker(existing_pids, 30).await;
+
+            if dreamseeker_pid.is_some() {
+                tracing::info!("Waiting 5s for dreamseeker to authenticate before killing pager");
+                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                tracing::info!("Killing byond.exe pager");
+                let _ = pager_child.kill();
+            }
+
+            if let Some(manager) = app.try_state::<Arc<PresenceManager>>() {
+                manager.set_last_connection_params(ConnectionParams {
+                    version: version.clone(),
+                    host: host.clone(),
+                    port: port.clone(),
+                    access_type,
+                    access_token,
+                    server_name: server_name.clone(),
+                    map_name: map_name.clone(),
+                });
+
+                if let Some(pid) = dreamseeker_pid {
+                    manager.start_game_session_by_pid(server_name.clone(), map_name.clone(), pid);
+                } else {
+                    tracing::warn!(
+                        "Could not find dreamseeker.exe, presence tracking may not work"
+                    );
+                }
+            }
+        } else {
+            // Normal flow: use dreamseeker with standard auth
+            let connect_url = build_connect_url(
+                &host,
+                &port,
+                access_type.as_deref(),
+                access_token.as_deref(),
+                control_port.as_deref(),
+                websocket_port.as_deref(),
+            );
+
+            let child = wine::launch_with_wine(
+                &app,
+                Path::new(&dreamseeker_path),
+                &[&connect_url],
+                &[(
+                    "WEBVIEW2_USER_DATA_FOLDER",
+                    webview2_data_dir.to_str().unwrap(),
+                )],
+            )
+            .map_err(|e| format!("Failed to launch BYOND via Wine: {}", e))?;
+
+            if let Some(manager) = app.try_state::<Arc<PresenceManager>>() {
+                manager.set_last_connection_params(ConnectionParams {
+                    version: version.clone(),
+                    host: host.clone(),
+                    port: port.clone(),
+                    access_type,
+                    access_token,
+                    server_name: server_name.clone(),
+                    map_name: map_name.clone(),
+                });
+
+                manager.start_game_session(server_name.clone(), map_name.clone(), child);
+            }
         }
 
         // If connection_timeout_fallback is enabled, emit game-connected after 30s
@@ -930,6 +1107,76 @@ fn check_byond_pager_running() -> bool {
     #[cfg(not(any(target_os = "windows", target_os = "linux")))]
     {
         false
+    }
+}
+
+/// Get PIDs of all running dreamseeker.exe processes
+fn get_dreamseeker_pids() -> std::collections::HashSet<u32> {
+    use std::collections::HashSet;
+    use sysinfo::System;
+
+    let s = System::new_all();
+
+    #[cfg(target_os = "windows")]
+    {
+        s.processes()
+            .iter()
+            .filter(|(_, p)| {
+                p.name()
+                    .to_str()
+                    .map(|name| name.eq_ignore_ascii_case("dreamseeker.exe"))
+                    .unwrap_or(false)
+            })
+            .map(|(pid, _)| pid.as_u32())
+            .collect()
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        s.processes()
+            .iter()
+            .filter(|(_, p)| {
+                p.cmd().iter().any(|arg| {
+                    arg.to_str()
+                        .map(|a| a.to_lowercase().ends_with("dreamseeker.exe"))
+                        .unwrap_or(false)
+                })
+            })
+            .map(|(pid, _)| pid.as_u32())
+            .collect()
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+    {
+        let _ = s; // Suppress unused variable warning
+        HashSet::new()
+    }
+}
+
+/// Poll for a new dreamseeker.exe process that wasn't in the original set.
+/// Returns the PID if found within timeout, None otherwise.
+async fn wait_for_new_dreamseeker(
+    existing_pids: std::collections::HashSet<u32>,
+    timeout_secs: u64,
+) -> Option<u32> {
+    let start = std::time::Instant::now();
+    let timeout = std::time::Duration::from_secs(timeout_secs);
+
+    loop {
+        if start.elapsed() > timeout {
+            tracing::warn!("Timeout waiting for dreamseeker.exe to spawn");
+            return None;
+        }
+
+        let current_pids = get_dreamseeker_pids();
+        let new_pids: Vec<u32> = current_pids.difference(&existing_pids).copied().collect();
+
+        if let Some(&pid) = new_pids.first() {
+            tracing::info!("Found new dreamseeker.exe with PID {}", pid);
+            return Some(pid);
+        }
+
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     }
 }
 

@@ -126,3 +126,13 @@ export interface ReleaseInfo {
   download_url: string | null;
   size: number | null;
 }
+
+export interface ByondLoginResult {
+  username: string | null;
+}
+
+export interface ByondSessionCheck {
+  logged_in: boolean;
+  username: string | null;
+  web_id: string | null;
+}

@@ -1,19 +1,21 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
-import { useAuthStore, useSettingsStore, useSteamStore } from "../stores";
+import { useAuthStore, useByondStore, useSettingsStore, useSteamStore } from "../stores";
+
+interface AccountAction {
+  label: string;
+  onClick: () => void;
+  primary?: boolean;
+}
 
 interface AccountDisplayProps {
   avatar: string;
   name: string;
   status: string;
-  action?: {
-    label: string;
-    onClick: () => void;
-    primary?: boolean;
-  };
+  actions?: AccountAction[];
 }
 
-const AccountDisplay = ({ avatar, name, status, action }: AccountDisplayProps) => {
+const AccountDisplay = ({ avatar, name, status, actions }: AccountDisplayProps) => {
   return (
     <>
       <div className="account-avatar">{avatar}</div>
@@ -21,15 +23,16 @@ const AccountDisplay = ({ avatar, name, status, action }: AccountDisplayProps) =
         <div className="account-name">{name}</div>
         <div className="account-status">{status}</div>
       </div>
-      {action && (
+      {actions?.map((action) => (
         <button
+          key={action.label}
           type="button"
           className={action.primary ? "button" : "button-secondary"}
           onClick={action.onClick}
         >
           {action.label}
         </button>
-      )}
+      ))}
     </>
   );
 };
@@ -38,71 +41,84 @@ interface AccountInfoProps {
   onLogin: () => void;
   onLogout: () => void;
   onSteamLogout: () => void;
+  onByondLogin: () => void;
+  onByondLogout: () => void;
 }
 
 export const AccountInfo = ({
   onLogin,
   onLogout,
   onSteamLogout,
+  onByondLogin,
+  onByondLogout,
 }: AccountInfoProps) => {
   const authMode = useSettingsStore((s) => s.authMode);
   const authState = useAuthStore((s) => s.authState);
   const steamUser = useSteamStore((s) => s.user);
   const steamAccessToken = useSteamStore((s) => s.accessToken);
+  const byondWebUsername = useByondStore((s) => s.username);
+  const byondPagerRunning = useByondStore((s) => s.pagerRunning);
+  const checkByondStatus = useByondStore((s) => s.checkStatus);
 
-  const [byondPagerRunning, setByondPagerRunning] = useState<boolean | null>(null);
-  const [byondUsername, setByondUsername] = useState<string | null>(null);
+  const [byondPagerUsername, setByondPagerUsername] = useState<string | null>(null);
 
   useEffect(() => {
     if (authMode === "byond") {
-      const checkByondStatus = async () => {
-        try {
-          const running = await invoke<boolean>("is_byond_pager_running");
-          setByondPagerRunning(running);
-
-          if (running) {
+      const checkPagerUsername = async () => {
+        checkByondStatus();
+        if (byondPagerRunning) {
+          try {
             const username = await invoke<string | null>("get_byond_username");
-            setByondUsername(username);
-          } else {
-            setByondUsername(null);
+            setByondPagerUsername(username);
+          } catch {
+            setByondPagerUsername(null);
           }
-        } catch {
-          setByondPagerRunning(null);
-          setByondUsername(null);
+        } else {
+          setByondPagerUsername(null);
         }
       };
 
-      checkByondStatus();
-      // Poll every 5 seconds
-      const interval = setInterval(checkByondStatus, 5000);
+      checkPagerUsername();
+      const interval = setInterval(checkPagerUsername, 5000);
       return () => clearInterval(interval);
     }
-  }, [authMode]);
+  }, [authMode, byondPagerRunning, checkByondStatus]);
 
   if (authMode === "byond") {
-    if (byondPagerRunning === true && byondUsername) {
+    // Web-based BYOND login takes priority
+    if (byondWebUsername) {
       return (
         <AccountDisplay
-          avatar={byondUsername.charAt(0).toUpperCase()}
-          name={byondUsername}
-          status="Logged in via BYOND"
+          avatar={byondWebUsername.charAt(0).toUpperCase()}
+          name={byondWebUsername}
+          status="Logged in via BYOND Web"
+          actions={[{ label: "Logout", onClick: onByondLogout }]}
         />
       );
     }
-    if (byondPagerRunning === true) {
+    // Logged in via pager - no need for web login
+    if (byondPagerUsername) {
       return (
         <AccountDisplay
-          avatar="B"
-          name="BYOND"
-          status="Open (not logged in)"
+          avatar={byondPagerUsername.charAt(0).toUpperCase()}
+          name={byondPagerUsername}
+          status="Logged in via BYOND Pager"
         />
       );
     }
+    // Not logged in via web or pager - show login button
+    const status = byondPagerRunning === true
+      ? "Pager open (not logged in)"
+      : "Not logged in";
     return (
       <AccountDisplay
         avatar="B"
         name="BYOND"
-        status="Not running"
+        status={status}
+        actions={[
+          { label: "Login", onClick: onByondLogin, primary: true },
+          { label: "Create Account", onClick: () => invoke("open_url", { url: "https://secure.byond.com/Join" }) },
+        ]}
       />
     );
   }
@@ -114,7 +130,7 @@ export const AccountInfo = ({
           avatar="S"
           name={steamUser?.display_name || "Steam User"}
           status="Logged in via Steam"
-          action={{ label: "Logout", onClick: onSteamLogout }}
+          actions={[{ label: "Logout", onClick: onSteamLogout }]}
         />
       );
     }
@@ -135,7 +151,7 @@ export const AccountInfo = ({
         avatar={displayName.charAt(0).toUpperCase()}
         name={displayName}
         status={authState.user.email || "Logged in"}
-        action={{ label: "Logout", onClick: onLogout }}
+        actions={[{ label: "Logout", onClick: onLogout }]}
       />
     );
   }
@@ -145,7 +161,7 @@ export const AccountInfo = ({
       avatar="?"
       name="Not logged in"
       status={authState.loading ? "Checking..." : "Click to authenticate"}
-      action={{ label: "Login", onClick: onLogin, primary: true }}
+      actions={[{ label: "Login", onClick: onLogin, primary: true }]}
     />
   );
 };

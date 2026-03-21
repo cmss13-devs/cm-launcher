@@ -2,8 +2,8 @@ import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 import type { ConnectionResult } from "../hooks/useConnect";
-import { useConfigStore } from "../stores";
-import type { AuthMode, Platform, Theme, WineStatus } from "../types";
+import { useByondStore, useConfigStore } from "../stores";
+import type { AuthMode, ByondLoginResult, Platform, Theme, WineStatus } from "../types";
 import { Modal, ModalCloseButton } from "./Modal";
 
 interface AuthModeOptionProps {
@@ -252,10 +252,15 @@ export const SettingsModal = ({
   onClose,
 }: SettingsModalProps) => {
   const config = useConfigStore((s) => s.config);
-  const [byondPagerRunning, setByondPagerRunning] = useState<boolean | null>(
-    null,
-  );
+  const byondWebUsername = useByondStore((s) => s.username);
+  const byondPagerRunning = useByondStore((s) => s.pagerRunning);
+  const checkByondStatus = useByondStore((s) => s.checkStatus);
+
   const [appVersion, setAppVersion] = useState<string>("");
+  const [byondLoginState, setByondLoginState] = useState<
+    "idle" | "loading" | "success" | "error"
+  >("idle");
+  const [byondLoginError, setByondLoginError] = useState<string | null>(null);
 
   useEffect(() => {
     getVersion().then(setAppVersion);
@@ -263,11 +268,24 @@ export const SettingsModal = ({
 
   useEffect(() => {
     if (visible && authMode === "byond") {
-      invoke<boolean>("is_byond_pager_running")
-        .then(setByondPagerRunning)
-        .catch(() => setByondPagerRunning(null));
+      checkByondStatus();
     }
-  }, [visible, authMode]);
+  }, [visible, authMode, checkByondStatus]);
+
+  const handleByondWebLogin = async () => {
+    setByondLoginState("loading");
+    setByondLoginError(null);
+    try {
+      const result = await invoke<ByondLoginResult>("start_byond_login");
+      console.log("BYOND login successful, username:", result.username);
+      setByondLoginState("success");
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      console.error("BYOND login failed:", error);
+      setByondLoginError(error);
+      setByondLoginState("error");
+    }
+  };
 
   return (
     <Modal
@@ -320,10 +338,55 @@ export const SettingsModal = ({
           <p className="settings-description">
             Choose how you want to authenticate when connecting to servers.
           </p>
-          {authMode === "byond" && byondPagerRunning === false && (
-            <div className="auth-mode-warning">
-              BYOND pager (byond.exe) is not running. Please open BYOND and log
-              in before connecting to a server.
+          {authMode === "byond" && byondPagerRunning === false && !byondWebUsername && (
+            <div className="byond-login-section">
+              <div className="auth-mode-warning">
+                BYOND pager is not running. You can either open BYOND and log
+                in, or use web login below.
+              </div>
+              <div className="byond-web-login">
+                {byondLoginState === "idle" && (
+                  <>
+                    <button
+                      type="button"
+                      className="button"
+                      onClick={handleByondWebLogin}
+                    >
+                      Login to BYOND
+                    </button>
+                    <button
+                      type="button"
+                      className="button-secondary"
+                      onClick={() => invoke("open_url", { url: "https://secure.byond.com/Join" })}
+                    >
+                      Create Account
+                    </button>
+                  </>
+                )}
+                {byondLoginState === "loading" && (
+                  <p className="byond-login-status">
+                    Waiting for BYOND login... (check the login window)
+                  </p>
+                )}
+                {byondLoginState === "success" && (
+                  <p className="byond-login-status success">
+                    Logged in to BYOND successfully!
+                    {byondWebUsername && ` (${byondWebUsername})`}
+                  </p>
+                )}
+                {byondLoginState === "error" && (
+                  <div className="byond-login-error">
+                    <p>Login failed: {byondLoginError}</p>
+                    <button
+                      type="button"
+                      className="button-secondary"
+                      onClick={handleByondWebLogin}
+                    >
+                      Try Again
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
           <div className="auth-mode-options">
@@ -349,7 +412,7 @@ export const SettingsModal = ({
               mode="byond"
               currentMode={authMode}
               name="BYOND Authentication"
-              description="Use BYOND's built-in authentication (no login required)"
+              description="Login with your BYOND account, or via the pager"
               onChange={onAuthModeChange}
             />
           </div>

@@ -1,6 +1,8 @@
+import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
+import type { ByondLoginResult } from "./types";
 
 import {
   AccountInfo,
@@ -28,6 +30,7 @@ import {
 } from "./hooks";
 import {
   useAuthStore,
+  useByondStore,
   useConfigStore,
   useServerStore,
   useSettingsStore,
@@ -85,6 +88,12 @@ const AppContent = () => {
       authenticate: s.authenticate,
       logout: s.logout,
       cancelAuthTicket: s.cancelAuthTicket,
+    })),
+  );
+
+  const { initListener: initByondListener } = useByondStore(
+    useShallow((s) => ({
+      initListener: s.initListener,
     })),
   );
 
@@ -285,13 +294,15 @@ const AppContent = () => {
     const unlistenAuthPromise = initAuthListener();
     const unlistenServerPromise = initServerListener();
     const unlistenRelaysPromise = initRelays();
+    const unlistenByondPromise = initByondListener();
 
     return () => {
       unlistenAuthPromise.then((unlisten) => unlisten());
       unlistenServerPromise.then((unlisten) => unlisten());
       unlistenRelaysPromise.then((unlisten) => unlisten());
+      unlistenByondPromise.then((unlisten) => unlisten());
     };
-  }, [initAuthListener, initServerListener, initRelays]);
+  }, [initAuthListener, initServerListener, initRelays, initByondListener]);
 
   useEffect(() => {
     const loadInitialState = async () => {
@@ -387,6 +398,22 @@ const AppContent = () => {
       showError(err instanceof Error ? err.message : String(err));
     }
   }, [logout, showError]);
+
+  const handleByondLogin = useCallback(async () => {
+    try {
+      await invoke<ByondLoginResult>("start_byond_login");
+    } catch (err) {
+      showError(err instanceof Error ? err.message : String(err));
+    }
+  }, [showError]);
+
+  const handleByondLogout = useCallback(async () => {
+    try {
+      await invoke("logout_byond_web");
+    } catch (err) {
+      showError(err instanceof Error ? err.message : String(err));
+    }
+  }, [showError]);
 
   const handleAuthModalClose = useCallback(() => {
     setAuthModal({ visible: false, state: "idle", error: undefined });
@@ -703,6 +730,8 @@ const AppContent = () => {
               onLogin={handleLogin}
               onLogout={handleLogout}
               onSteamLogout={handleSteamLogout}
+              onByondLogin={handleByondLogin}
+              onByondLogout={handleByondLogout}
             />
           </div>
           <div className="footer-actions">
