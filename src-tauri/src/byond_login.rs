@@ -1,7 +1,7 @@
-//! BYOND website login via webview for cookie-based authentication.
+//! BYOND website login via webview for web-based authentication.
 //!
 //! This module handles logging into BYOND's website through a webview,
-//! capturing the auth cookies which can then be used to fetch the user's
+//! storing the username and using persistent cookies to fetch the user's
 //! web_id for automatic BYOND authentication.
 
 use parking_lot::Mutex;
@@ -17,11 +17,10 @@ fn get_user_agent() -> String {
     format!("{}/{} (Windows)", config.product_name, version)
 }
 
-/// In-memory storage for BYOND session (not persisted)
+/// In-memory storage for BYOND session username
 #[derive(Debug, Clone, Default)]
 pub struct ByondSession {
     pub username: Option<String>,
-    pub sbyondcert: Option<String>,
 }
 
 /// Thread-safe BYOND session state
@@ -36,45 +35,30 @@ impl ByondSessionState {
         }
     }
 
-    pub fn set_session(&self, username: String, sbyondcert: String) {
+    pub fn set_username(&self, username: String) {
         let mut session = self.session.lock();
         session.username = Some(username);
-        session.sbyondcert = Some(sbyondcert);
     }
 
-    pub fn get_session(&self) -> ByondSession {
-        self.session.lock().clone()
+    pub fn get_username(&self) -> Option<String> {
+        self.session.lock().username.clone()
     }
 
     pub fn clear_session(&self) {
         let mut session = self.session.lock();
         *session = ByondSession::default();
     }
-
-    pub fn is_logged_in(&self) -> bool {
-        let session = self.session.lock();
-        session.username.is_some() && session.sbyondcert.is_some()
-    }
 }
 
-/// Cookies and user info extracted from BYOND login
+/// Result from BYOND login - just the username
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct ByondCookies {
-    pub auth: Option<String>,
-    pub byondcert: Option<String>,
-    pub sbyondcert: Option<String>,
+pub struct ByondLoginResult {
     pub username: Option<String>,
-}
-
-impl ByondCookies {
-    pub fn is_valid(&self) -> bool {
-        self.auth.is_some() || self.byondcert.is_some()
-    }
 }
 
 /// State for managing the login flow
 pub struct ByondLoginState {
-    result_tx: Mutex<Option<oneshot::Sender<Result<ByondCookies, String>>>>,
+    result_tx: Mutex<Option<oneshot::Sender<Result<ByondLoginResult, String>>>>,
 }
 
 impl ByondLoginState {
@@ -84,42 +68,32 @@ impl ByondLoginState {
         }
     }
 
-    pub fn set_sender(&self, tx: oneshot::Sender<Result<ByondCookies, String>>) {
+    pub fn set_sender(&self, tx: oneshot::Sender<Result<ByondLoginResult, String>>) {
         *self.result_tx.lock() = Some(tx);
     }
 
-    pub fn complete(&self, result: Result<ByondCookies, String>) {
+    pub fn complete(&self, result: Result<ByondLoginResult, String>) {
         if let Some(tx) = self.result_tx.lock().take() {
             let _ = tx.send(result);
         }
     }
 }
 
-/// Called from the login webview's JS when cookies are extracted
+/// Called from the login webview's JS when login is complete
 #[tauri::command]
-pub fn byond_login_complete(app: AppHandle, cookies: ByondCookies) {
-    tracing::info!(
-        "BYOND login complete - username: {:?}, auth: {}, byondcert: {}, sbyondcert: {}",
-        cookies.username,
-        cookies.auth.is_some(),
-        cookies.byondcert.is_some(),
-        cookies.sbyondcert.is_some()
-    );
+pub fn byond_login_complete(app: AppHandle, username: Option<String>) {
+    tracing::info!("BYOND login complete - username: {:?}", username);
 
-    if let Some(cert) = &cookies.sbyondcert {
-        tracing::debug!("sbyondcert cookie: {}...", &cert[..cert.len().min(20)]);
-    }
-
-    // Store session in memory
-    if let (Some(username), Some(sbyondcert)) = (&cookies.username, &cookies.sbyondcert) {
+    // Store username in memory
+    if let Some(ref name) = username {
         if let Some(session_state) = app.try_state::<ByondSessionState>() {
-            session_state.set_session(username.clone(), sbyondcert.clone());
-            tracing::info!("BYOND session stored for user: {}", username);
+            session_state.set_username(name.clone());
+            tracing::info!("BYOND session stored for user: {}", name);
         }
     }
 
     if let Some(state) = app.try_state::<ByondLoginState>() {
-        state.complete(Ok(cookies));
+        state.complete(Ok(ByondLoginResult { username }));
     }
 
     if let Some(window) = app.get_webview_window("byond_login") {
@@ -131,7 +105,7 @@ pub fn byond_login_complete(app: AppHandle, cookies: ByondCookies) {
 #[tauri::command]
 pub fn get_byond_session_status(app: AppHandle) -> Option<String> {
     app.try_state::<ByondSessionState>()
-        .and_then(|state| state.get_session().username)
+        .and_then(|state| state.get_username())
 }
 
 /// Clear BYOND session
@@ -143,9 +117,36 @@ pub fn clear_byond_session(app: AppHandle) {
     }
 }
 
+/// Log out from BYOND web session
+#[tauri::command]
+pub async fn logout_byond_web(app: AppHandle) -> Result<(), String> {
+    tracing::info!("Logging out from BYOND web session");
+
+    // Clear local session state
+    if let Some(state) = app.try_state::<ByondSessionState>() {
+        state.clear_session();
+    }
+
+    // Delete the webview data folder to clear cookies
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?
+        .join("byond_webview");
+
+    if data_dir.exists() {
+        std::fs::remove_dir_all(&data_dir)
+            .map_err(|e| format!("Failed to delete webview data: {}", e))?;
+        tracing::info!("Deleted BYOND webview data at {:?}", data_dir);
+    }
+
+    tracing::info!("BYOND web logout complete");
+    Ok(())
+}
+
 /// Open BYOND login window and wait for user to authenticate
 #[tauri::command]
-pub async fn start_byond_login(app: AppHandle) -> Result<ByondCookies, String> {
+pub async fn start_byond_login(app: AppHandle) -> Result<ByondLoginResult, String> {
     // Check if login window already exists
     if app.get_webview_window("byond_login").is_some() {
         return Err("Login already in progress".to_string());
@@ -168,28 +169,13 @@ pub async fn start_byond_login(app: AppHandle) -> Result<ByondCookies, String> {
         if (window.location.hostname === 'secure.byond.com' || window.location.hostname === 'www.byond.com' || window.location.hostname === 'byond.com') {
             const CHECK_INTERVAL = 500;
 
-            function extractCookies() {
-                const cookies = {};
-                document.cookie.split(';').forEach(c => {
-                    const parts = c.trim().split('=');
-                    const name = parts[0];
-                    const value = parts.slice(1).join('=');
-                    if (name) cookies[name] = value || '';
-                });
-
+            function extractUsername() {
                 const nameLink = document.querySelector('.topbar_name_link');
-                let username = null;
                 if (nameLink) {
                     const text = nameLink.textContent.trim();
-                    username = text.split('\n')[0].trim();
+                    return text.split('\n')[0].trim();
                 }
-
-                return {
-                    auth: cookies['auth'] || null,
-                    byondcert: cookies['byondcert'] || null,
-                    sbyondcert: cookies['sbyondcert'] || null,
-                    username: username
-                };
+                return null;
             }
 
             function isCloudflareChallenge() {
@@ -205,16 +191,15 @@ pub async fn start_byond_login(app: AppHandle) -> Result<ByondCookies, String> {
                     return;
                 }
 
-                const cookies = extractCookies();
+                const username = extractUsername();
                 const path = window.location.pathname.toLowerCase();
                 const onLoginPage = path.includes('login');
-                const hasAuth = cookies.auth || cookies.byondcert;
 
-                console.log('[BYOND Login] Checking...', { path, onLoginPage, hasAuth, cookies });
+                console.log('[BYOND Login] Checking...', { path, onLoginPage, username });
 
-                if (!onLoginPage && hasAuth) {
-                    console.log('[BYOND Login] Success! Sending cookies to Tauri');
-                    window.__TAURI_INTERNALS__.invoke('byond_login_complete', { cookies });
+                if (!onLoginPage && username) {
+                    console.log('[BYOND Login] Success! Username:', username);
+                    window.__TAURI_INTERNALS__.invoke('byond_login_complete', { username });
                     return;
                 }
 
@@ -337,15 +322,6 @@ pub fn byond_webid_complete(app: AppHandle, web_id: Option<String>) {
 
 #[tauri::command]
 pub async fn fetch_byond_web_id(app: AppHandle) -> Result<String, String> {
-    let session = app
-        .try_state::<ByondSessionState>()
-        .map(|s| s.get_session())
-        .unwrap_or_default();
-
-    if session.sbyondcert.is_none() {
-        return Err("Not logged in to BYOND. Please login first.".to_string());
-    }
-
     if app.get_webview_window("byond_webid_fetch").is_some() {
         return Err("Web ID fetch already in progress".to_string());
     }
@@ -403,11 +379,10 @@ pub async fn fetch_byond_web_id(app: AppHandle) -> Result<String, String> {
                 const href = joinLink.getAttribute('href') || '';
                 console.log('[BYOND WebID] Full href:', href);
 
-                const match = href.match(/webid=([a-fA-F0-9]+)/);
+                const match = href.match(/webid=([a-fA-F0-9]+|guest)/i);
                 const webId = match ? match[1] : null;
 
                 console.log('[BYOND WebID] Extracted webId:', webId);
-                console.log('[BYOND WebID] webId length:', webId ? webId.length : 0);
                 window.__TAURI_INTERNALS__.invoke('byond_webid_complete', { webId });
             }
 
@@ -509,9 +484,9 @@ pub fn byond_session_check_complete(
     let logged_in = !is_guest && web_id.is_some();
 
     if logged_in {
-        if let (Some(uname), Some(_wid)) = (&username, &web_id) {
+        if let Some(uname) = &username {
             if let Some(session_state) = app.try_state::<ByondSessionState>() {
-                session_state.set_session(uname.clone(), "cookie_session".to_string());
+                session_state.set_username(uname.clone());
             }
         }
     }

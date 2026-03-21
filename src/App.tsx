@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import type { ByondCookies } from "./types";
+import type { ByondLoginResult } from "./types";
 
 import {
   AccountInfo,
@@ -392,7 +392,15 @@ const AppContent = () => {
 
   const handleByondLogin = useCallback(async () => {
     try {
-      await invoke<ByondCookies>("start_byond_login");
+      await invoke<ByondLoginResult>("start_byond_login");
+    } catch (err) {
+      showError(err instanceof Error ? err.message : String(err));
+    }
+  }, [showError]);
+
+  const handleByondLogout = useCallback(async () => {
+    try {
+      await invoke("logout_byond_web");
     } catch (err) {
       showError(err instanceof Error ? err.message : String(err));
     }
@@ -714,6 +722,7 @@ const AppContent = () => {
               onLogout={handleLogout}
               onSteamLogout={handleSteamLogout}
               onByondLogin={handleByondLogin}
+              onByondLogout={handleByondLogout}
             />
           </div>
           <div className="footer-actions">

@@ -15,7 +15,7 @@ use crate::servers::ServerState;
 use crate::settings::{load_settings, AuthMode};
 
 #[cfg(target_os = "windows")]
-use crate::byond_login::{check_byond_web_session, fetch_byond_web_id, start_byond_login};
+use crate::byond_login::{fetch_byond_web_id, start_byond_login};
 #[cfg(target_os = "windows")]
 use crate::control_server::ControlServer;
 #[cfg(target_os = "windows")]
@@ -26,7 +26,7 @@ use std::process::Command;
 use tauri::Emitter;
 
 #[cfg(target_os = "linux")]
-use crate::byond_login::{check_byond_web_session, fetch_byond_web_id, start_byond_login};
+use crate::byond_login::{fetch_byond_web_id, start_byond_login};
 #[cfg(target_os = "linux")]
 use crate::wine;
 
@@ -675,26 +675,29 @@ async fn connect_to_server_impl(
         let using_webid = access_type.as_deref() == Some("byond") && !check_byond_pager_running();
 
         if using_webid {
-            tracing::info!("BYOND pager not running, checking web session");
+            tracing::info!("BYOND pager not running, using web authentication");
 
-            // Check if already logged in via cookies
-            let session_check = check_byond_web_session(app.clone()).await;
-            let is_logged_in = session_check.as_ref().map(|s| s.logged_in).unwrap_or(false);
+            // Fetch web_id - will be "guest" if not logged in
+            let mut web_id = fetch_byond_web_id(app.clone()).await?;
 
-            // If not logged in, open login flow
-            if !is_logged_in {
-                tracing::info!("Not logged in to BYOND, opening login flow");
+            // If web_id is "guest", user needs to login
+            if web_id == "guest" {
+                tracing::info!("Not logged in to BYOND (web_id=guest), opening login flow");
                 let login_result = start_byond_login(app.clone()).await;
                 if login_result.is_err() {
                     return Err("BYOND login required but was cancelled or failed".to_string());
                 }
+                // Fetch web_id again after login
+                web_id = fetch_byond_web_id(app.clone()).await?;
+                if web_id == "guest" {
+                    return Err("BYOND login failed - still not authenticated".to_string());
+                }
             }
+
+            tracing::info!("Got web_id, launching byond.exe with web authentication");
 
             // Snapshot existing dreamseeker PIDs before launching
             let existing_pids = get_dreamseeker_pids();
-
-            let web_id = fetch_byond_web_id(app.clone()).await?;
-            tracing::info!("Got web_id, launching byond.exe with web authentication");
 
             // Build URL with web_id: byond://host:port?params##webid={web_id}
             let mut query_params = Vec::new();
@@ -842,26 +845,29 @@ async fn connect_to_server_impl(
         let using_webid = access_type.as_deref() == Some("byond") && !check_byond_pager_running();
 
         if using_webid {
-            tracing::info!("BYOND pager not running, checking web session");
+            tracing::info!("BYOND pager not running, using web authentication");
 
-            // Check if already logged in via cookies
-            let session_check = check_byond_web_session(app.clone()).await;
-            let is_logged_in = session_check.as_ref().map(|s| s.logged_in).unwrap_or(false);
+            // Fetch web_id - will be "guest" if not logged in
+            let mut web_id = fetch_byond_web_id(app.clone()).await?;
 
-            // If not logged in, open login flow
-            if !is_logged_in {
-                tracing::info!("Not logged in to BYOND, opening login flow");
+            // If web_id is "guest", user needs to login
+            if web_id == "guest" {
+                tracing::info!("Not logged in to BYOND (web_id=guest), opening login flow");
                 let login_result = start_byond_login(app.clone()).await;
                 if login_result.is_err() {
                     return Err("BYOND login required but was cancelled or failed".to_string());
                 }
+                // Fetch web_id again after login
+                web_id = fetch_byond_web_id(app.clone()).await?;
+                if web_id == "guest" {
+                    return Err("BYOND login failed - still not authenticated".to_string());
+                }
             }
+
+            tracing::info!("Got web_id, launching byond.exe with web authentication");
 
             // Snapshot existing dreamseeker PIDs before launching
             let existing_pids = get_dreamseeker_pids();
-
-            let web_id = fetch_byond_web_id(app.clone()).await?;
-            tracing::info!("Got web_id, launching byond.exe with web authentication");
 
             // Build URL with web_id: byond://host:port?params##webid={web_id}
             let mut query_params = Vec::new();

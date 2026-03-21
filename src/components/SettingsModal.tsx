@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 import type { ConnectionResult } from "../hooks/useConnect";
 import { useConfigStore } from "../stores";
-import type { AuthMode, ByondCookies, Platform, Theme, WineStatus } from "../types";
+import type { AuthMode, ByondLoginResult, Platform, Theme, WineStatus } from "../types";
 import { Modal, ModalCloseButton } from "./Modal";
 
 interface AuthModeOptionProps {
@@ -260,7 +260,7 @@ export const SettingsModal = ({
     "idle" | "loading" | "success" | "error"
   >("idle");
   const [byondLoginError, setByondLoginError] = useState<string | null>(null);
-  const [byondCookies, setByondCookies] = useState<ByondCookies | null>(null);
+  const [byondUsername, setByondUsername] = useState<string | null>(null);
 
   useEffect(() => {
     getVersion().then(setAppVersion);
@@ -278,9 +278,9 @@ export const SettingsModal = ({
     setByondLoginState("loading");
     setByondLoginError(null);
     try {
-      const cookies = await invoke<ByondCookies>("start_byond_login");
-      console.log("BYOND login successful, cookies:", cookies);
-      setByondCookies(cookies);
+      const result = await invoke<ByondLoginResult>("start_byond_login");
+      console.log("BYOND login successful, username:", result.username);
+      setByondUsername(result.username);
       setByondLoginState("success");
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
@@ -365,7 +365,7 @@ export const SettingsModal = ({
                 {byondLoginState === "success" && (
                   <p className="byond-login-status success">
                     Logged in to BYOND successfully!
-                    {byondCookies?.byondcert && " (byondcert captured)"}
+                    {byondUsername && ` (${byondUsername})`}
                   </p>
                 )}
                 {byondLoginState === "error" && (

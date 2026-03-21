@@ -127,10 +127,7 @@ export interface ReleaseInfo {
   size: number | null;
 }
 
-export interface ByondCookies {
-  auth: string | null;
-  byondcert: string | null;
-  sbyondcert: string | null;
+export interface ByondLoginResult {
   username: string | null;
 }
 

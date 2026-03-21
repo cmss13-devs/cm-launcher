@@ -40,6 +40,7 @@ interface AccountInfoProps {
   onLogout: () => void;
   onSteamLogout: () => void;
   onByondLogin: () => void;
+  onByondLogout: () => void;
 }
 
 export const AccountInfo = ({
@@ -47,6 +48,7 @@ export const AccountInfo = ({
   onLogout,
   onSteamLogout,
   onByondLogin,
+  onByondLogout,
 }: AccountInfoProps) => {
   const authMode = useSettingsStore((s) => s.authMode);
   const authState = useAuthStore((s) => s.authState);
@@ -127,6 +129,7 @@ export const AccountInfo = ({
           avatar={byondWebUsername.charAt(0).toUpperCase()}
           name={byondWebUsername}
           status="Logged in via BYOND Web"
+          action={{ label: "Logout", onClick: onByondLogout }}
         />
       );
     }
