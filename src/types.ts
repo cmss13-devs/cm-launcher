@@ -126,3 +126,10 @@ export interface ReleaseInfo {
   download_url: string | null;
   size: number | null;
 }
+
+export interface ByondCookies {
+  auth: string | null;
+  byondcert: string | null;
+  sbyondcert: string | null;
+  username: string | null;
+}

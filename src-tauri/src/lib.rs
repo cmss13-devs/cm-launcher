@@ -1,6 +1,7 @@
 mod auth;
 mod autoconnect;
 mod byond;
+mod byond_login;
 pub mod config;
 mod control_server;
 mod discord;
@@ -32,6 +33,10 @@ use byond::{
     check_byond_version, connect_to_server, connect_to_url, delete_byond_version,
     get_byond_username, install_byond_version, is_byond_pager_running, is_dev_mode,
     list_installed_byond_versions,
+};
+use byond_login::{
+    byond_login_complete, byond_webid_complete, clear_byond_session, fetch_byond_web_id,
+    get_byond_session_status, start_byond_login, ByondSessionState,
 };
 use relays::{get_relays, get_selected_relay, set_selected_relay};
 use servers::get_servers;
@@ -203,6 +208,12 @@ pub fn run() {
             delete_singleplayer,
             launch_singleplayer,
             get_launcher_config,
+            start_byond_login,
+            byond_login_complete,
+            get_byond_session_status,
+            clear_byond_session,
+            fetch_byond_web_id,
+            byond_webid_complete,
         ]);
     }
 
@@ -251,6 +262,12 @@ pub fn run() {
             delete_singleplayer,
             launch_singleplayer,
             get_launcher_config,
+            start_byond_login,
+            byond_login_complete,
+            get_byond_session_status,
+            clear_byond_session,
+            fetch_byond_web_id,
+            byond_webid_complete,
         ]);
     }
 
@@ -314,10 +331,13 @@ pub fn run() {
     let server_state = std::sync::Arc::new(servers::ServerState::new());
     let relay_state = std::sync::Arc::new(relays::RelayState::new());
 
+    let byond_session_state = ByondSessionState::new();
+
     builder = builder
         .manage(std::sync::Arc::clone(&presence_manager))
         .manage(std::sync::Arc::clone(&server_state))
-        .manage(std::sync::Arc::clone(&relay_state));
+        .manage(std::sync::Arc::clone(&relay_state))
+        .manage(byond_session_state);
 
     builder
         .setup(move |app| {

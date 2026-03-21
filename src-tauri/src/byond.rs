@@ -15,6 +15,8 @@ use crate::servers::ServerState;
 use crate::settings::{load_settings, AuthMode};
 
 #[cfg(target_os = "windows")]
+use crate::byond_login::fetch_byond_web_id;
+#[cfg(target_os = "windows")]
 use crate::control_server::ControlServer;
 #[cfg(target_os = "windows")]
 use crate::presence::{ConnectionParams, PresenceManager};
@@ -23,6 +25,8 @@ use std::process::Command;
 #[cfg(target_os = "windows")]
 use tauri::Emitter;
 
+#[cfg(target_os = "linux")]
+use crate::byond_login::fetch_byond_web_id;
 #[cfg(target_os = "linux")]
 use crate::wine;
 
@@ -649,24 +653,7 @@ async fn connect_to_server_impl(
 
     #[cfg(target_os = "windows")]
     {
-        // Auto-launch BYOND pager if enabled and not already running
         let config = crate::config::get_config();
-        if config.features.auto_launch_byond && !check_byond_pager_running() {
-            let byond_pager_path = get_byond_pager_path(&app, &version)?;
-            if byond_pager_path.exists() {
-                tracing::info!("Auto-launching BYOND pager: {:?}", byond_pager_path);
-                Command::new(&byond_pager_path)
-                    .spawn()
-                    .map_err(|e| format!("Failed to launch BYOND pager: {}", e))?;
-                // Exit early - user needs to log in to BYOND before connecting
-                return Ok(ConnectionResult {
-                    success: false,
-                    message: "BYOND has been launched. Please log in and try connecting again."
-                        .to_string(),
-                    auth_error: None,
-                });
-            }
-        }
 
         if let Some(control_server) = app.try_state::<ControlServer>() {
             control_server.reset_connected_flag();
@@ -681,25 +668,50 @@ async fn connect_to_server_impl(
             .try_state::<ControlServer>()
             .map(|s| s.ws_port.to_string());
 
-        let connect_url = build_connect_url(
-            &host,
-            &port,
-            access_type.as_deref(),
-            access_token.as_deref(),
-            control_port.as_deref(),
-            websocket_port.as_deref(),
-        );
-
         // Set a unique WebView2 user data folder to avoid conflicts with the system BYOND pager.
-        // When the BYOND pager is running, it locks the default WebView2 user data directory,
-        // preventing our DreamSeeker from using WebView2. Using a separate folder resolves this.
         let webview2_data_dir = get_byond_base_dir(&app)?.join("webview2_data");
 
-        let child = Command::new(&dreamseeker_path)
-            .arg(&connect_url)
-            .env("WEBVIEW2_USER_DATA_FOLDER", &webview2_data_dir)
-            .spawn()
-            .map_err(|e| format!("Failed to launch DreamSeeker: {}", e))?;
+        // If using BYOND auth and pager is not running, use web_id authentication via byond.exe
+        let child = if access_type.as_deref() == Some("byond") && !check_byond_pager_running() {
+            tracing::info!("BYOND pager not running, fetching web_id for authentication");
+
+            let web_id = fetch_byond_web_id(app.clone()).await?;
+            tracing::info!("Got web_id, launching byond.exe with web authentication");
+
+            // Build URL with web_id: byond://host:port##webid={web_id}
+            let mut connect_url = format!("byond://{}:{}##webid={}", host, port, web_id);
+
+            // Append launcher ports as query params after the webid
+            if let Some(lp) = &control_port {
+                connect_url.push_str(&format!("&launcher_port={}", lp));
+            }
+            if let Some(wp) = &websocket_port {
+                connect_url.push_str(&format!("&websocket_port={}", wp));
+            }
+
+            let byond_pager_path = get_byond_pager_path(&app, &version)?;
+            Command::new(&byond_pager_path)
+                .arg(&connect_url)
+                .env("WEBVIEW2_USER_DATA_FOLDER", &webview2_data_dir)
+                .spawn()
+                .map_err(|e| format!("Failed to launch BYOND: {}", e))?
+        } else {
+            // Normal flow: use dreamseeker with standard auth
+            let connect_url = build_connect_url(
+                &host,
+                &port,
+                access_type.as_deref(),
+                access_token.as_deref(),
+                control_port.as_deref(),
+                websocket_port.as_deref(),
+            );
+
+            Command::new(&dreamseeker_path)
+                .arg(&connect_url)
+                .env("WEBVIEW2_USER_DATA_FOLDER", &webview2_data_dir)
+                .spawn()
+                .map_err(|e| format!("Failed to launch DreamSeeker: {}", e))?
+        };
 
         if let Some(manager) = app.try_state::<Arc<PresenceManager>>() {
             manager.set_last_connection_params(ConnectionParams {
@@ -767,25 +779,41 @@ async fn connect_to_server_impl(
             .try_state::<ControlServer>()
             .map(|s| s.ws_port.to_string());
 
-        let connect_url = build_connect_url(
-            &host,
-            &port,
-            access_type.as_deref(),
-            access_token.as_deref(),
-            control_port.as_deref(),
-            websocket_port.as_deref(),
-        );
-
         let webview2_data_dir = get_byond_base_dir(&app)?.join("webview2_data");
 
-        // For BYOND auth when pager is not running, use byond.exe directly with the
-        // connection URL. This forces the pager to show the login modal without
-        // initialization issues. If pager is already running, use dreamseeker.exe.
-        let exe_path = if access_type.as_deref() == Some("byond") && !check_byond_pager_running() {
+        // If using BYOND auth and pager is not running, use web_id authentication via byond.exe
+        let (exe_path, connect_url) = if access_type.as_deref() == Some("byond")
+            && !check_byond_pager_running()
+        {
+            tracing::info!("BYOND pager not running, fetching web_id for authentication");
+
+            let web_id = fetch_byond_web_id(app.clone()).await?;
+            tracing::info!("Got web_id, launching byond.exe with web authentication");
+
+            // Build URL with web_id: byond://host:port##webid={web_id}
+            let mut url = format!("byond://{}:{}##webid={}", host, port, web_id);
+
+            // Append launcher ports
+            if let Some(lp) = &control_port {
+                url.push_str(&format!("&launcher_port={}", lp));
+            }
+            if let Some(wp) = &websocket_port {
+                url.push_str(&format!("&websocket_port={}", wp));
+            }
+
             let version_dir = get_byond_version_dir(&app, &version)?;
-            version_dir.join("byond").join("bin").join("byond.exe")
+            (version_dir.join("byond").join("bin").join("byond.exe"), url)
         } else {
-            PathBuf::from(&dreamseeker_path)
+            // Normal flow: use dreamseeker with standard auth
+            let url = build_connect_url(
+                &host,
+                &port,
+                access_type.as_deref(),
+                access_token.as_deref(),
+                control_port.as_deref(),
+                websocket_port.as_deref(),
+            );
+            (PathBuf::from(&dreamseeker_path), url)
         };
 
         let child = wine::launch_with_wine(

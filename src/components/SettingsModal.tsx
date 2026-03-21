@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 import type { ConnectionResult } from "../hooks/useConnect";
 import { useConfigStore } from "../stores";
-import type { AuthMode, Platform, Theme, WineStatus } from "../types";
+import type { AuthMode, ByondCookies, Platform, Theme, WineStatus } from "../types";
 import { Modal, ModalCloseButton } from "./Modal";
 
 interface AuthModeOptionProps {
@@ -256,6 +256,11 @@ export const SettingsModal = ({
     null,
   );
   const [appVersion, setAppVersion] = useState<string>("");
+  const [byondLoginState, setByondLoginState] = useState<
+    "idle" | "loading" | "success" | "error"
+  >("idle");
+  const [byondLoginError, setByondLoginError] = useState<string | null>(null);
+  const [byondCookies, setByondCookies] = useState<ByondCookies | null>(null);
 
   useEffect(() => {
     getVersion().then(setAppVersion);
@@ -268,6 +273,22 @@ export const SettingsModal = ({
         .catch(() => setByondPagerRunning(null));
     }
   }, [visible, authMode]);
+
+  const handleByondWebLogin = async () => {
+    setByondLoginState("loading");
+    setByondLoginError(null);
+    try {
+      const cookies = await invoke<ByondCookies>("start_byond_login");
+      console.log("BYOND login successful, cookies:", cookies);
+      setByondCookies(cookies);
+      setByondLoginState("success");
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      console.error("BYOND login failed:", error);
+      setByondLoginError(error);
+      setByondLoginState("error");
+    }
+  };
 
   return (
     <Modal
@@ -321,9 +342,45 @@ export const SettingsModal = ({
             Choose how you want to authenticate when connecting to servers.
           </p>
           {authMode === "byond" && byondPagerRunning === false && (
-            <div className="auth-mode-warning">
-              BYOND pager (byond.exe) is not running. Please open BYOND and log
-              in before connecting to a server.
+            <div className="byond-login-section">
+              <div className="auth-mode-warning">
+                BYOND pager is not running. You can either open BYOND and log
+                in, or use web login below.
+              </div>
+              <div className="byond-web-login">
+                {byondLoginState === "idle" && (
+                  <button
+                    type="button"
+                    className="button"
+                    onClick={handleByondWebLogin}
+                  >
+                    Login to BYOND
+                  </button>
+                )}
+                {byondLoginState === "loading" && (
+                  <p className="byond-login-status">
+                    Waiting for BYOND login... (check the login window)
+                  </p>
+                )}
+                {byondLoginState === "success" && (
+                  <p className="byond-login-status success">
+                    Logged in to BYOND successfully!
+                    {byondCookies?.byondcert && " (byondcert captured)"}
+                  </p>
+                )}
+                {byondLoginState === "error" && (
+                  <div className="byond-login-error">
+                    <p>Login failed: {byondLoginError}</p>
+                    <button
+                      type="button"
+                      className="button-secondary"
+                      onClick={handleByondWebLogin}
+                    >
+                      Try Again
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
           <div className="auth-mode-options">

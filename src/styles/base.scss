@@ -1183,6 +1183,34 @@ body {
   line-height: 1.4;
 }
 
+.byond-login-section {
+  margin-bottom: 12px;
+}
+
+.byond-web-login {
+  margin-top: 12px;
+
+  .byond-login-status {
+    color: var(--primary-dim);
+    font-size: 13px;
+    margin: 0;
+    padding: 8px 0;
+
+    &.success {
+      color: var(--success, #4caf50);
+    }
+  }
+
+  .byond-login-error {
+    color: var(--error, #f44336);
+    font-size: 13px;
+
+    p {
+      margin: 0 0 8px;
+    }
+  }
+}
+
 // Toggle setting (checkbox)
 .toggle-setting {
   display: flex;
