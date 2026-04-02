@@ -173,8 +173,8 @@ pub fn get_config() -> LauncherConfig {
             connection_timeout_fallback: true,
         },
         urls: LauncherUrls {
-            server_api: "https://hub.cm-ss13.com/servers",
-            hub_api: None,
+            server_api: "https://ss13.cm-ss13.com/api/servers",
+            hub_api: Some("https://ss13.cm-ss13.com"),
             auth_base: None,
             steam_auth: None,
             byond_hash_api: None,

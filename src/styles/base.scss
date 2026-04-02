@@ -286,6 +286,17 @@ body {
   gap: 8px;
 }
 
+.filter-section-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+
+.filter-divider {
+  border-top: 1px solid var(--border);
+}
+
 .filter-checkbox {
   display: flex;
   align-items: center;

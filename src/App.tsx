@@ -195,18 +195,24 @@ const AppContent = () => {
   const [pendingServerName, setPendingServerName] = useState<string | null>(
     null,
   );
-  const [selectedCategory, setSelectedCategory] = useState<string>("pvp");
+  const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
+  const [showSingleplayer, setShowSingleplayer] = useState(false);
   const [show18Plus, setShow18Plus] = useState(false);
   const [showOffline, setShowOffline] = useState(false);
   const [showHubStatus, setShowHubStatus] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [tagsOpen, setTagsOpen] = useState(false);
   const filtersRef = useRef<HTMLDivElement>(null);
+  const tagsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (filtersRef.current && !filtersRef.current.contains(event.target as Node)) {
         setFiltersOpen(false);
+      }
+      if (tagsRef.current && !tagsRef.current.contains(event.target as Node)) {
+        setTagsOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -245,13 +251,9 @@ const AppContent = () => {
       return true;
     });
 
-    const hasAnyTags = uniqueServers.some((s) => s.tags && s.tags.length > 0);
-
-    let filtered = hasAnyTags
+    let filtered = selectedTags.size > 0
       ? uniqueServers.filter((server) =>
-          server.tags?.some(
-            (t) => t.toLowerCase() === selectedCategory.toLowerCase(),
-          ),
+          server.tags?.some((t) => selectedTags.has(t)),
         )
       : uniqueServers;
 
@@ -276,7 +278,7 @@ const AppContent = () => {
       if (aOnline !== bOnline) return aOnline ? -1 : 1;
       return b.players - a.players;
     });
-  }, [servers, selectedCategory, searchQuery, show18Plus, showOffline, config?.features.show_offline_servers]);
+  }, [servers, selectedTags, searchQuery, show18Plus, showOffline, config?.features.show_offline_servers]);
 
   useEffect(() => {
     document.documentElement.className = `theme-${theme}`;
@@ -631,21 +633,7 @@ const AppContent = () => {
 
         <main className="main-content">
           <section className="section servers-section">
-            {categories.length > 1 && (
-              <div className="category-tabs">
-                {categories.map((category) => (
-                  <button
-                    key={category}
-                    type="button"
-                    className={`category-tab ${selectedCategory.toLowerCase() === category.toLowerCase() ? "active" : ""}`}
-                    onClick={() => setSelectedCategory(category)}
-                  >
-                    {category.toUpperCase()}
-                  </button>
-                ))}
-              </div>
-            )}
-            {selectedCategory !== "sandbox" && (config?.features.server_stats || config?.features.server_search || config?.features.server_filters) && (
+            {(config?.features.server_stats || config?.features.server_search || config?.features.server_filters) && (
               <div className="server-header">
                 {config?.features.server_stats && (
                   <div className="server-stats">
@@ -709,11 +697,55 @@ const AppContent = () => {
                         )}
                       </div>
                     )}
+                    {categories.filter((c) => c !== "sandbox").length > 0 && (
+                      <div className="filters-dropdown" ref={tagsRef}>
+                        <button
+                          type="button"
+                          className={`filters-button${selectedTags.size > 0 ? " active" : ""}`}
+                          onClick={() => setTagsOpen(!tagsOpen)}
+                        >
+                          Tags{selectedTags.size > 0 ? ` (${selectedTags.size})` : ""}
+                        </button>
+                        {tagsOpen && (
+                          <div className="filters-menu">
+                            {categories
+                              .filter((c) => c !== "sandbox")
+                              .map((tag) => (
+                                <label className="filter-checkbox" key={tag}>
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedTags.has(tag)}
+                                    onChange={(e) => {
+                                      const next = new Set(selectedTags);
+                                      if (e.target.checked) {
+                                        next.add(tag);
+                                      } else {
+                                        next.delete(tag);
+                                      }
+                                      setSelectedTags(next);
+                                    }}
+                                  />
+                                  <span>{tag}</span>
+                                </label>
+                              ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
+                )}
+                {config?.features.singleplayer && (
+                  <button
+                    type="button"
+                    className={`filters-button${showSingleplayer ? " active" : ""}`}
+                    onClick={() => setShowSingleplayer(!showSingleplayer)}
+                  >
+                    Singleplayer
+                  </button>
                 )}
               </div>
             )}
-            {selectedCategory === "sandbox" ? (
+            {showSingleplayer && config?.features.singleplayer ? (
               <SinglePlayerPanel />
             ) : (
               <div className="server-list">
