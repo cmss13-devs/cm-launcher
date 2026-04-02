@@ -727,7 +727,9 @@ async fn connect_to_server_impl(
                 true
             }
             _ => {
-                tracing::info!("Using BYOND pager for authentication");
+                if is_byond_auth {
+                    tracing::info!("Using BYOND pager for authentication");
+                }
                 false
             }
         };

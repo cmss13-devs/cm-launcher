@@ -633,7 +633,7 @@ const AppContent = () => {
 
         <main className="main-content">
           <section className="section servers-section">
-            {(config?.features.server_stats || config?.features.server_search || config?.features.server_filters) && (
+            {(config?.features.server_stats || config?.features.server_search || config?.features.server_filters || config?.features.singleplayer) && (
               <div className="server-header">
                 {config?.features.server_stats && (
                   <div className="server-stats">
@@ -647,7 +647,7 @@ const AppContent = () => {
                     </span>
                   </div>
                 )}
-                {(config?.features.server_search || config?.features.server_filters) && (
+                {(config?.features.server_search || config?.features.server_filters || config?.features.singleplayer) && (
                   <div className="server-controls">
                     {config?.features.server_search && (
                       <input
@@ -732,16 +732,16 @@ const AppContent = () => {
                         )}
                       </div>
                     )}
+                    {config?.features.singleplayer && (
+                      <button
+                        type="button"
+                        className={`filters-button${showSingleplayer ? " active" : ""}`}
+                        onClick={() => setShowSingleplayer(!showSingleplayer)}
+                      >
+                        Singleplayer
+                      </button>
+                    )}
                   </div>
-                )}
-                {config?.features.singleplayer && (
-                  <button
-                    type="button"
-                    className={`filters-button${showSingleplayer ? " active" : ""}`}
-                    onClick={() => setShowSingleplayer(!showSingleplayer)}
-                  >
-                    Singleplayer
-                  </button>
                 )}
               </div>
             )}
