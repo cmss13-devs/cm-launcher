@@ -13,6 +13,7 @@ const SERVER_FETCH_INTERVAL_SECS: u64 = 20;
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct ServerData {
+    #[specta(type = f64)]
     pub round_id: i64,
     pub mode: String,
     pub map_name: String,

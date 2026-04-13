@@ -3,7 +3,6 @@ import { useShallow } from "zustand/react/shallow";
 
 import {
   AccountInfo,
-  AuthModal,
   ErrorNotifications,
   GameConnectionModal,
   RelayDropdown,
@@ -12,24 +11,21 @@ import {
   SettingsModal,
   SinglePlayerPanel,
   SocialLinks,
-  SteamAuthModal,
   Titlebar,
   UpdateNotification,
   WineSetupModal,
 } from "./components";
 import {
+  AuthFlowProvider,
   ErrorProvider,
   useAppBootstrap,
-  useAuthHandlers,
   useAutoConnect,
   useError,
   useGameConnection,
   useServerFilters,
-  useSteamLinking,
   useWine,
 } from "./hooks";
 import {
-  useAuthStore,
   useConfigStore,
   useServerStore,
   useSettingsStore,
@@ -42,30 +38,7 @@ const AppContent = () => {
   useAppBootstrap();
 
   const config = useConfigStore((s) => s.config);
-  const oauthProviders = useAuthStore((s) => s.oauthProviders);
   const steamAvailable = useSteamStore((s) => s.available);
-
-  const {
-    authModal,
-    handleLogin,
-    handleLogout,
-    handleByondLogin,
-    handleByondLogout,
-    handleHubLogin,
-    handleOAuthLogin,
-    handleSteamLogin,
-    handleAuthModalClose,
-    onLoginRequired,
-  } = useAuthHandlers();
-
-  const {
-    steamModal,
-    handleSteamAuthenticate,
-    handleSteamModalClose,
-    handleSteamLogout,
-    onSteamAuthRequired,
-    onAutoConnectLinkingRequired,
-  } = useSteamLinking();
 
   const {
     servers,
@@ -123,11 +96,7 @@ const AppContent = () => {
   const filters = useServerFilters(servers, config);
   const { showHubStatus, showSingleplayer, filteredServers } = filters;
 
-  const autoConnecting = useAutoConnect({
-    onLoginRequired,
-    onAutoConnectLinkingRequired,
-    showError,
-  });
+  const autoConnecting = useAutoConnect();
 
   useEffect(() => {
     document.documentElement.className = `theme-${theme}`;
@@ -201,25 +170,6 @@ const AppContent = () => {
       )}
       <UpdateNotification />
       <ErrorNotifications errors={errors} onDismiss={dismissError} />
-      <AuthModal
-        {...authModal}
-        loginPrompt={config?.strings.login_prompt ?? "Please log in to continue."}
-        useHubAuth={config?.urls.hub_api != null}
-        oauthProviders={oauthProviders}
-        steamAvailable={steamAvailable}
-        registerUrl={config?.urls.register_url}
-        onLogin={handleLogin}
-        onHubLogin={handleHubLogin}
-        onOAuthLogin={handleOAuthLogin}
-        onSteamLogin={handleSteamLogin}
-        onClose={handleAuthModalClose}
-      />
-      <SteamAuthModal
-        {...steamModal}
-        authProviderName={config?.strings.auth_provider_name ?? ""}
-        onAuthenticate={handleSteamAuthenticate}
-        onClose={handleSteamModalClose}
-      />
       <SettingsModal
         visible={settingsVisible}
         authMode={authMode}
@@ -231,8 +181,6 @@ const AppContent = () => {
         isResettingWine={wineIsSettingUp}
         onAuthModeChange={handleAuthModeChange}
         onThemeChange={handleThemeChange}
-        onLoginRequired={onLoginRequired}
-        onSteamAuthRequired={onSteamAuthRequired}
         onResetWinePrefix={resetWinePrefix}
         onClose={() => setSettingsVisible(false)}
       />
@@ -283,8 +231,6 @@ const AppContent = () => {
                     key={server.url}
                     server={server}
                     showHubStatus={showHubStatus}
-                    onLoginRequired={onLoginRequired}
-                    onSteamAuthRequired={onSteamAuthRequired}
                     autoConnecting={autoConnecting}
                   />
                 ))}
@@ -300,13 +246,7 @@ const AppContent = () => {
 
         <footer className="section footer">
           <div className="account-info">
-            <AccountInfo
-              onLogin={onLoginRequired}
-              onLogout={handleLogout}
-              onSteamLogout={handleSteamLogout}
-              onByondLogin={handleByondLogin}
-              onByondLogout={handleByondLogout}
-            />
+            <AccountInfo />
           </div>
           <div className="footer-actions">
             {config && config.social_links.length > 0 && (
@@ -339,7 +279,9 @@ const AppContent = () => {
 const App = () => {
   return (
     <ErrorProvider>
-      <AppContent />
+      <AuthFlowProvider>
+        <AppContent />
+      </AuthFlowProvider>
     </ErrorProvider>
   );
 };

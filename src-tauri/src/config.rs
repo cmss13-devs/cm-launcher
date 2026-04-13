@@ -16,6 +16,7 @@ pub struct LauncherConfig {
     pub logo: &'static str,
     pub default_theme: &'static str,
     pub app_identifier: &'static str,
+    #[specta(skip)]
     pub discord_app_id: i64,
     pub default_byond_version: Option<&'static str>,
     pub server_api: ServerApiType,

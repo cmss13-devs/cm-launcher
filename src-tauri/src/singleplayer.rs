@@ -55,6 +55,7 @@ pub struct ReleaseInfo {
     pub name: String,
     pub published_at: String,
     pub download_url: Option<String>,
+    #[specta(type = f64)]
     pub size: Option<u64>,
 }
 

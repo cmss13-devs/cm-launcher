@@ -1,6 +1,7 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { useEffect, useState } from "react";
 import { commands } from "../bindings";
+import { useAuthFlow } from "../hooks";
 import { unwrap } from "../lib/unwrap";
 import { useByondStore, useConfigStore } from "../stores";
 import type { AuthMode, Theme, WineStatus } from "../bindings";
@@ -137,15 +138,8 @@ const WineSettings = ({
   );
 };
 
-interface DevConnectSectionProps {
-  onLoginRequired: () => void;
-  onSteamAuthRequired: () => void;
-}
-
-const DevConnectSection = ({
-  onLoginRequired,
-  onSteamAuthRequired,
-}: DevConnectSectionProps) => {
+const DevConnectSection = () => {
+  const { onLoginRequired, onSteamAuthRequired } = useAuthFlow();
   const [url, setUrl] = useState("localhost:1337");
   const [version, setVersion] = useState("516.1667");
   const [connecting, setConnecting] = useState(false);
@@ -222,8 +216,6 @@ interface SettingsModalProps {
   isResettingWine: boolean;
   onAuthModeChange: (mode: AuthMode) => void;
   onThemeChange: (theme: Theme) => void;
-  onLoginRequired: () => void;
-  onSteamAuthRequired: () => void;
   onResetWinePrefix: () => void;
   onClose: () => void;
 }
@@ -239,8 +231,6 @@ export const SettingsModal = ({
   isResettingWine,
   onAuthModeChange,
   onThemeChange,
-  onLoginRequired,
-  onSteamAuthRequired,
   onResetWinePrefix,
   onClose,
 }: SettingsModalProps) => {
@@ -433,10 +423,7 @@ export const SettingsModal = ({
             <p className="settings-description">
               Connect to a local development server.
             </p>
-            <DevConnectSection
-              onLoginRequired={onLoginRequired}
-              onSteamAuthRequired={onSteamAuthRequired}
-            />
+            <DevConnectSection />
           </div>
         )}
       </div>

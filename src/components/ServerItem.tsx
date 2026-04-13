@@ -5,7 +5,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import type { MouseEvent } from "react";
 import { commands } from "../bindings";
 import { useState } from "react";
-import { useConnect, useError } from "../hooks";
+import { useAuthFlow, useConnect, useError } from "../hooks";
 import { useConfigStore, useServerStore, useSettingsStore } from "../stores";
 import type { Server } from "../bindings";
 import { formatDuration } from "../utils";
@@ -23,16 +23,12 @@ const linkIconMap: Record<string, IconDefinition> = {
 interface ServerItemProps {
   server: Server;
   showHubStatus?: boolean;
-  onLoginRequired: () => void;
-  onSteamAuthRequired: (serverName?: string) => void;
   autoConnecting?: boolean;
 }
 
 export const ServerItem = ({
   server,
   showHubStatus = false,
-  onLoginRequired,
-  onSteamAuthRequired,
   autoConnecting = false,
 }: ServerItemProps) => {
   const [connecting, setConnecting] = useState(false);
@@ -40,6 +36,7 @@ export const ServerItem = ({
   const [pendingUrl, setPendingUrl] = useState<string | null>(null);
   const { showError } = useError();
   const { connect } = useConnect();
+  const { onLoginRequired, onSteamAuthRequired } = useAuthFlow();
 
   const hasInfo = !!(server.description || (server.links && server.links.length > 0));
 

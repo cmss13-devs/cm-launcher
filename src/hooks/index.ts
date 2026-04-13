@@ -1,5 +1,6 @@
 export { useAppBootstrap } from "./useAppBootstrap";
 export { useAuthHandlers } from "./useAuthHandlers";
+export { AuthFlowProvider, useAuthFlow } from "./useAuthFlow";
 export { useAutoConnect } from "./useAutoConnect";
 export { useConnect } from "./useConnect";
 export { ErrorProvider, useError } from "./useError";

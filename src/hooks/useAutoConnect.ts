@@ -1,5 +1,7 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { useEffect, useState } from "react";
+import { useAuthFlow } from "./useAuthFlow";
+import { useError } from "./useError";
 
 interface AutoConnectEvent {
   status:
@@ -17,17 +19,9 @@ interface AutoConnectEvent {
   linking_url: string | null;
 }
 
-interface Deps {
-  onLoginRequired: () => void;
-  onAutoConnectLinkingRequired: (linkingUrl: string | null) => void;
-  showError: (message: string) => void;
-}
-
-export function useAutoConnect({
-  onLoginRequired,
-  onAutoConnectLinkingRequired,
-  showError,
-}: Deps) {
+export function useAutoConnect() {
+  const { onLoginRequired, onAutoConnectLinkingRequired } = useAuthFlow();
+  const { showError } = useError();
   const [autoConnecting, setAutoConnecting] = useState(false);
 
   useEffect(() => {

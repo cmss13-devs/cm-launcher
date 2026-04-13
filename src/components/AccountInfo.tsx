@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { commands } from "../bindings";
+import { useAuthFlow } from "../hooks";
 import { unwrap } from "../lib/unwrap";
 import { useAuthStore, useByondStore, useSettingsStore, useSteamStore } from "../stores";
 
@@ -38,21 +39,14 @@ const AccountDisplay = ({ avatar, name, status, actions }: AccountDisplayProps) 
   );
 };
 
-interface AccountInfoProps {
-  onLogin: () => void;
-  onLogout: () => void;
-  onSteamLogout: () => void;
-  onByondLogin: () => void;
-  onByondLogout: () => void;
-}
-
-export const AccountInfo = ({
-  onLogin,
-  onLogout,
-  onSteamLogout,
-  onByondLogin,
-  onByondLogout,
-}: AccountInfoProps) => {
+export const AccountInfo = () => {
+  const {
+    onLoginRequired: onLogin,
+    handleLogout: onLogout,
+    handleSteamLogout: onSteamLogout,
+    handleByondLogin: onByondLogin,
+    handleByondLogout: onByondLogout,
+  } = useAuthFlow();
   const authMode = useSettingsStore((s) => s.authMode);
   const authState = useAuthStore((s) => s.authState);
   const steamUser = useSteamStore((s) => s.user);
