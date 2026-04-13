@@ -6,7 +6,7 @@ pub use super::client::UserInfo;
 use super::server::CallbackServer;
 use super::storage::TokenStorage;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, specta::Type)]
 pub struct AuthState {
     pub logged_in: bool,
     pub user: Option<UserInfo>,
@@ -46,6 +46,7 @@ impl AuthState {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn start_login(app: AppHandle) -> Result<AuthState, String> {
     tracing::info!("Starting login flow");
     let mut server = CallbackServer::start_without_state()?;
@@ -87,6 +88,7 @@ pub async fn start_login(app: AppHandle) -> Result<AuthState, String> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn logout(app: AppHandle) -> Result<AuthState, String> {
     tracing::info!("Logging out");
     TokenStorage::clear_tokens()?;
@@ -98,6 +100,7 @@ pub async fn logout(app: AppHandle) -> Result<AuthState, String> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_auth_state() -> Result<AuthState, String> {
     let Some(tokens) = TokenStorage::get_tokens()? else {
         return Ok(AuthState::logged_out());
@@ -149,6 +152,7 @@ pub async fn get_auth_state() -> Result<AuthState, String> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn refresh_auth(app: AppHandle) -> Result<AuthState, String> {
     tracing::info!("Manually refreshing auth");
     let Some(tokens) = TokenStorage::get_tokens()? else {
@@ -164,6 +168,7 @@ pub async fn refresh_auth(app: AppHandle) -> Result<AuthState, String> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_access_token() -> Result<Option<String>, String> {
     match TokenStorage::get_tokens()? {
         Some(tokens) if !TokenStorage::is_expired() => Ok(Some(tokens.access_token)),
@@ -172,6 +177,7 @@ pub async fn get_access_token() -> Result<Option<String>, String> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn hub_login(
     app: AppHandle,
     username: String,
@@ -206,6 +212,7 @@ pub async fn hub_login(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_hub_oauth_providers() -> Result<Vec<String>, String> {
     use super::hub_client::HubClient;
 
@@ -226,6 +233,7 @@ pub async fn get_hub_oauth_providers() -> Result<Vec<String>, String> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn hub_oauth_login(app: AppHandle, provider: String) -> Result<AuthState, String> {
     use super::hub_client::HubClient;
 
@@ -279,6 +287,7 @@ pub async fn hub_oauth_login(app: AppHandle, provider: String) -> Result<AuthSta
 
 #[cfg(feature = "steam")]
 #[tauri::command]
+#[specta::specta]
 pub async fn hub_steam_login(
     app: AppHandle,
     steam_state: tauri::State<'_, std::sync::Arc<crate::steam::SteamState>>,

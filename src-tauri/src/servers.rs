@@ -10,7 +10,7 @@ use tokio::sync::RwLock;
 
 const SERVER_FETCH_INTERVAL_SECS: u64 = 20;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct ServerData {
     pub round_id: i64,
     pub mode: String,
@@ -26,7 +26,7 @@ pub struct ServerData {
     pub security_level: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, specta::Type)]
 pub struct EngineRequirements {
     #[serde(default)]
     pub min_version: Option<String>,
@@ -36,7 +36,7 @@ pub struct EngineRequirements {
     pub blacklisted_versions: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct Server {
     pub id: Option<String>,
     pub name: String,
@@ -64,7 +64,7 @@ pub struct Server {
     pub links: Vec<ServerLink>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct ServerLink {
     pub link: String,
     #[serde(rename = "type")]
@@ -393,6 +393,7 @@ pub async fn init_servers(state: &Arc<ServerState>) {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_servers(state: tauri::State<'_, Arc<ServerState>>) -> Result<Vec<Server>, String> {
     Ok(state.servers.read().await.clone())
 }

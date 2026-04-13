@@ -1,6 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
 import { create } from "zustand";
-import type { AppSettings, AuthMode, Theme } from "../types";
+import { commands, type AppSettings, type AuthMode, type Theme } from "../bindings";
 
 interface SettingsStore {
   authMode: AuthMode;
@@ -17,6 +16,11 @@ interface SettingsStore {
   isServerNotificationsEnabled: (serverName: string) => boolean;
 }
 
+function unwrap<T>(result: { status: "ok"; data: T } | { status: "error"; error: string }): T {
+  if (result.status === "error") throw new Error(result.error);
+  return result.data;
+}
+
 export const useSettingsStore = create<SettingsStore>()((set, get) => ({
   authMode: "oidc",
   theme: "tgui",
@@ -29,14 +33,14 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
   load: async () => {
     try {
       const [settings, devMode] = await Promise.all([
-        invoke<AppSettings>("get_settings"),
-        invoke<boolean>("is_dev_mode"),
+        commands.getSettings().then(unwrap),
+        commands.isDevMode(),
       ]);
       set({
         authMode: settings.auth_mode,
-        theme: settings.theme,
+        theme: settings.theme ?? "tgui",
         devMode,
-        notificationServers: new Set(settings.notification_servers),
+        notificationServers: new Set(settings.notification_servers ?? []),
       });
       return settings;
     } catch (err) {
@@ -46,21 +50,18 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
   },
 
   saveAuthMode: async (mode: AuthMode) => {
-    await invoke<AppSettings>("set_auth_mode", { mode });
+    unwrap(await commands.setAuthMode(mode));
     set({ authMode: mode });
   },
 
   saveTheme: async (theme: Theme) => {
-    await invoke<AppSettings>("set_theme", { theme });
+    unwrap(await commands.setTheme(theme));
     set({ theme });
   },
 
   toggleServerNotifications: async (serverName: string, enabled: boolean) => {
-    const settings = await invoke<AppSettings>("toggle_server_notifications", {
-      serverName,
-      enabled,
-    });
-    set({ notificationServers: new Set(settings.notification_servers) });
+    const settings = unwrap(await commands.toggleServerNotifications(serverName, enabled));
+    set({ notificationServers: new Set(settings.notification_servers ?? []) });
   },
 
   isServerNotificationsEnabled: (serverName: string) => {

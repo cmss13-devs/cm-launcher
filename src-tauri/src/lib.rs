@@ -62,6 +62,7 @@ pub use wine::get_platform;
 
 #[cfg(not(target_os = "linux"))]
 #[tauri::command]
+#[specta::specta]
 fn get_platform() -> String {
     #[cfg(target_os = "windows")]
     return "windows".to_string();
@@ -74,7 +75,7 @@ fn get_platform() -> String {
 }
 
 #[cfg(not(target_os = "linux"))]
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, specta::Type)]
 #[allow(clippy::struct_excessive_bools)]
 struct WineStatus {
     installed: bool,
@@ -88,6 +89,7 @@ struct WineStatus {
 
 #[cfg(not(target_os = "linux"))]
 #[tauri::command]
+#[specta::specta]
 async fn check_wine_status() -> Result<WineStatus, String> {
     Ok(WineStatus {
         installed: false,
@@ -102,16 +104,20 @@ async fn check_wine_status() -> Result<WineStatus, String> {
 
 #[cfg(not(target_os = "linux"))]
 #[tauri::command]
+#[specta::specta]
 async fn initialize_wine_prefix() -> Result<(), String> {
     Err("Wine is only available on Linux".to_string())
 }
 
 #[cfg(not(target_os = "linux"))]
 #[tauri::command]
+#[specta::specta]
 async fn reset_wine_prefix() -> Result<(), String> {
     Err("Wine is only available on Linux".to_string())
 }
 
+#[cfg(feature = "steam")]
+use auth::hub_steam_login;
 #[cfg(feature = "steam")]
 use steam::{
     cancel_steam_auth_ticket, get_steam_auth_ticket, get_steam_launch_options, get_steam_user_info,
@@ -119,16 +125,19 @@ use steam::{
 };
 
 #[tauri::command]
+#[specta::specta]
 fn greet(name: &str) -> String {
     format!("Hello, {name}! You've been greeted from Rust!")
 }
 
 #[tauri::command]
+#[specta::specta]
 fn get_control_server_port(control_server: tauri::State<'_, control_server::ControlServer>) -> u16 {
     control_server.port
 }
 
 #[tauri::command]
+#[specta::specta]
 fn kill_game(
     presence_manager: tauri::State<'_, std::sync::Arc<presence::PresenceManager>>,
 ) -> bool {
@@ -136,8 +145,119 @@ fn kill_game(
 }
 
 #[tauri::command]
+#[specta::specta]
 fn open_url(url: String) -> Result<(), String> {
     open_url::open(&url)
+}
+
+#[cfg(not(feature = "steam"))]
+pub fn build_specta() -> tauri_specta::Builder<tauri::Wry> {
+    tauri_specta::Builder::<tauri::Wry>::new().commands(tauri_specta::collect_commands![
+        greet,
+        check_byond_version,
+        install_byond_version,
+        connect_to_server,
+        connect_to_url,
+        is_dev_mode,
+        list_installed_byond_versions,
+        delete_byond_version,
+        is_byond_pager_running,
+        get_byond_username,
+        start_login,
+        hub_login,
+        hub_oauth_login,
+        get_hub_oauth_providers,
+        logout,
+        get_auth_state,
+        refresh_auth,
+        get_access_token,
+        get_settings,
+        set_auth_mode,
+        set_theme,
+        toggle_server_notifications,
+        get_control_server_port,
+        kill_game,
+        get_servers,
+        get_relays,
+        get_selected_relay,
+        set_selected_relay,
+        get_platform,
+        check_wine_status,
+        initialize_wine_prefix,
+        reset_wine_prefix,
+        open_url,
+        get_singleplayer_status,
+        get_latest_singleplayer_release,
+        install_singleplayer,
+        delete_singleplayer,
+        launch_singleplayer,
+        get_launcher_config,
+        start_byond_login,
+        byond_login_complete,
+        get_byond_session_status,
+        clear_byond_session,
+        logout_byond_web,
+        check_byond_web_session,
+        byond_session_check_complete,
+    ])
+}
+
+#[cfg(feature = "steam")]
+pub fn build_specta() -> tauri_specta::Builder<tauri::Wry> {
+    tauri_specta::Builder::<tauri::Wry>::new().commands(tauri_specta::collect_commands![
+        greet,
+        check_byond_version,
+        install_byond_version,
+        connect_to_server,
+        connect_to_url,
+        is_dev_mode,
+        list_installed_byond_versions,
+        delete_byond_version,
+        is_byond_pager_running,
+        get_byond_username,
+        start_login,
+        hub_login,
+        hub_oauth_login,
+        hub_steam_login,
+        get_hub_oauth_providers,
+        logout,
+        get_auth_state,
+        refresh_auth,
+        get_access_token,
+        get_settings,
+        set_auth_mode,
+        set_theme,
+        toggle_server_notifications,
+        get_control_server_port,
+        kill_game,
+        get_servers,
+        get_relays,
+        get_selected_relay,
+        set_selected_relay,
+        get_steam_user_info,
+        get_steam_auth_ticket,
+        cancel_steam_auth_ticket,
+        steam_authenticate,
+        get_steam_launch_options,
+        get_platform,
+        check_wine_status,
+        initialize_wine_prefix,
+        reset_wine_prefix,
+        open_url,
+        get_singleplayer_status,
+        get_latest_singleplayer_release,
+        install_singleplayer,
+        delete_singleplayer,
+        launch_singleplayer,
+        get_launcher_config,
+        start_byond_login,
+        byond_login_complete,
+        get_byond_session_status,
+        clear_byond_session,
+        logout_byond_web,
+        check_byond_web_session,
+        byond_session_check_complete,
+    ])
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -157,128 +277,28 @@ pub fn run() {
         }
     }
 
+    let specta_builder = build_specta();
+
+    #[cfg(debug_assertions)]
+    #[allow(clippy::expect_used)]
+    specta_builder
+        .export(
+            specta_typescript::Typescript::default(),
+            "../src/bindings.ts",
+        )
+        .expect("Failed to export typescript bindings");
+
     #[allow(unused_mut)]
     let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_process::init());
+        .plugin(tauri_plugin_process::init())
+        .invoke_handler(specta_builder.invoke_handler());
 
     // Only include updater for non-CM builds (CM uses Steam for updates)
     #[cfg(not(feature = "cm_ss13"))]
     {
         builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
-    }
-
-    #[cfg(not(feature = "steam"))]
-    {
-        builder = builder.invoke_handler(tauri::generate_handler![
-            greet,
-            check_byond_version,
-            install_byond_version,
-            connect_to_server,
-            connect_to_url,
-            is_dev_mode,
-            list_installed_byond_versions,
-            delete_byond_version,
-            is_byond_pager_running,
-            get_byond_username,
-            start_login,
-            hub_login,
-            hub_oauth_login,
-            get_hub_oauth_providers,
-            logout,
-            get_auth_state,
-            refresh_auth,
-            get_access_token,
-            get_settings,
-            set_auth_mode,
-            set_theme,
-            toggle_server_notifications,
-            get_control_server_port,
-            kill_game,
-            get_servers,
-            get_relays,
-            get_selected_relay,
-            set_selected_relay,
-            get_platform,
-            check_wine_status,
-            initialize_wine_prefix,
-            reset_wine_prefix,
-            open_url,
-            get_singleplayer_status,
-            get_latest_singleplayer_release,
-            install_singleplayer,
-            delete_singleplayer,
-            launch_singleplayer,
-            get_launcher_config,
-            start_byond_login,
-            byond_login_complete,
-            get_byond_session_status,
-            clear_byond_session,
-            logout_byond_web,
-            check_byond_web_session,
-            byond_session_check_complete,
-        ]);
-    }
-
-    #[cfg(feature = "steam")]
-    {
-        use auth::hub_steam_login;
-
-        builder = builder.invoke_handler(tauri::generate_handler![
-            greet,
-            check_byond_version,
-            install_byond_version,
-            connect_to_server,
-            connect_to_url,
-            is_dev_mode,
-            list_installed_byond_versions,
-            delete_byond_version,
-            is_byond_pager_running,
-            get_byond_username,
-            start_login,
-            hub_login,
-            hub_oauth_login,
-            hub_steam_login,
-            get_hub_oauth_providers,
-            logout,
-            get_auth_state,
-            refresh_auth,
-            get_access_token,
-            get_settings,
-            set_auth_mode,
-            set_theme,
-            toggle_server_notifications,
-            get_control_server_port,
-            kill_game,
-            get_servers,
-            get_relays,
-            get_selected_relay,
-            set_selected_relay,
-            get_steam_user_info,
-            get_steam_auth_ticket,
-            cancel_steam_auth_ticket,
-            steam_authenticate,
-            get_steam_launch_options,
-            get_platform,
-            check_wine_status,
-            initialize_wine_prefix,
-            reset_wine_prefix,
-            open_url,
-            get_singleplayer_status,
-            get_latest_singleplayer_release,
-            install_singleplayer,
-            delete_singleplayer,
-            launch_singleplayer,
-            get_launcher_config,
-            start_byond_login,
-            byond_login_complete,
-            get_byond_session_status,
-            clear_byond_session,
-            logout_byond_web,
-            check_byond_web_session,
-            byond_session_check_complete,
-        ]);
     }
 
     let mut manager = presence::PresenceManager::new();
@@ -395,4 +415,21 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_specta;
+
+    #[test]
+    fn export_bindings() {
+        build_specta()
+            .export(
+                specta_typescript::Typescript::default()
+                    .bigint(specta_typescript::BigIntExportBehavior::Number)
+                    .header("// @ts-nocheck\n"),
+                "../src/bindings.ts",
+            )
+            .expect("Failed to export typescript bindings");
+    }
 }

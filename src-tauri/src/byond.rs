@@ -252,7 +252,7 @@ fn trim_byond_install(version_dir: &std::path::Path) -> Result<(), String> {
     Ok(())
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, specta::Type)]
 pub struct ByondVersionInfo {
     pub version: String,
     pub installed: bool,
@@ -260,14 +260,14 @@ pub struct ByondVersionInfo {
     pub last_used: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, specta::Type)]
 pub struct AuthError {
     pub code: String,
     pub message: String,
     pub linking_url: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, specta::Type)]
 pub struct ConnectionResult {
     pub success: bool,
     pub message: String,
@@ -446,6 +446,7 @@ fn get_byond_pager_path(app: &AppHandle, version: &str) -> Result<PathBuf, Strin
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn check_byond_version(
     app: AppHandle,
     version: String,
@@ -559,6 +560,7 @@ fn verify_sha256(data: &[u8], expected_hex: &str) -> Result<(), String> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn install_byond_version(
     app: AppHandle,
     version: String,
@@ -839,6 +841,7 @@ async fn get_auth_for_connection(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn connect_to_server(
     app: AppHandle,
     server_name: String,
@@ -1240,6 +1243,7 @@ async fn connect_impl(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_installed_byond_versions(
     app: AppHandle,
 ) -> Result<Vec<ByondVersionInfo>, String> {
@@ -1290,6 +1294,7 @@ pub async fn list_installed_byond_versions(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn delete_byond_version(app: AppHandle, version: String) -> Result<bool, String> {
     let version_dir = get_byond_version_dir(&app, &version)?;
 
@@ -1410,12 +1415,14 @@ async fn wait_for_new_dreamseeker(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn is_byond_pager_running() -> Result<bool, String> {
     Ok(check_byond_pager_running())
 }
 
 /// Get the logged-in BYOND username from Documents/BYOND/key.txt
 #[tauri::command]
+#[specta::specta]
 pub async fn get_byond_username() -> Result<Option<String>, String> {
     #[cfg(target_os = "windows")]
     {
@@ -1449,11 +1456,13 @@ pub async fn get_byond_username() -> Result<Option<String>, String> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn is_dev_mode() -> bool {
     cfg!(feature = "dev")
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn connect_to_url(
     app: AppHandle,
     url: String,

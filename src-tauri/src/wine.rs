@@ -43,7 +43,7 @@ const WINETRICKS_VERBS: &[(&str, &str)] = &[
     ("dxvk", "DXVK (Vulkan-based DirectX)"),
 ];
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct WineStatus {
     pub installed: bool,
     pub version: Option<String>,
@@ -68,7 +68,7 @@ impl Default for WineStatus {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum WineSetupStage {
     InProgress,
@@ -76,7 +76,7 @@ pub enum WineSetupStage {
     Error,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct WineSetupProgress {
     pub stage: WineSetupStage,
     pub progress: u8,
@@ -988,21 +988,25 @@ pub fn launch_with_wine(
 // Tauri commands
 
 #[tauri::command]
+#[specta::specta]
 pub async fn check_wine_status(app: AppHandle) -> Result<WineStatus, String> {
     Ok(check_prefix_status(&app).await)
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn initialize_wine_prefix(app: AppHandle) -> Result<(), String> {
     initialize_prefix(&app).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn reset_wine_prefix(app: AppHandle) -> Result<(), String> {
     reset_prefix(&app).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn get_platform() -> String {
     #[cfg(target_os = "windows")]
     return "windows".to_string();

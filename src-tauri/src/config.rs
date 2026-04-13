@@ -2,14 +2,14 @@
 
 use serde::Serialize;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum ServerApiType {
     HubApi,
     CmApi,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct LauncherConfig {
     pub variant: &'static str,
     pub product_name: &'static str,
@@ -27,7 +27,7 @@ pub struct LauncherConfig {
     pub social_links: &'static [SocialLink],
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct LauncherFeatures {
     pub relay_selector: bool,
@@ -40,21 +40,21 @@ pub struct LauncherFeatures {
     pub connection_timeout_fallback: bool,
 }
 
-#[derive(Debug, Clone, Copy, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize, specta::Type)]
 pub struct SocialLink {
     pub name: &'static str,
     pub url: &'static str,
     pub icon: &'static str,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct SingleplayerConfig {
     pub github_repo: Option<&'static str>,
     pub build_asset_name: Option<&'static str>,
     pub dmb_name: Option<&'static str>,
 }
 
-#[derive(Debug, Clone, Copy, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize, specta::Type)]
 pub struct OidcConfig {
     pub client_id: &'static str,
     pub auth_url: &'static str,
@@ -62,7 +62,7 @@ pub struct OidcConfig {
     pub userinfo_url: &'static str,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct LauncherUrls {
     pub server_api: &'static str,
     pub hub_api: Option<&'static str>,
@@ -73,7 +73,7 @@ pub struct LauncherUrls {
     pub help_url: &'static str,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct LauncherStrings {
     pub auth_provider_name: &'static str,
     pub login_prompt: &'static str,
@@ -199,6 +199,7 @@ pub fn get_config() -> LauncherConfig {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn get_launcher_config() -> LauncherConfig {
     get_config()
 }

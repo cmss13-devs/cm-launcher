@@ -12,7 +12,7 @@ fn get_oidc_config() -> Result<OidcConfig, String> {
     })
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct UserInfo {
     pub sub: String,
     pub name: Option<String>,

@@ -36,7 +36,7 @@ fn get_singleplayer_config() -> Result<(String, String), String> {
     Ok((repo.to_string(), asset.to_string()))
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, specta::Type)]
 pub struct SinglePlayerStatus {
     pub installed: bool,
     pub version: Option<String>,
@@ -44,7 +44,7 @@ pub struct SinglePlayerStatus {
     pub path: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, specta::Type)]
 pub struct ReleaseInfo {
     pub tag_name: String,
     pub name: String,
@@ -222,6 +222,7 @@ fn extract_tar_zst(_data: &[u8], _dest: &PathBuf) -> Result<(), String> {
 
 /// Check the current single player installation status
 #[tauri::command]
+#[specta::specta]
 pub async fn get_singleplayer_status(_app: AppHandle) -> Result<SinglePlayerStatus, String> {
     let base_dir = get_singleplayer_base_dir()?;
 
@@ -251,12 +252,14 @@ pub async fn get_singleplayer_status(_app: AppHandle) -> Result<SinglePlayerStat
 
 /// Get the latest available release info from GitHub
 #[tauri::command]
+#[specta::specta]
 pub async fn get_latest_singleplayer_release(_app: AppHandle) -> Result<ReleaseInfo, String> {
     fetch_latest_release().await
 }
 
 /// Install or update the single player game files
 #[tauri::command]
+#[specta::specta]
 pub async fn install_singleplayer(_app: AppHandle) -> Result<SinglePlayerStatus, String> {
     tracing::info!("Starting single player installation");
 
@@ -314,6 +317,7 @@ pub async fn install_singleplayer(_app: AppHandle) -> Result<SinglePlayerStatus,
 
 /// Delete the single player installation
 #[tauri::command]
+#[specta::specta]
 pub async fn delete_singleplayer(_app: AppHandle) -> Result<bool, String> {
     let base_dir = get_singleplayer_base_dir()?;
 
@@ -389,6 +393,7 @@ fn find_dmb_file() -> Result<PathBuf, String> {
 
 /// Launch the single player game
 #[tauri::command]
+#[specta::specta]
 pub async fn launch_singleplayer(app: AppHandle) -> Result<(), String> {
     let byond_version = get_byond_version_from_dependencies()?;
     tracing::info!("Launching singleplayer with BYOND {}", byond_version);

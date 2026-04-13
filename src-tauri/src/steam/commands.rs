@@ -7,19 +7,19 @@ use crate::steam::get_steam_app_name;
 
 use super::SteamState;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct SteamUserInfo {
     pub steam_id: String,
     pub display_name: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct SteamLaunchOptions {
     pub raw: String,
     pub server_name: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct SteamAuthResult {
     pub success: bool,
     pub user_exists: bool,
@@ -49,6 +49,7 @@ struct SteamAuthResponse {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_steam_user_info(
     steam_state: State<'_, Arc<SteamState>>,
 ) -> Result<SteamUserInfo, String> {
@@ -62,6 +63,7 @@ pub async fn get_steam_user_info(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_steam_auth_ticket(
     steam_state: State<'_, Arc<SteamState>>,
 ) -> Result<String, String> {
@@ -71,6 +73,7 @@ pub async fn get_steam_auth_ticket(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn cancel_steam_auth_ticket(
     steam_state: State<'_, Arc<SteamState>>,
 ) -> Result<(), String> {
@@ -144,6 +147,7 @@ pub async fn authenticate_with_steam(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn steam_authenticate(
     steam_state: State<'_, Arc<SteamState>>,
     create_account_if_missing: bool,
@@ -167,6 +171,7 @@ fn parse_server_name(command_line: &str) -> Option<String> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_steam_launch_options(
     steam_state: State<'_, Arc<SteamState>>,
 ) -> Result<SteamLaunchOptions, String> {

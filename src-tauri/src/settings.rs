@@ -6,7 +6,7 @@ use tauri::{AppHandle, Manager};
 
 const SETTINGS_FILE: &str = "settings.json";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum AuthMode {
     #[default]
@@ -17,7 +17,7 @@ pub enum AuthMode {
     Steam,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum Theme {
     #[default]
@@ -27,7 +27,7 @@ pub enum Theme {
     Crt,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct AppSettings {
     pub auth_mode: AuthMode,
     #[serde(default)]
@@ -122,11 +122,13 @@ pub fn save_settings(app: &AppHandle, settings: &AppSettings) -> Result<(), Stri
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_settings(app: AppHandle) -> Result<AppSettings, String> {
     load_settings(&app)
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn set_auth_mode(app: AppHandle, mode: AuthMode) -> Result<AppSettings, String> {
     let mut settings = load_settings(&app)?;
     settings.auth_mode = mode;
@@ -135,6 +137,7 @@ pub async fn set_auth_mode(app: AppHandle, mode: AuthMode) -> Result<AppSettings
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn set_theme(app: AppHandle, theme: Theme) -> Result<AppSettings, String> {
     let mut settings = load_settings(&app)?;
     settings.theme = theme;
@@ -143,6 +146,7 @@ pub async fn set_theme(app: AppHandle, theme: Theme) -> Result<AppSettings, Stri
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn toggle_server_notifications(
     app: AppHandle,
     server_name: String,

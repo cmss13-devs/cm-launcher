@@ -9,14 +9,14 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 const PING_PORT: u16 = 4000;
 const PING_COUNT: u32 = 10;
 const PING_TIMEOUT: Duration = Duration::from_secs(5);
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct Relay {
     pub id: String,
     pub name: String,
     pub host: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct RelayWithPing {
     #[serde(flatten)]
     pub relay: Relay,
@@ -237,6 +237,7 @@ pub async fn init_relays(state: &Arc<RelayState>, handle: &AppHandle) {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_relays(
     state: tauri::State<'_, Arc<RelayState>>,
 ) -> Result<Vec<RelayWithPing>, ()> {
@@ -244,11 +245,13 @@ pub async fn get_relays(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn get_selected_relay(state: tauri::State<'_, Arc<RelayState>>) -> Result<String, ()> {
     Ok(state.get_selected().await)
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn set_selected_relay(
     id: String,
     state: tauri::State<'_, Arc<RelayState>>,

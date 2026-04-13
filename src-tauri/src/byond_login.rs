@@ -53,7 +53,7 @@ impl ByondSessionState {
 }
 
 /// Result from BYOND login - just the username
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, specta::Type)]
 pub struct ByondLoginResult {
     pub username: Option<String>,
 }
@@ -83,6 +83,7 @@ impl ByondLoginState {
 
 /// Called from the login webview's JS when login is complete
 #[tauri::command]
+#[specta::specta]
 pub fn byond_login_complete(app: AppHandle, username: Option<String>) {
     tracing::info!("BYOND login complete - username: {:?}", username);
 
@@ -106,6 +107,7 @@ pub fn byond_login_complete(app: AppHandle, username: Option<String>) {
 
 /// Get current BYOND session status
 #[tauri::command]
+#[specta::specta]
 pub fn get_byond_session_status(app: AppHandle) -> Option<String> {
     app.try_state::<ByondSessionState>()
         .and_then(|state| state.get_username())
@@ -113,6 +115,7 @@ pub fn get_byond_session_status(app: AppHandle) -> Option<String> {
 
 /// Clear BYOND session
 #[tauri::command]
+#[specta::specta]
 pub fn clear_byond_session(app: AppHandle) {
     if let Some(state) = app.try_state::<ByondSessionState>() {
         state.clear_session();
@@ -122,6 +125,7 @@ pub fn clear_byond_session(app: AppHandle) {
 
 /// Log out from BYOND web session
 #[tauri::command]
+#[specta::specta]
 pub async fn logout_byond_web(app: AppHandle) -> Result<(), String> {
     tracing::info!("Logging out from BYOND web session");
 
@@ -150,6 +154,7 @@ pub async fn logout_byond_web(app: AppHandle) -> Result<(), String> {
 
 /// Open BYOND login window and wait for user to authenticate
 #[tauri::command]
+#[specta::specta]
 pub async fn start_byond_login(app: AppHandle) -> Result<ByondLoginResult, String> {
     // Check if login window already exists
     if app.get_webview_window("byond_login").is_some() {
@@ -285,7 +290,7 @@ pub async fn start_byond_login(app: AppHandle) -> Result<ByondLoginResult, Strin
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct ByondSessionCheck {
     pub logged_in: bool,
     pub username: Option<String>,
@@ -316,6 +321,7 @@ impl SessionCheckState {
 
 /// Called from JS when session check is complete
 #[tauri::command]
+#[specta::specta]
 pub fn byond_session_check_complete(
     app: AppHandle,
     web_id: Option<String>,
@@ -352,6 +358,7 @@ pub fn byond_session_check_complete(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn check_byond_web_session(app: AppHandle) -> Result<ByondSessionCheck, String> {
     if app.get_webview_window("byond_session_check").is_some() {
         return Err("Session check already in progress".to_string());
