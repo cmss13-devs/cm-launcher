@@ -19,7 +19,7 @@ mod steam;
 #[cfg(target_os = "linux")]
 mod wine;
 
-#[allow(clippy::unreadable_literal)] // identifier
+#[allow(clippy::unreadable_literal)]
 pub const DEFAULT_STEAM_ID: u32 = 4313790;
 pub const DEFAULT_STEAM_NAME: &str = "production";
 
@@ -44,7 +44,7 @@ use byond_login::{
 use relays::{get_relays, get_selected_relay, set_selected_relay};
 use servers::get_servers;
 use settings::{
-    get_settings, set_auth_mode, set_fullscreen_overlay, set_theme, toggle_server_notifications,
+    get_settings, set_auth_mode, set_theme, toggle_server_notifications,
 };
 
 use singleplayer::{
@@ -75,7 +75,7 @@ fn get_platform() -> String {
 
 #[cfg(not(target_os = "linux"))]
 #[derive(serde::Serialize)]
-#[allow(clippy::struct_excessive_bools)] // status flags struct
+#[allow(clippy::struct_excessive_bools)]
 struct WineStatus {
     installed: bool,
     version: Option<String>,
@@ -146,9 +146,6 @@ pub fn run() {
 
     #[cfg(target_os = "windows")]
     {
-        // Initialize job object for child process lifecycle management.
-        // This ensures spawned game processes are terminated when the launcher exits
-        // (e.g., when user clicks "Stop" in Steam).
         if let Err(e) = job_object::init_job_object() {
             tracing::error!("Failed to initialize job object: {}", e);
         }
@@ -196,7 +193,6 @@ pub fn run() {
             get_settings,
             set_auth_mode,
             set_theme,
-            set_fullscreen_overlay,
             toggle_server_notifications,
             get_control_server_port,
             kill_game,
@@ -252,7 +248,6 @@ pub fn run() {
             get_settings,
             set_auth_mode,
             set_theme,
-            set_fullscreen_overlay,
             toggle_server_notifications,
             get_control_server_port,
             kill_game,
@@ -291,7 +286,7 @@ pub fn run() {
     let mut steam_poll_callback: Option<Box<dyn Fn() + Send + Sync>> = None;
 
     #[cfg(feature = "steam")]
-    let steam_overlay_rx: Option<tokio::sync::broadcast::Receiver<bool>> = {
+    {
         use std::sync::Arc;
 
         use crate::steam::get_steam_app_id;
@@ -310,20 +305,13 @@ pub fn run() {
                 let steam_state_clone = Arc::clone(&steam_state);
                 steam_poll_callback = Some(Box::new(move || steam_state_clone.run_callbacks()));
 
-                let overlay_rx = steam_state.subscribe_overlay_events();
-
                 builder = builder.manage(steam_state);
-                Some(overlay_rx)
             }
             Err(e) => {
                 tracing::error!("Failed to initialize Steam: {:?}", e);
-                None
             }
         }
     };
-
-    #[cfg(not(feature = "steam"))]
-    let steam_overlay_rx: Option<tokio::sync::broadcast::Receiver<bool>> = None;
 
     {
         use std::sync::Arc;
@@ -402,52 +390,6 @@ pub fn run() {
             byond::cleanup_old_versions(&handle);
 
             autoconnect::check_and_start_autoconnect(handle.clone());
-
-            if let Some(mut overlay_rx) = steam_overlay_rx {
-                let handle_for_overlay = handle;
-                tauri::async_runtime::spawn(async move {
-                    loop {
-                        match overlay_rx.recv().await {
-                            Ok(active) => {
-                                // Check if fullscreen overlay events are enabled
-                                let should_broadcast = settings::load_settings(&handle_for_overlay)
-                                    .map(|s| s.fullscreen_overlay)
-                                    .unwrap_or(true);
-
-                                if should_broadcast {
-                                    if let Some(server) =
-                                        handle_for_overlay.try_state::<control_server::ControlServer>()
-                                    {
-                                        server.broadcast_json(
-                                            "steam_overlay",
-                                            &serde_json::json!({ "active": active }),
-                                        );
-                                        tracing::debug!(
-                                            "Broadcast steam_overlay event: active={}",
-                                            active
-                                        );
-                                    }
-                                } else {
-                                    tracing::debug!(
-                                        "Skipped steam_overlay event (disabled in settings): active={}",
-                                        active
-                                    );
-                                }
-                            }
-                            Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                                tracing::warn!(
-                                    "Overlay event receiver lagged, skipped {} events",
-                                    n
-                                );
-                            }
-                            Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                                tracing::debug!("Overlay event channel closed");
-                                break;
-                            }
-                        }
-                    }
-                });
-            }
 
             Ok(())
         })

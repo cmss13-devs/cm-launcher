@@ -2,8 +2,8 @@
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use steamworks::{AuthTicket, Client, GameOverlayActivated, TicketForWebApiResponse};
-use tokio::sync::{broadcast, oneshot};
+use steamworks::{AuthTicket, Client, TicketForWebApiResponse};
+use tokio::sync::oneshot;
 
 /// Manages Steam client state and authentication
 pub struct SteamState {
@@ -11,11 +11,8 @@ pub struct SteamState {
     active_ticket: Arc<Mutex<Option<AuthTicket>>>,
     /// Channel sender for pending web API ticket response
     pending_ticket_tx: Arc<Mutex<Option<oneshot::Sender<TicketForWebApiResponse>>>>,
-    /// Broadcast sender for overlay events (set after `ControlServer` is available)
-    overlay_event_tx: Arc<Mutex<Option<broadcast::Sender<bool>>>>,
     /// Callback handles kept alive for the lifetime of `SteamState`
     _callback_handle: steamworks::CallbackHandle,
-    _overlay_callback_handle: steamworks::CallbackHandle,
 }
 
 impl SteamState {
@@ -24,9 +21,6 @@ impl SteamState {
         let client = Client::init()?;
 
         let pending_ticket_tx: Arc<Mutex<Option<oneshot::Sender<TicketForWebApiResponse>>>> =
-            Arc::new(Mutex::new(None));
-
-        let overlay_event_tx: Arc<Mutex<Option<broadcast::Sender<bool>>>> =
             Arc::new(Mutex::new(None));
 
         let pending_tx_clone = Arc::clone(&pending_ticket_tx);
@@ -38,33 +32,12 @@ impl SteamState {
             }
         });
 
-        let overlay_tx_clone = Arc::clone(&overlay_event_tx);
-        let overlay_callback_handle =
-            client.register_callback(move |event: GameOverlayActivated| {
-                tracing::debug!("Steam overlay activated: {}", event.active);
-                let tx = overlay_tx_clone.lock().unwrap();
-                if let Some(ref sender) = *tx {
-                    let _ = sender.send(event.active);
-                }
-            });
-
         Ok(Self {
             client,
             active_ticket: Arc::new(Mutex::new(None)),
             pending_ticket_tx,
-            overlay_event_tx,
             _callback_handle: callback_handle,
-            _overlay_callback_handle: overlay_callback_handle,
         })
-    }
-
-    pub fn subscribe_overlay_events(&self) -> broadcast::Receiver<bool> {
-        let mut tx = self.overlay_event_tx.lock().unwrap();
-        if tx.is_none() {
-            let (sender, _) = broadcast::channel(16);
-            *tx = Some(sender);
-        }
-        tx.as_ref().unwrap().subscribe()
     }
 
     pub fn get_steam_id(&self) -> u64 {

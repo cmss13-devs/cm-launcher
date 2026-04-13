@@ -223,10 +223,8 @@ interface SettingsModalProps {
   platform: Platform;
   wineStatus: WineStatus;
   isResettingWine: boolean;
-  fullscreenOverlay: boolean;
   onAuthModeChange: (mode: AuthMode) => void;
   onThemeChange: (theme: Theme) => void;
-  onFullscreenOverlayChange: (enabled: boolean) => void;
   onLoginRequired: () => void;
   onSteamAuthRequired: () => void;
   onResetWinePrefix: () => void;
@@ -242,10 +240,8 @@ export const SettingsModal = ({
   platform,
   wineStatus,
   isResettingWine,
-  fullscreenOverlay,
   onAuthModeChange,
   onThemeChange,
-  onFullscreenOverlayChange,
   onLoginRequired,
   onSteamAuthRequired,
   onResetWinePrefix,
@@ -408,7 +404,7 @@ export const SettingsModal = ({
                 onChange={onAuthModeChange}
               />
             )}
-            {steamAvailable && (
+            {steamAvailable && !config?.urls.hub_api && (
               <AuthModeOption
                 mode="steam"
                 currentMode={authMode}
@@ -426,25 +422,6 @@ export const SettingsModal = ({
             />
           </div>
         </div>
-
-        {steamAvailable && (
-          <div className="settings-section">
-            <h3>Steam Integration</h3>
-            <label className="toggle-setting">
-              <input
-                type="checkbox"
-                checked={fullscreenOverlay}
-                onChange={(e) => onFullscreenOverlayChange(e.target.checked)}
-              />
-              <div className="toggle-info">
-                <span className="toggle-name">Fullscreen Overlay</span>
-                <span className="toggle-desc">
-                  If the Steam Overlay should appear fullscreen
-                </span>
-              </div>
-            </label>
-          </div>
-        )}
 
         <WineSettings
           platform={platform}

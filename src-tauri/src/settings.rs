@@ -34,12 +34,6 @@ pub struct AppSettings {
     pub theme: Theme,
     #[serde(default)]
     pub notification_servers: HashSet<String>,
-    #[serde(default = "default_true")]
-    pub fullscreen_overlay: bool,
-}
-
-fn default_true() -> bool {
-    true
 }
 
 impl Default for AppSettings {
@@ -50,22 +44,27 @@ impl Default for AppSettings {
             _ => Theme::Tgui,
         };
 
-        #[cfg(feature = "steam")]
-        let auth_mode = AuthMode::Steam;
-        #[cfg(not(feature = "steam"))]
         let auth_mode = if config.urls.hub_api.is_some() {
             AuthMode::Hub
-        } else if config.oidc.is_some() {
-            AuthMode::Oidc
         } else {
-            AuthMode::Byond
+            #[cfg(feature = "steam")]
+            {
+                AuthMode::Steam
+            }
+            #[cfg(not(feature = "steam"))]
+            {
+                if config.oidc.is_some() {
+                    AuthMode::Oidc
+                } else {
+                    AuthMode::Byond
+                }
+            }
         };
 
         Self {
             auth_mode,
             theme: default_theme,
             notification_servers: HashSet::new(),
-            fullscreen_overlay: true,
         }
     }
 }
@@ -160,10 +159,3 @@ pub async fn toggle_server_notifications(
     Ok(settings)
 }
 
-#[tauri::command]
-pub async fn set_fullscreen_overlay(app: AppHandle, enabled: bool) -> Result<AppSettings, String> {
-    let mut settings = load_settings(&app)?;
-    settings.fullscreen_overlay = enabled;
-    save_settings(&app, &settings)?;
-    Ok(settings)
-}

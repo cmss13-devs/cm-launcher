@@ -133,22 +133,18 @@ const AppContent = () => {
     setAuthMode,
     theme,
     devMode,
-    fullscreenOverlay,
     load: loadSettings,
     saveAuthMode,
     saveTheme,
-    saveFullscreenOverlay,
   } = useSettingsStore(
     useShallow((s) => ({
       authMode: s.authMode,
       setAuthMode: s.setAuthMode,
       theme: s.theme,
       devMode: s.devMode,
-      fullscreenOverlay: s.fullscreenOverlay,
       load: s.load,
       saveAuthMode: s.saveAuthMode,
       saveTheme: s.saveTheme,
-      saveFullscreenOverlay: s.saveFullscreenOverlay,
     })),
   );
 
@@ -647,10 +643,8 @@ const AppContent = () => {
         platform={platform}
         wineStatus={wineStatus}
         isResettingWine={wineIsSettingUp}
-        fullscreenOverlay={fullscreenOverlay}
         onAuthModeChange={handleAuthModeChange}
         onThemeChange={handleThemeChange}
-        onFullscreenOverlayChange={saveFullscreenOverlay}
         onLoginRequired={onLoginRequired}
         onSteamAuthRequired={onSteamAuthRequired}
         onResetWinePrefix={resetWinePrefix}
