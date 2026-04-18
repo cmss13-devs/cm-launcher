@@ -433,6 +433,10 @@ mod tests {
 
     #[test]
     fn export_bindings() {
+        if !cfg!(feature = "steam") {
+            panic!("export_bindings must be run with --features steam to generate complete bindings");
+        }
+
         build_specta()
             .export(
                 specta_typescript::Typescript::default()
