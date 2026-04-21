@@ -291,6 +291,7 @@ pub async fn start_byond_login(app: AppHandle) -> CommandResult<ByondLoginResult
         .map_err(|e| CommandError::Io(e.to_string()))?
         .join("byond_webview");
 
+    #[cfg(not(target_os = "linux"))]
     let _ = app.emit("byond-login-visible", true);
 
     create_login_webview(&app, data_dir)?;
