@@ -671,8 +671,21 @@ fn run_winetricks_with_paths(
 
     let output = cmd.output()?;
 
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    if !stdout.is_empty() {
+        for line in stdout.lines() {
+            tracing::debug!(target: "wine", "[winetricks:{}] {}", verb, line);
+        }
+    }
+    if !stderr.is_empty() {
+        for line in stderr.lines() {
+            tracing::warn!(target: "wine", "[winetricks:{}] {}", verb, line);
+        }
+    }
+
     if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(WineError::WinetricksFailed(
             verb.to_string(),
             stderr.to_string(),
@@ -809,9 +822,20 @@ pub async fn initialize_prefix(
         cmd.stderr(Stdio::piped());
         cmd.output()?
     };
+    let boot_stdout = String::from_utf8_lossy(&output.stdout);
+    let boot_stderr = String::from_utf8_lossy(&output.stderr);
+    if !boot_stdout.is_empty() {
+        for line in boot_stdout.lines() {
+            tracing::debug!(target: "wine", "[wineboot] {}", line);
+        }
+    }
+    if !boot_stderr.is_empty() {
+        for line in boot_stderr.lines() {
+            tracing::warn!(target: "wine", "[wineboot] {}", line);
+        }
+    }
     if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(WineError::PrefixCreationFailed(stderr.to_string()));
+        return Err(WineError::PrefixCreationFailed(boot_stderr.to_string()));
     }
 
     tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
@@ -870,10 +894,32 @@ pub async fn initialize_prefix(
     for (key, value) in paths.get_env_vars() {
         cmd.env(key, value);
     }
-    cmd.stdout(Stdio::null());
-    cmd.stderr(Stdio::null());
+    cmd.stdout(Stdio::piped());
+    cmd.stderr(Stdio::piped());
 
     let mut child = cmd.spawn()?;
+
+    let stderr_handle = child.stderr.take().map(|stderr| {
+        std::thread::spawn(move || {
+            use std::io::{BufRead, BufReader};
+            let mut lines = Vec::new();
+            let reader = BufReader::new(stderr);
+            for line in reader.lines().map_while(Result::ok) {
+                tracing::warn!(target: "wine", "[webview2-installer] {}", line);
+                lines.push(line);
+            }
+            lines
+        })
+    });
+    if let Some(stdout) = child.stdout.take() {
+        std::thread::spawn(move || {
+            use std::io::{BufRead, BufReader};
+            let reader = BufReader::new(stdout);
+            for line in reader.lines().map_while(Result::ok) {
+                tracing::debug!(target: "wine", "[webview2-installer] {}", line);
+            }
+        });
+    }
 
     // Poll registry key to detect when WebView2 is installed
     let webview2_reg_key = r"HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}";
@@ -953,10 +999,7 @@ async fn download_webview2(dest: &Path) -> Result<(), WineError> {
 }
 
 /// Reset the Wine prefix by deleting and recreating it
-pub async fn reset_prefix(
-    app: &AppHandle,
-    pipeline: RenderingPipeline,
-) -> Result<(), WineError> {
+pub async fn reset_prefix(app: &AppHandle, pipeline: RenderingPipeline) -> Result<(), WineError> {
     let prefix = get_wine_prefix(app)?;
 
     tracing::info!("Resetting Wine prefix at {:?}", prefix);
@@ -968,13 +1011,14 @@ pub async fn reset_prefix(
     initialize_prefix(app, pipeline).await
 }
 
-/// Launch an executable using Wine
+/// Launch an executable using Wine.
 pub fn launch_with_wine(
     app: &AppHandle,
     exe_path: &Path,
     args: &[&str],
     env_vars: &[(&str, &str)],
 ) -> Result<std::process::Child, WineError> {
+    use std::io::{BufRead, BufReader};
     use std::os::unix::process::CommandExt;
 
     let prefix = get_wine_prefix(app)?;
@@ -993,6 +1037,9 @@ pub fn launch_with_wine(
         cmd.env(key, value);
     }
 
+    cmd.stdout(Stdio::piped());
+    cmd.stderr(Stdio::piped());
+
     // SAFETY: prctl is a simple syscall that only affects this process's children
     unsafe {
         cmd.pre_exec(|| {
@@ -1001,11 +1048,42 @@ pub fn launch_with_wine(
         });
     }
 
+    let exe_name = exe_path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "unknown".to_string());
+
     tracing::info!("Launching via Wine: {:?} {:?}", exe_path, args);
 
-    let child = cmd
+    let mut child = cmd
         .spawn()
         .map_err(|e| WineError::LaunchFailed(e.to_string()))?;
+
+    if let Some(stdout) = child.stdout.take() {
+        let name = exe_name.clone();
+        std::thread::spawn(move || {
+            let reader = BufReader::new(stdout);
+            for line in reader.lines().map_while(Result::ok) {
+                tracing::debug!(target: "wine", "[{}] {}", name, line);
+            }
+        });
+    }
+
+    if let Some(stderr) = child.stderr.take() {
+        let app_handle = app.clone();
+        std::thread::spawn(move || {
+            let mut lines = Vec::new();
+            let reader = BufReader::new(stderr);
+            for line in reader.lines().map_while(Result::ok) {
+                tracing::warn!(target: "wine", "[{}] {}", exe_name, line);
+                lines.push(line);
+            }
+            if !lines.is_empty() {
+                let output = lines.join("\n");
+                let _ = app_handle.emit("wine-error", &output);
+            }
+        });
+    }
 
     Ok(child)
 }
