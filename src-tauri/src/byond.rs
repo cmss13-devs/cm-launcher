@@ -1043,7 +1043,7 @@ async fn connect_impl(app: AppHandle, req: ConnectionRequest) -> CommandResult<C
         let is_byond_auth = access_type.as_deref() == Some("byond");
         let pager_running = check_byond_pager_running();
 
-        let session_check = if is_byond_auth {
+        let mut session_check = if is_byond_auth {
             check_byond_web_session(app.clone()).await.ok()
         } else {
             None
@@ -1062,6 +1062,7 @@ async fn connect_impl(app: AppHandle, req: ConnectionRequest) -> CommandResult<C
                         operation: "byond_login".into(),
                     });
                 }
+                session_check = check_byond_web_session(app.clone()).await.ok();
                 true
             }
             _ => {
