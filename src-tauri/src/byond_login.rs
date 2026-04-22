@@ -427,9 +427,7 @@ fn create_login_webview(app: &AppHandle, data_dir: std::path::PathBuf) -> Comman
             tracing::debug!("BYOND login: navigating away to {}", url);
             dismiss_login(&app_for_nav);
             if let Some(state) = app_for_nav.try_state::<ByondLoginState>() {
-                state.complete(Err(CommandError::Cancelled {
-                    operation: "byond_login".into(),
-                }));
+                state.complete(None);
             }
             return false;
         }
@@ -443,9 +441,7 @@ fn create_login_webview(app: &AppHandle, data_dir: std::path::PathBuf) -> Comman
             tracing::info!("BYOND login window closed by user");
             dismiss_login(&app_for_close);
             if let Some(state) = app_for_close.try_state::<ByondLoginState>() {
-                state.complete(Err(CommandError::Cancelled {
-                    operation: "byond_login".into(),
-                }));
+                state.complete(None);
             }
         }
     });
