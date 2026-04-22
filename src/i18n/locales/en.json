@@ -134,7 +134,8 @@
     "enableNotifications": "Enable restart notifications",
     "disableNotifications": "Disable restart notifications",
     "favorite": "Add to favorites",
-    "unfavorite": "Remove from favorites"
+    "unfavorite": "Remove from favorites",
+    "regions": "Regions"
   },
   "nav": {
     "home": "Home",
@@ -144,6 +145,11 @@
     "continuePlaying": "Continue Playing",
     "favorites": "Favorites",
     "noFavorites": "Star servers from the Browse tab to see them here."
+  },
+  "directConnect": {
+    "title": "Direct Connect",
+    "hint": "Enter a server address to connect directly.",
+    "placeholder": "host:port"
   },
   "relay": {
     "label": "Relay:",

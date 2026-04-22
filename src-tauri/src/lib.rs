@@ -33,9 +33,9 @@ use auth::{
     hub_oauth_login, logout, refresh_auth, start_login,
 };
 use byond::{
-    check_byond_version, connect_to_server, connect_to_url, delete_byond_version,
-    get_byond_username, install_byond_version, is_byond_pager_running, is_dev_mode,
-    list_installed_byond_versions,
+    check_byond_version, connect_to_address, connect_to_server, connect_to_url,
+    delete_byond_version, get_byond_username, install_byond_version, is_byond_pager_running,
+    is_dev_mode, list_installed_byond_versions,
 };
 use byond_login::{
     byond_login_complete, byond_session_check_complete, cancel_byond_login,
@@ -45,8 +45,9 @@ use byond_login::{
 use relays::{get_relays, get_selected_relay, set_selected_relay};
 use servers::get_servers;
 use settings::{
-    get_settings, set_age_verified, set_auth_mode, set_last_played_server, set_locale,
-    set_rendering_pipeline, set_theme, toggle_favorite_server, toggle_server_notifications,
+    get_settings, save_filter_settings, set_age_verified, set_auth_mode, set_last_played_server,
+    set_locale, set_rendering_pipeline, set_theme, toggle_favorite_server,
+    toggle_server_notifications,
 };
 
 use singleplayer::{
@@ -168,6 +169,7 @@ pub fn build_specta() -> tauri_specta::Builder<tauri::Wry> {
         install_byond_version,
         connect_to_server,
         connect_to_url,
+        connect_to_address,
         is_dev_mode,
         list_installed_byond_versions,
         delete_byond_version,
@@ -190,6 +192,7 @@ pub fn build_specta() -> tauri_specta::Builder<tauri::Wry> {
         set_rendering_pipeline,
         set_last_played_server,
         toggle_favorite_server,
+        save_filter_settings,
         get_control_server_port,
         kill_game,
         get_servers,
@@ -226,6 +229,7 @@ pub fn build_specta() -> tauri_specta::Builder<tauri::Wry> {
         install_byond_version,
         connect_to_server,
         connect_to_url,
+        connect_to_address,
         is_dev_mode,
         list_installed_byond_versions,
         delete_byond_version,
@@ -249,6 +253,7 @@ pub fn build_specta() -> tauri_specta::Builder<tauri::Wry> {
         set_rendering_pipeline,
         set_last_played_server,
         toggle_favorite_server,
+        save_filter_settings,
         get_control_server_port,
         kill_game,
         get_servers,

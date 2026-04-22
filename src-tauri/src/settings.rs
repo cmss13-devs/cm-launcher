@@ -54,6 +54,16 @@ pub struct AppSettings {
     pub last_played_server: Option<String>,
     #[serde(default)]
     pub favorite_servers: HashSet<String>,
+    #[serde(default)]
+    pub filter_tags: HashSet<String>,
+    #[serde(default)]
+    pub filter_show_18_plus: bool,
+    #[serde(default)]
+    pub filter_show_offline: Option<bool>,
+    #[serde(default)]
+    pub filter_show_hub_status: bool,
+    #[serde(default)]
+    pub filter_regions: HashSet<String>,
 }
 
 impl Default for AppSettings {
@@ -90,6 +100,11 @@ impl Default for AppSettings {
             rendering_pipeline: RenderingPipeline::default(),
             last_played_server: None,
             favorite_servers: HashSet::new(),
+            filter_tags: HashSet::new(),
+            filter_show_18_plus: false,
+            filter_show_offline: None,
+            filter_show_hub_status: false,
+            filter_regions: HashSet::new(),
         }
     }
 }
@@ -243,6 +258,31 @@ pub async fn toggle_favorite_server(
     } else {
         settings.favorite_servers.remove(&server_id);
     }
+    save_settings(&app, &settings)?;
+    Ok(settings)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct FilterSettings {
+    pub tags: Vec<String>,
+    pub show_18_plus: bool,
+    pub show_offline: Option<bool>,
+    pub show_hub_status: bool,
+    pub regions: Vec<String>,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn save_filter_settings(
+    app: AppHandle,
+    filters: FilterSettings,
+) -> CommandResult<AppSettings> {
+    let mut settings = load_settings(&app)?;
+    settings.filter_tags = filters.tags.into_iter().collect();
+    settings.filter_show_18_plus = filters.show_18_plus;
+    settings.filter_show_offline = filters.show_offline;
+    settings.filter_show_hub_status = filters.show_hub_status;
+    settings.filter_regions = filters.regions.into_iter().collect();
     save_settings(&app, &settings)?;
     Ok(settings)
 }

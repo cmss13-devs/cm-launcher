@@ -1,3 +1,5 @@
+import { faArrowUpRightFromSquare } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { LauncherFeatures } from "../bindings";
@@ -16,6 +18,8 @@ interface ServerFilterPanelProps {
   playerCount: number;
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
+  showHome: boolean;
+  onDirectConnect?: () => void;
 }
 
 export const ServerFilterPanel = ({
@@ -25,6 +29,8 @@ export const ServerFilterPanel = ({
   playerCount,
   viewMode,
   onViewModeChange,
+  showHome,
+  onDirectConnect,
 }: ServerFilterPanelProps) => {
   const {
     searchQuery,
@@ -37,6 +43,9 @@ export const ServerFilterPanel = ({
     setShowOffline,
     showHubStatus,
     setShowHubStatus,
+    selectedRegions,
+    toggleRegion,
+    regions,
     filtersOpen,
     setFiltersOpen,
     filtersRef,
@@ -76,13 +85,15 @@ export const ServerFilterPanel = ({
       />
       <div className="server-header">
         <div className="view-tabs">
-          <button
-            type="button"
-            className={`view-tab${viewMode === "home" ? " active" : ""}`}
-            onClick={() => onViewModeChange("home")}
-          >
-            {t("nav.home")}
-          </button>
+          {showHome && (
+            <button
+              type="button"
+              className={`view-tab${viewMode === "home" ? " active" : ""}`}
+              onClick={() => onViewModeChange("home")}
+            >
+              {t("nav.home")}
+            </button>
+          )}
           <button
             type="button"
             className={`view-tab${viewMode === "browse" ? " active" : ""}`}
@@ -97,6 +108,15 @@ export const ServerFilterPanel = ({
               onClick={() => onViewModeChange("singleplayer")}
             >
               {t("servers.singleplayer")}
+            </button>
+          )}
+          {features.direct_connect && onDirectConnect && (
+            <button
+              type="button"
+              className="view-tab"
+              onClick={onDirectConnect}
+            >
+              {t("common.connect")} <FontAwesomeIcon icon={faArrowUpRightFromSquare} />
             </button>
           )}
         </div>
@@ -119,66 +139,84 @@ export const ServerFilterPanel = ({
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             )}
-            {(features.server_filters || tagCategories.length > 0) && (
-              <div className="filters-dropdown" ref={filtersRef}>
-                <button
-                  type="button"
-                  className={`filters-button${selectedTags.size > 0 ? " active" : ""}`}
-                  onClick={() => setFiltersOpen(!filtersOpen)}
-                >
-                  {selectedTags.size > 0 ? t("servers.filtersCount", { count: selectedTags.size }) : t("servers.filters")}
-                </button>
-                {filtersOpen && (
-                  <div className="filters-menu">
-                    {features.server_filters && (
-                      <>
-                        {hasHubStatus && (
+            {(features.server_filters || tagCategories.length > 0) && (() => {
+              const activeCount = selectedTags.size + selectedRegions.size;
+              return (
+                <div className="filters-dropdown" ref={filtersRef}>
+                  <button
+                    type="button"
+                    className={`filters-button${activeCount > 0 ? " active" : ""}`}
+                    onClick={() => setFiltersOpen(!filtersOpen)}
+                  >
+                    {activeCount > 0 ? t("servers.filtersCount", { count: activeCount }) : t("servers.filters")}
+                  </button>
+                  {filtersOpen && (
+                    <div className="filters-menu">
+                      {features.server_filters && (
+                        <>
+                          {hasHubStatus && (
+                            <label className="filter-checkbox">
+                              <input
+                                type="checkbox"
+                                checked={showHubStatus}
+                                onChange={(e) => setShowHubStatus(e.target.checked)}
+                              />
+                              <span>{t("servers.hubStatus")}</span>
+                            </label>
+                          )}
                           <label className="filter-checkbox">
                             <input
                               type="checkbox"
-                              checked={showHubStatus}
-                              onChange={(e) => setShowHubStatus(e.target.checked)}
+                              checked={show18Plus}
+                              onChange={(e) => handle18PlusChange(e.target.checked)}
                             />
-                            <span>{t("servers.hubStatus")}</span>
+                            <span>{t("servers.eighteenPlus")}</span>
                           </label>
-                        )}
-                        <label className="filter-checkbox">
+                          {hasOffline && (
+                            <label className="filter-checkbox">
+                              <input
+                                type="checkbox"
+                                checked={showOffline}
+                                onChange={(e) => setShowOffline(e.target.checked)}
+                              />
+                              <span>{t("servers.offlineServers")}</span>
+                            </label>
+                          )}
+                        </>
+                      )}
+                      {features.server_filters && tagCategories.length > 0 && (
+                        <div className="filter-divider" />
+                      )}
+                      {tagCategories.map((tag) => (
+                        <label className="filter-checkbox" key={tag}>
                           <input
                             type="checkbox"
-                            checked={show18Plus}
-                            onChange={(e) => handle18PlusChange(e.target.checked)}
+                            checked={selectedTags.has(tag)}
+                            onChange={(e) => toggleTag(tag, e.target.checked)}
                           />
-                          <span>{t("servers.eighteenPlus")}</span>
+                          <span>{tag}</span>
                         </label>
-                        {hasOffline && (
-                          <label className="filter-checkbox">
-                            <input
-                              type="checkbox"
-                              checked={showOffline}
-                              onChange={(e) => setShowOffline(e.target.checked)}
-                            />
-                            <span>{t("servers.offlineServers")}</span>
-                          </label>
-                        )}
-                      </>
-                    )}
-                    {features.server_filters && tagCategories.length > 0 && (
-                      <div className="filter-divider" />
-                    )}
-                    {tagCategories.map((tag) => (
-                      <label className="filter-checkbox" key={tag}>
-                        <input
-                          type="checkbox"
-                          checked={selectedTags.has(tag)}
-                          onChange={(e) => toggleTag(tag, e.target.checked)}
-                        />
-                        <span>{tag}</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+                      ))}
+                      {regions.length > 0 && (
+                        <>
+                          <div className="filter-divider" />
+                          {regions.map((region) => (
+                            <label className="filter-checkbox" key={region}>
+                              <input
+                                type="checkbox"
+                                checked={selectedRegions.has(region)}
+                                onChange={(e) => toggleRegion(region, e.target.checked)}
+                              />
+                              <span>{region}</span>
+                            </label>
+                          ))}
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         )}
       </div>

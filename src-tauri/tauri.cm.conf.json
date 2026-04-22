@@ -6,8 +6,8 @@
     "windows": [
       {
         "title": "CM-SS13",
-        "width": 800,
-        "minWidth": 800,
+        "width": 900,
+        "minWidth": 900,
         "height": 540,
         "minHeight": 540,
         "decorations": false,

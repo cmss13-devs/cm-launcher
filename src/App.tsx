@@ -5,6 +5,7 @@ import { useShallow } from "zustand/react/shallow";
 import {
   AccountInfo,
   ByondLoginModal,
+  DirectConnectModal,
   ErrorNotifications,
   GameConnectionModal,
   HomePage,
@@ -103,7 +104,10 @@ const AppContent = () => {
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [relayDropdownOpen, setRelayDropdownOpen] = useState(false);
   const [wineModalVisible, setWineModalVisible] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>("home");
+  const [directConnectVisible, setDirectConnectVisible] = useState(false);
+
+  const showHome = config?.features.favorites ?? false;
+  const [viewMode, setViewMode] = useState<ViewMode>(showHome ? "home" : "browse");
 
   const filters = useServerFilters(servers, config);
   const { showHubStatus, filteredServers } = filters;
@@ -196,6 +200,12 @@ const AppContent = () => {
         visible={byondLoginVisible}
         onClose={() => commands.cancelByondLogin()}
       />
+      {config?.features.direct_connect && (
+        <DirectConnectModal
+          visible={directConnectVisible}
+          onClose={() => setDirectConnectVisible(false)}
+        />
+      )}
       <UpdateNotification />
       <ErrorNotifications errors={errors} onDismiss={dismissError} />
       <SettingsModal
@@ -248,6 +258,8 @@ const AppContent = () => {
                   .reduce((sum, s) => sum + (s.players ?? 0), 0)}
                 viewMode={viewMode}
                 onViewModeChange={setViewMode}
+                showHome={showHome}
+                onDirectConnect={config.features.direct_connect ? () => setDirectConnectVisible(true) : undefined}
               />
             )}
             {viewMode === "singleplayer" && config?.features.singleplayer ? (

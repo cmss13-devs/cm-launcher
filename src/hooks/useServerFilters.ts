@@ -1,15 +1,37 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LauncherConfig, Server } from "../bindings";
+import { useSettingsStore, type StoredFilters } from "../stores/settingsStore";
 
 export function useServerFilters(servers: Server[], config: LauncherConfig | null) {
+  const storedFilters = useSettingsStore((s) => s.filters);
+  const saveFilters = useSettingsStore((s) => s.saveFilters);
+
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
-  const [show18Plus, setShow18Plus] = useState(false);
-  const [showOffline, setShowOffline] = useState(false);
-  const [showHubStatus, setShowHubStatus] = useState(false);
-  const [showSingleplayer, setShowSingleplayer] = useState(false);
+  const [selectedTags, setSelectedTags] = useState<Set<string>>(storedFilters.tags);
+  const [show18Plus, setShow18Plus] = useState(storedFilters.show18Plus);
+  const [showOffline, setShowOffline] = useState(
+    storedFilters.showOffline ?? config?.features.show_offline_servers ?? false,
+  );
+  const [showHubStatus, setShowHubStatus] = useState(storedFilters.showHubStatus);
+  const [selectedRegions, setSelectedRegions] = useState<Set<string>>(storedFilters.regions);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filtersRef = useRef<HTMLDivElement>(null);
+  const initialized = useRef(false);
+
+  useEffect(() => {
+    if (!initialized.current) {
+      initialized.current = true;
+      return;
+    }
+    const filters: StoredFilters = {
+      tags: selectedTags,
+      show18Plus,
+      showOffline,
+      showHubStatus,
+      regions: selectedRegions,
+    };
+    saveFilters(filters);
+  }, [selectedTags, show18Plus, showOffline, showHubStatus, selectedRegions, saveFilters]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -26,6 +48,15 @@ export function useServerFilters(servers: Server[], config: LauncherConfig | nul
       const next = new Set(prev);
       if (on) next.add(tag);
       else next.delete(tag);
+      return next;
+    });
+  }, []);
+
+  const toggleRegion = useCallback((region: string, on: boolean) => {
+    setSelectedRegions((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(region);
+      else next.delete(region);
       return next;
     });
   }, []);
@@ -47,6 +78,14 @@ export function useServerFilters(servers: Server[], config: LauncherConfig | nul
     if (config?.features.singleplayer) sorted.push("sandbox");
     return sorted;
   }, [servers, config?.features.singleplayer]);
+
+  const regions = useMemo(() => {
+    const regionSet = new Set<string>();
+    for (const server of servers) {
+      if (server.region) regionSet.add(server.region);
+    }
+    return Array.from(regionSet).sort();
+  }, [servers]);
 
   const hasOffline = useMemo(
     () => servers.some((s) => s.status !== "available"),
@@ -72,6 +111,12 @@ export function useServerFilters(servers: Server[], config: LauncherConfig | nul
           )
         : uniqueServers;
 
+    if (selectedRegions.size > 0) {
+      filtered = filtered.filter((server) =>
+        server.region && selectedRegions.has(server.region),
+      );
+    }
+
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter((server) =>
@@ -83,7 +128,7 @@ export function useServerFilters(servers: Server[], config: LauncherConfig | nul
       filtered = filtered.filter((server) => !server.is_18_plus);
     }
 
-    if (!showOffline && !config?.features.show_offline_servers) {
+    if (!showOffline) {
       filtered = filtered.filter((server) => server.status === "available");
     }
 
@@ -96,10 +141,10 @@ export function useServerFilters(servers: Server[], config: LauncherConfig | nul
   }, [
     servers,
     selectedTags,
+    selectedRegions,
     searchQuery,
     show18Plus,
     showOffline,
-    config?.features.show_offline_servers,
   ]);
 
   return {
@@ -113,8 +158,9 @@ export function useServerFilters(servers: Server[], config: LauncherConfig | nul
     setShowOffline,
     showHubStatus,
     setShowHubStatus,
-    showSingleplayer,
-    setShowSingleplayer,
+    selectedRegions,
+    toggleRegion,
+    regions,
     filtersOpen,
     setFiltersOpen,
     filtersRef,

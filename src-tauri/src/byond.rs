@@ -986,6 +986,125 @@ pub async fn connect_to_server(
     .await
 }
 
+#[tauri::command]
+#[specta::specta]
+pub async fn connect_to_address(
+    app: AppHandle,
+    address: String,
+    source: Option<String>,
+) -> CommandResult<ConnectionResult> {
+    let source_str = source.as_deref().unwrap_or("unknown");
+
+    let address_clean = address
+        .strip_prefix("byond://")
+        .unwrap_or(&address);
+
+    let parts: Vec<&str> = address_clean.split(':').collect();
+    if parts.len() != 2 {
+        return Err(CommandError::InvalidInput(format!(
+            "Invalid address format, expected host:port: {address}"
+        )));
+    }
+
+    #[allow(clippy::indexing_slicing)]
+    let (hostname, port_str) = (parts[0], parts[1]);
+
+    let port: u16 = port_str
+        .parse()
+        .map_err(|_| CommandError::InvalidInput(format!("Invalid port: {port_str}")))?;
+
+    // Resolve hostname to IP
+    use std::net::ToSocketAddrs;
+    let resolved_ip = format!("{hostname}:{port}")
+        .to_socket_addrs()
+        .map_err(|e| CommandError::InvalidInput(format!("Failed to resolve hostname: {e}")))?
+        .next()
+        .ok_or_else(|| CommandError::InvalidInput(format!("Could not resolve: {hostname}")))?
+        .ip()
+        .to_string();
+
+    // Resolve server UUID via hub API
+    let server_id =
+        match crate::auth::hub_client::HubClient::resolve_server(&resolved_ip, port).await {
+            Ok(id) => id,
+            Err(e) => {
+                return Ok(ConnectionResult {
+                    success: false,
+                    message: format!("Could not resolve server: {e}"),
+                    auth_error: None,
+                });
+            }
+        };
+
+    // Get auth
+    let (access_type, access_token) =
+        match get_auth_for_connection(&app, &["hub".to_string()]).await {
+            Ok((t, tok)) => (t, tok),
+            Err(auth_error) => {
+                return Ok(ConnectionResult {
+                    success: false,
+                    message: auth_error.message.clone(),
+                    auth_error: Some(auth_error),
+                });
+            }
+        };
+
+    // Exchange session token for auth ticket
+    let (access_type, access_token) = if let Some(session_token) = &access_token {
+        let hwid = crate::control_server::generate_hwid();
+        match crate::auth::hub_client::HubClient::join(
+            session_token,
+            &server_id,
+            hwid.as_deref(),
+        )
+        .await
+        {
+            Ok(ticket) => (Some("auth_ticket".to_string()), Some(ticket)),
+            Err(e) => {
+                return Ok(ConnectionResult {
+                    success: false,
+                    message: format!("Failed to get auth ticket: {e}"),
+                    auth_error: Some(AuthError {
+                        code: "ticket_error".to_string(),
+                        message: format!("Failed to get auth ticket: {e}"),
+                        linking_url: None,
+                    }),
+                });
+            }
+        }
+    } else {
+        (access_type, access_token)
+    };
+
+    let version = select_byond_version(None, &app)?;
+
+    tracing::info!(
+        "[connect_to_address] source={} address={} resolved_ip={} server_id={} version={}",
+        source_str,
+        address,
+        resolved_ip,
+        server_id,
+        version
+    );
+
+    connect(
+        app,
+        ConnectionRequest {
+            version,
+            host: hostname.to_string(),
+            port: port_str.to_string(),
+            access_type,
+            access_token,
+            server_name: address_clean.to_string(),
+            map_name: None,
+            source,
+            server_id: Some(server_id),
+            players: None,
+        },
+    )
+    .await
+}
+
 async fn connect_impl(app: AppHandle, req: ConnectionRequest) -> CommandResult<ConnectionResult> {
     let ConnectionRequest {
         version,

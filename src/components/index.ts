@@ -2,6 +2,7 @@ export { AccountInfo } from "./AccountInfo";
 export type { AuthModalState } from "./AuthModal";
 export { AuthModal } from "./AuthModal";
 export { ByondLoginModal } from "./ByondLoginModal";
+export { DirectConnectModal } from "./DirectConnectModal";
 export { ErrorNotifications } from "./ErrorNotifications";
 export type { GameConnectionState } from "./GameConnectionModal";
 export { GameConnectionModal } from "./GameConnectionModal";

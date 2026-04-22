@@ -1,7 +1,15 @@
 import { create } from "zustand";
-import { type AppSettings, type AuthMode, type RenderingPipeline, commands, type Theme } from "../bindings";
+import { type AppSettings, type AuthMode, type FilterSettings, type RenderingPipeline, commands, type Theme } from "../bindings";
 import { setLocale } from "../i18n";
 import { unwrap } from "../lib/unwrap";
+
+export interface StoredFilters {
+  tags: Set<string>;
+  show18Plus: boolean;
+  showOffline: boolean | null;
+  showHubStatus: boolean;
+  regions: Set<string>;
+}
 
 interface SettingsStore {
   authMode: AuthMode;
@@ -13,6 +21,7 @@ interface SettingsStore {
   renderingPipeline: RenderingPipeline;
   lastPlayedServer: string | null;
   favoriteServers: Set<string>;
+  filters: StoredFilters;
 
   setAuthMode: (mode: AuthMode) => void;
   setTheme: (theme: Theme) => void;
@@ -27,6 +36,7 @@ interface SettingsStore {
   saveLastPlayedServer: (serverId: string) => Promise<void>;
   toggleFavoriteServer: (serverId: string, favorited: boolean) => Promise<void>;
   isServerFavorited: (serverId: string) => boolean;
+  saveFilters: (filters: StoredFilters) => Promise<void>;
 }
 
 export const useSettingsStore = create<SettingsStore>()((set, get) => ({
@@ -39,6 +49,13 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
   renderingPipeline: "dxvk",
   lastPlayedServer: null,
   favoriteServers: new Set<string>(),
+  filters: {
+    tags: new Set<string>(),
+    show18Plus: false,
+    showOffline: null,
+    showHubStatus: false,
+    regions: new Set<string>(),
+  },
 
   setAuthMode: (authMode) => set({ authMode }),
   setTheme: (theme) => set({ theme }),
@@ -59,6 +76,13 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
         renderingPipeline: settings.rendering_pipeline ?? "dxvk",
         lastPlayedServer: settings.last_played_server ?? null,
         favoriteServers: new Set(settings.favorite_servers ?? []),
+        filters: {
+          tags: new Set(settings.filter_tags ?? []),
+          show18Plus: settings.filter_show_18_plus ?? false,
+          showOffline: settings.filter_show_offline ?? null,
+          showHubStatus: settings.filter_show_hub_status ?? false,
+          regions: new Set(settings.filter_regions ?? []),
+        },
       });
       if (settings.locale) {
         setLocale(settings.locale);
@@ -117,5 +141,17 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
 
   isServerFavorited: (serverId: string) => {
     return get().favoriteServers.has(serverId);
+  },
+
+  saveFilters: async (filters: StoredFilters) => {
+    set({ filters });
+    const payload: FilterSettings = {
+      tags: Array.from(filters.tags),
+      show_18_plus: filters.show18Plus,
+      show_offline: filters.showOffline,
+      show_hub_status: filters.showHubStatus,
+      regions: Array.from(filters.regions),
+    };
+    unwrap(await commands.saveFilterSettings(payload));
   },
 }));

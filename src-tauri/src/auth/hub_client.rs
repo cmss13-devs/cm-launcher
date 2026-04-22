@@ -163,6 +163,39 @@ impl HubClient {
             .ok_or_else(|| HubAuthError::Server("missing auth_ticket in response".into()))
     }
 
+    /// Resolve a host:port to a server UUID.
+    pub async fn resolve_server(host: &str, port: u16) -> Result<String, HubAuthError> {
+        let client = Self::from_config()?;
+
+        let response = client
+            .http
+            .get(format!(
+                "{}/api/servers/resolve?host={}&port={}",
+                client.base_url, host, port
+            ))
+            .send()
+            .await
+            .map_err(|e| HubAuthError::Network(format!("Failed to connect: {e}")))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(HubAuthError::Server(format!(
+                "Server resolve failed (HTTP {status}): {body}"
+            )));
+        }
+
+        let body: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| HubAuthError::Network(format!("Invalid response: {e}")))?;
+
+        body["server_id"]
+            .as_str()
+            .map(String::from)
+            .ok_or_else(|| HubAuthError::Server("missing server_id in response".into()))
+    }
+
     /// Exchange an OAuth login code for a session token.
     pub async fn oauth_exchange(code: &str) -> Result<LoginResponse, HubAuthError> {
         let client = Self::from_config()?;

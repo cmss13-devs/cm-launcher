@@ -66,6 +66,8 @@ pub struct Server {
     pub links: Vec<ServerLink>,
     #[serde(default)]
     pub verified_domain: Option<String>,
+    #[serde(default)]
+    pub region: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -152,7 +154,7 @@ impl ServerApi for HubApi {
 
 impl HubApi {
     fn convert(hub: HubServer) -> Server {
-        let (name, players, data, engine, tags, is_18_plus, description, links, connection_address) =
+        let (name, players, data, engine, tags, is_18_plus, description, links, connection_address, region) =
             if let Some(ref s) = hub.status {
                 let round = s.round.as_ref();
 
@@ -191,6 +193,7 @@ impl HubApi {
                     s.description.clone(),
                     s.links.clone().unwrap_or_default(),
                     s.connection_address.clone(),
+                    s.region.clone(),
                 )
             } else {
                 (
@@ -202,6 +205,7 @@ impl HubApi {
                     false,
                     None,
                     Vec::new(),
+                    None,
                     None,
                 )
             };
@@ -224,6 +228,7 @@ impl HubApi {
             description,
             links,
             verified_domain: hub.verified_domain,
+            region,
         }
     }
 }
@@ -319,6 +324,7 @@ impl CmApi {
             description: None,
             links: Vec::new(),
             verified_domain: None,
+            region: None,
         }
     }
 }

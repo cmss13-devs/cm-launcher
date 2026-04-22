@@ -40,6 +40,8 @@ pub struct LauncherFeatures {
     pub auto_launch_byond: bool,
     pub connection_timeout_fallback: bool,
     pub connect_logo: bool,
+    pub favorites: bool,
+    pub direct_connect: bool,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, specta::Type)]
@@ -104,6 +106,8 @@ pub fn get_config() -> LauncherConfig {
             auto_launch_byond: false,
             connection_timeout_fallback: false,
             connect_logo: false,
+            favorites: false,
+            direct_connect: false,
         },
         urls: LauncherUrls {
             server_api: "https://db.cm-ss13.com/api/Round",
@@ -177,6 +181,8 @@ pub fn get_config() -> LauncherConfig {
             auto_launch_byond: true,
             connection_timeout_fallback: true,
             connect_logo: true,
+            favorites: true,
+            direct_connect: true,
         },
         urls: LauncherUrls {
             server_api: "https://ss13.cm-ss13.com/api/servers",
