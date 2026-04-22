@@ -697,6 +697,7 @@ body {
   background-color: transparent;
   color: var(--primary);
   padding: 8px 16px;
+  white-space: nowrap;
 
   &:hover {
     background-color: var(--bg-highlight);

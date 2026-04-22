@@ -1032,10 +1032,6 @@ async fn connect_impl(app: AppHandle, req: ConnectionRequest) -> CommandResult<C
             control_server.reset_connected_flag();
         }
 
-        if source.as_deref() != Some("control_server_restart") {
-            app.emit("game-connecting", &server_name).ok();
-        }
-
         let control_port = app.try_state::<ControlServer>().map(|s| s.port.to_string());
         let launcher_key = app.try_state::<ControlServer>().map(|s| s.rotate_key());
         let websocket_port = app
@@ -1075,6 +1071,10 @@ async fn connect_impl(app: AppHandle, req: ConnectionRequest) -> CommandResult<C
                 false
             }
         };
+
+        if source.as_deref() != Some("control_server_restart") {
+            app.emit("game-connecting", &server_name).ok();
+        }
 
         if using_webid {
             let session = if session_check.as_ref().map(|s| s.logged_in).unwrap_or(false) {

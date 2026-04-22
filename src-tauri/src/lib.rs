@@ -297,7 +297,7 @@ pub fn run() {
 
     let specta_builder = build_specta();
 
-    #[cfg(debug_assertions)]
+    #[cfg(all(debug_assertions, feature = "steam"))]
     #[allow(clippy::expect_used)]
     specta_builder
         .export(

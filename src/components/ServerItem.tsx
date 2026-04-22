@@ -273,11 +273,13 @@ export const ServerItem = ({
               >
                 {connecting || autoConnecting ? "..." : (
                   <>
-                    <img
-                      src={supportsHub ? "/logo-ss13.png" : "/byond.png"}
-                      alt=""
-                      className="connect-auth-icon"
-                    />
+                    {config?.features.connect_logo && (
+                      <img
+                        src={supportsHub ? "/logo-ss13.png" : "/byond.png"}
+                        alt=""
+                        className="connect-auth-icon"
+                      />
+                    )}
                     {t("common.join")}
                   </>
                 )}

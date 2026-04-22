@@ -61,8 +61,9 @@ pub struct ByondLoginResult {
 }
 
 /// State for managing the login flow
+/// Sends `Some(username)` on successful JS extraction, `None` on navigation away / cancel.
 pub struct ByondLoginState {
-    result_tx: Mutex<Option<oneshot::Sender<CommandResult<ByondLoginResult>>>>,
+    result_tx: Mutex<Option<oneshot::Sender<Option<String>>>>,
 }
 
 impl ByondLoginState {
@@ -72,11 +73,11 @@ impl ByondLoginState {
         }
     }
 
-    pub fn set_sender(&self, tx: oneshot::Sender<CommandResult<ByondLoginResult>>) {
+    pub fn set_sender(&self, tx: oneshot::Sender<Option<String>>) {
         *self.result_tx.lock() = Some(tx);
     }
 
-    pub fn complete(&self, result: CommandResult<ByondLoginResult>) {
+    pub fn complete(&self, result: Option<String>) {
         if let Some(tx) = self.result_tx.lock().take() {
             let _ = tx.send(result);
         }
@@ -99,7 +100,7 @@ pub fn byond_login_complete(app: AppHandle, username: Option<String>) {
     let _ = app.emit("byond-session-changed", username.clone());
 
     if let Some(state) = app.try_state::<ByondLoginState>() {
-        state.complete(Ok(ByondLoginResult { username }));
+        state.complete(username);
     }
 
 }
@@ -129,9 +130,7 @@ pub fn cancel_byond_login(app: AppHandle) {
     tracing::info!("BYOND login cancelled by user");
     dismiss_login(&app);
     if let Some(state) = app.try_state::<ByondLoginState>() {
-        state.complete(Err(CommandError::Cancelled {
-            operation: "byond_login".into(),
-        }));
+        state.complete(None);
     }
 }
 
@@ -298,9 +297,30 @@ pub async fn start_byond_login(app: AppHandle) -> CommandResult<ByondLoginResult
 
     // Wait for result with 5 minute timeout
     let result = match tokio::time::timeout(std::time::Duration::from_secs(300), rx).await {
-        Ok(Ok(result)) => {
-            tracing::info!("BYOND login flow completed successfully");
-            result
+        Ok(Ok(Some(username))) => {
+            tracing::info!("BYOND login completed with username: {}", username);
+            Ok(ByondLoginResult {
+                username: Some(username),
+            })
+        }
+        Ok(Ok(None)) => {
+            tracing::info!("BYOND login dismissed, checking session");
+            match check_byond_web_session(app.clone()).await {
+                Ok(session) if session.logged_in => {
+                    if let Some(ref name) = session.username {
+                        if let Some(s) = app.try_state::<ByondSessionState>() {
+                            s.set_username(name.clone());
+                        }
+                        let _ = app.emit("byond-session-changed", Some(name));
+                    }
+                    Ok(ByondLoginResult {
+                        username: session.username,
+                    })
+                }
+                _ => Err(CommandError::Cancelled {
+                    operation: "byond_login".into(),
+                }),
+            }
         }
         Ok(Err(_)) => {
             tracing::debug!("BYOND login channel closed");
@@ -351,9 +371,7 @@ fn create_login_webview(app: &AppHandle, data_dir: std::path::PathBuf) -> Comman
             tracing::debug!("BYOND login: navigating away to {}", url);
             dismiss_login(&app_for_nav);
             if let Some(state) = app_for_nav.try_state::<ByondLoginState>() {
-                state.complete(Err(CommandError::Cancelled {
-                    operation: "byond_login".into(),
-                }));
+                state.complete(None);
             }
             return false;
         }
