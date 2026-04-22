@@ -42,6 +42,7 @@ impl PresenceManager {
         &self,
         server_name: String,
         map_name: Option<String>,
+        player_count: u32,
         process: Child,
     ) {
         tracing::info!("Starting game session on {}", server_name);
@@ -59,7 +60,7 @@ impl PresenceManager {
 
         self.update_all_presence(&PresenceState::Playing {
             server_name,
-            player_count: 0,
+            player_count,
             map_name,
         });
     }
@@ -69,6 +70,7 @@ impl PresenceManager {
         &self,
         server_name: String,
         map_name: Option<String>,
+        player_count: u32,
         pid: u32,
     ) {
         tracing::info!(
@@ -90,7 +92,7 @@ impl PresenceManager {
 
         self.update_all_presence(&PresenceState::Playing {
             server_name,
-            player_count: 0,
+            player_count,
             map_name,
         });
     }
@@ -123,10 +125,23 @@ impl PresenceManager {
             if Self::is_process_running(pid) {
                 return true;
             }
-            self.clear_game_session();
-            return false;
+        } else {
+            drop(pid_guard);
         }
 
+        #[cfg(any(target_os = "windows", target_os = "linux"))]
+        {
+            let params = self.last_connection_params.lock().unwrap();
+            if let Some(ref key) = params.as_ref().and_then(|p| p.launcher_key.as_ref()) {
+                if crate::byond::find_dreamseeker_pid_by_key(key).is_some() {
+                    return true;
+                }
+            }
+        }
+
+        if self.game_session.lock().unwrap().is_some() {
+            self.clear_game_session();
+        }
         false
     }
 
@@ -173,22 +188,33 @@ impl PresenceManager {
         if let Some(ref mut child) = *proc_guard {
             match child.kill() {
                 Ok(()) => {
-                    tracing::info!("Game process killed successfully");
-
+                    tracing::info!("Game process killed successfully via Child handle");
                     let _ = child.wait();
                     drop(proc_guard);
                     self.clear_game_session();
-                    true
+                    return true;
                 }
                 Err(e) => {
-                    tracing::error!("Failed to kill game process: {}", e);
-                    false
+                    tracing::warn!("Failed to kill game process via Child handle: {}", e);
                 }
             }
-        } else {
-            tracing::debug!("No game process to kill");
-            false
         }
+        drop(proc_guard);
+
+        #[cfg(any(target_os = "windows", target_os = "linux"))]
+        {
+            let params = self.last_connection_params.lock().unwrap();
+            if let Some(ref key) = params.as_ref().and_then(|p| p.launcher_key.as_ref()) {
+                if crate::byond::kill_dreamseeker_by_key(key) {
+                    drop(params);
+                    self.clear_game_session();
+                    return true;
+                }
+            }
+        }
+
+        tracing::debug!("No game process to kill");
+        false
     }
 
     pub fn update_all_presence(&self, state: &PresenceState) {

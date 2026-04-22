@@ -3,7 +3,7 @@ import { useShallow } from "zustand/react/shallow";
 import { commands } from "../bindings";
 import type { AuthModalState } from "../components/AuthModal";
 import { unwrap } from "../lib/unwrap";
-import { useAuthStore } from "../stores";
+import { useAuthStore, useByondStore } from "../stores";
 import { useError } from "./useError";
 
 export interface AuthModalView {
@@ -47,20 +47,26 @@ export function useAuthHandlers() {
   }, [logout, showError]);
 
   const handleByondLogin = useCallback(async () => {
-    try {
-      unwrap(await commands.startByondLogin());
-    } catch (err) {
-      showError(err instanceof Error ? err.message : String(err));
+    const result = await commands.startByondLogin();
+    if (result.status === "error") {
+      if (result.error.type === "cancelled") return;
+      try { unwrap(result); } catch (err) {
+        showError(err instanceof Error ? err.message : String(err));
+      }
     }
   }, [showError]);
 
+  const setLoggingOut = useByondStore((s) => s.setLoggingOut);
   const handleByondLogout = useCallback(async () => {
+    setLoggingOut(true);
     try {
       unwrap(await commands.logoutByondWeb());
     } catch (err) {
       showError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoggingOut(false);
     }
-  }, [showError]);
+  }, [showError, setLoggingOut]);
 
   const handleHubLogin = useCallback(
     async (username: string, password: string, totpCode?: string) => {

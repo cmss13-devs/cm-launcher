@@ -1,14 +1,78 @@
 import { getVersion } from "@tauri-apps/api/app";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { commands } from "../bindings";
 import { useAuthFlow } from "../hooks";
 import { unwrap } from "../lib/unwrap";
 import { getAvailableLocales } from "../i18n";
 import { useByondStore, useConfigStore, useSettingsStore } from "../stores";
-import type { AuthMode, Theme, WineStatus } from "../bindings";
+import type { AuthMode, RenderingPipeline, Theme, WineStatus } from "../bindings";
 import type { Platform } from "../types";
+import { faChevronDown, faChevronUp } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { Modal, ModalCloseButton } from "./Modal";
+
+interface LocaleDropdownProps {
+  value: string | null;
+  options: { value: string; label: string }[];
+  autoLabel: string;
+  onChange: (value: string | null) => void;
+}
+
+const LocaleDropdown = ({ value, options, autoLabel, onChange }: LocaleDropdownProps) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const selectedLabel = value
+    ? options.find((o) => o.value === value)?.label ?? value
+    : autoLabel;
+
+  return (
+    <div className="locale-dropdown" ref={ref}>
+      <button
+        type="button"
+        className="locale-dropdown-button"
+        onClick={() => setOpen((prev) => !prev)}
+      >
+        <span className="locale-dropdown-value">{selectedLabel}</span>
+        <span className="locale-dropdown-arrow">
+          <FontAwesomeIcon icon={open ? faChevronUp : faChevronDown} />
+        </span>
+      </button>
+      {open && (
+        <div className="locale-dropdown-menu">
+          <button
+            type="button"
+            className={`locale-dropdown-item ${value === null ? "selected" : ""}`}
+            onClick={() => { onChange(null); setOpen(false); }}
+          >
+            {autoLabel}
+          </button>
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              className={`locale-dropdown-item ${value === opt.value ? "selected" : ""}`}
+              onClick={() => { onChange(opt.value); setOpen(false); }}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 interface AuthModeOptionProps {
   mode: AuthMode;
@@ -81,15 +145,19 @@ const ThemeOption = ({
 interface WineSettingsProps {
   platform: Platform;
   wineStatus: WineStatus;
+  renderingPipeline: RenderingPipeline;
   isResetting: boolean;
   onResetPrefix: () => void;
+  onRenderingPipelineChange: (pipeline: RenderingPipeline) => void;
 }
 
 const WineSettings = ({
   platform,
   wineStatus,
+  renderingPipeline,
   isResetting,
   onResetPrefix,
+  onRenderingPipelineChange,
 }: WineSettingsProps) => {
   const { t } = useTranslation();
 
@@ -125,6 +193,39 @@ const WineSettings = ({
             <span className="status-warning">{t("wine.notInstalled")}</span>
           )}
         </p>
+      </div>
+      <div className="wine-rendering-pipeline">
+        <h4>{t("wine.renderingPipeline")}</h4>
+        <p className="settings-description">{t("wine.renderingPipelineDesc")}</p>
+        <div className="theme-options">
+          <label className={`theme-option ${renderingPipeline === "dxvk" ? "selected" : ""}`}>
+            <input
+              type="radio"
+              name="renderingPipeline"
+              value="dxvk"
+              checked={renderingPipeline === "dxvk"}
+              onChange={() => onRenderingPipelineChange("dxvk")}
+            />
+            <div className="theme-info">
+              <span className="theme-name">{t("wine.dxvkName")}</span>
+              <span className="theme-desc">{t("wine.dxvkDesc")}</span>
+            </div>
+          </label>
+          <label className={`theme-option ${renderingPipeline === "wined3d" ? "selected" : ""}`}>
+            <input
+              type="radio"
+              name="renderingPipeline"
+              value="wined3d"
+              checked={renderingPipeline === "wined3d"}
+              onChange={() => onRenderingPipelineChange("wined3d")}
+            />
+            <div className="theme-info">
+              <span className="theme-name">{t("wine.wined3dName")}</span>
+              <span className="theme-desc">{t("wine.wined3dDesc")}</span>
+            </div>
+          </label>
+        </div>
+        <p className="settings-hint">{t("wine.renderingPipelineHint")}</p>
       </div>
       <button
         type="button"
@@ -217,9 +318,11 @@ interface SettingsModalProps {
   devMode: boolean;
   platform: Platform;
   wineStatus: WineStatus;
+  renderingPipeline: RenderingPipeline;
   isResettingWine: boolean;
   onAuthModeChange: (mode: AuthMode) => void;
   onThemeChange: (theme: Theme) => void;
+  onRenderingPipelineChange: (pipeline: RenderingPipeline) => void;
   onResetWinePrefix: () => void;
   onClose: () => void;
 }
@@ -232,9 +335,11 @@ export const SettingsModal = ({
   devMode,
   platform,
   wineStatus,
+  renderingPipeline,
   isResettingWine,
   onAuthModeChange,
   onThemeChange,
+  onRenderingPipelineChange,
   onResetWinePrefix,
   onClose,
 }: SettingsModalProps) => {
@@ -285,7 +390,7 @@ export const SettingsModal = ({
       overlayClassName="settings-modal-overlay"
       closeOnOverlayClick
     >
-      <div className="settings-modal-header">
+      <div className="modal-header">
         <h2>{t("settings.title")}</h2>
         <button
           type="button"
@@ -328,16 +433,12 @@ export const SettingsModal = ({
           <p className="settings-description">
             {t("settings.languageDescription")}
           </p>
-          <select
-            className="locale-select"
-            value={locale ?? ""}
-            onChange={(e) => saveLocale(e.target.value || null)}
-          >
-            <option value="">{t("settings.languageAuto")}</option>
-            {getAvailableLocales().map((loc) => (
-              <option key={loc} value={loc}>{loc.toUpperCase()}</option>
-            ))}
-          </select>
+          <LocaleDropdown
+            value={locale}
+            autoLabel={t("settings.languageAuto")}
+            options={getAvailableLocales().map((loc) => ({ value: loc, label: loc.toUpperCase() }))}
+            onChange={saveLocale}
+          />
         </div>
 
         <div className="settings-section">
@@ -436,8 +537,10 @@ export const SettingsModal = ({
         <WineSettings
           platform={platform}
           wineStatus={wineStatus}
+          renderingPipeline={renderingPipeline}
           isResetting={isResettingWine}
           onResetPrefix={onResetWinePrefix}
+          onRenderingPipelineChange={onRenderingPipelineChange}
         />
 
         {devMode && (

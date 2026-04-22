@@ -5,6 +5,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 export APPDIR="$SCRIPT_DIR"
 
+export WEBKIT_DISABLE_DMABUF_RENDERER="${WEBKIT_DISABLE_DMABUF_RENDERER:-1}"
+
 # Create path compatibility symlink for x86_64-linux-gnu
 if [ ! -e "$SCRIPT_DIR/lib/x86_64-linux-gnu" ]; then
     ln -sf . "$SCRIPT_DIR/lib/x86_64-linux-gnu"

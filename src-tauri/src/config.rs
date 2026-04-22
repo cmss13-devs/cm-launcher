@@ -39,6 +39,7 @@ pub struct LauncherFeatures {
     pub server_stats: bool,
     pub auto_launch_byond: bool,
     pub connection_timeout_fallback: bool,
+    pub connect_logo: bool,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, specta::Type)]
@@ -102,6 +103,7 @@ pub fn get_config() -> LauncherConfig {
             server_stats: true,
             auto_launch_byond: false,
             connection_timeout_fallback: false,
+            connect_logo: false,
         },
         urls: LauncherUrls {
             server_api: "https://db.cm-ss13.com/api/Round",
@@ -174,12 +176,13 @@ pub fn get_config() -> LauncherConfig {
             server_stats: true,
             auto_launch_byond: true,
             connection_timeout_fallback: true,
+            connect_logo: true,
         },
         urls: LauncherUrls {
-            server_api: "https://ss13hub-api-prod.azurewebsites.net/api/servers",
-            hub_api: Some("https://ss13hub-api-prod.azurewebsites.net"),
+            server_api: "https://ss13.cm-ss13.com/api/servers",
+            hub_api: Some("https://ss13.cm-ss13.com"),
             auth_base: None,
-            steam_auth: Some("https://ss13hub-api-prod.azurewebsites.net/api/auth/steam"),
+            steam_auth: Some("https://ss13.cm-ss13.com/api/auth/steam"),
             byond_hash_api: None,
             register_url: Some("https://ss13.cm-ss13.com/register"),
             help_url: "https://github.com/hry-gh/ss13-launcher/issues",

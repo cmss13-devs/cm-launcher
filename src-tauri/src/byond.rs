@@ -42,6 +42,7 @@ pub struct ConnectionRequest {
     pub map_name: Option<String>,
     pub source: Option<String>,
     pub server_id: Option<String>,
+    pub players: Option<i32>,
 }
 
 const VERSIONS_FILE: &str = "byond_versions.json";
@@ -50,6 +51,7 @@ const ALLOWED_BIN_FILES: &[&str] = &[
     "dreamseeker.exe",
     "byond.exe",
     "byondcore.dll",
+    "byondext.dll",
     "byondwin.dll",
     "WebView2Loader.dll",
     "fmodex.dll",
@@ -978,6 +980,7 @@ pub async fn connect_to_server(
             map_name,
             source,
             server_id: server.id,
+            players: Some(server.players),
         },
     )
     .await
@@ -994,6 +997,7 @@ async fn connect_impl(app: AppHandle, req: ConnectionRequest) -> CommandResult<C
         map_name,
         source,
         server_id,
+        players,
     } = req;
 
     let version_info = install_byond_version(app.clone(), version.clone()).await?;
@@ -1031,10 +1035,6 @@ async fn connect_impl(app: AppHandle, req: ConnectionRequest) -> CommandResult<C
             control_server.reset_connected_flag();
         }
 
-        if source.as_deref() != Some("control_server_restart") {
-            app.emit("game-connecting", &server_name).ok();
-        }
-
         let control_port = app.try_state::<ControlServer>().map(|s| s.port.to_string());
         let launcher_key = app.try_state::<ControlServer>().map(|s| s.rotate_key());
         let websocket_port = app
@@ -1046,7 +1046,7 @@ async fn connect_impl(app: AppHandle, req: ConnectionRequest) -> CommandResult<C
         let is_byond_auth = access_type.as_deref() == Some("byond");
         let pager_running = check_byond_pager_running();
 
-        let session_check = if is_byond_auth {
+        let mut session_check = if is_byond_auth {
             check_byond_web_session(app.clone()).await.ok()
         } else {
             None
@@ -1065,6 +1065,7 @@ async fn connect_impl(app: AppHandle, req: ConnectionRequest) -> CommandResult<C
                         operation: "byond_login".into(),
                     });
                 }
+                session_check = check_byond_web_session(app.clone()).await.ok();
                 true
             }
             _ => {
@@ -1074,6 +1075,10 @@ async fn connect_impl(app: AppHandle, req: ConnectionRequest) -> CommandResult<C
                 false
             }
         };
+
+        if source.as_deref() != Some("control_server_restart") {
+            app.emit("game-connecting", &server_name).ok();
+        }
 
         if using_webid {
             let session = if session_check.as_ref().map(|s| s.logged_in).unwrap_or(false) {
@@ -1087,7 +1092,7 @@ async fn connect_impl(app: AppHandle, req: ConnectionRequest) -> CommandResult<C
             }
             tracing::info!("Got web_id, launching byond.exe with web authentication");
 
-            let existing_pids = get_dreamseeker_pids();
+            let mut existing_pids = get_dreamseeker_pids();
 
             let mut query_params = Vec::new();
             if let Some(lp) = &control_port {
@@ -1137,6 +1142,8 @@ async fn connect_impl(app: AppHandle, req: ConnectionRequest) -> CommandResult<C
                 .map_err(|e| CommandError::Io(format!("Failed to launch BYOND via Wine: {e}")))?
             };
 
+            existing_pids.insert(pager_child.id());
+
             let dreamseeker_pid = wait_for_new_dreamseeker(existing_pids, 30).await;
 
             if dreamseeker_pid.is_some() {
@@ -1156,10 +1163,11 @@ async fn connect_impl(app: AppHandle, req: ConnectionRequest) -> CommandResult<C
                     server_name: server_name.clone(),
                     map_name: map_name.clone(),
                     server_id: server_id.clone(),
+                    launcher_key: launcher_key.clone(),
                 });
 
                 if let Some(pid) = dreamseeker_pid {
-                    manager.start_game_session_by_pid(server_name.clone(), map_name.clone(), pid);
+                    manager.start_game_session_by_pid(server_name.clone(), map_name.clone(), players.unwrap_or(0) as u32, pid);
                 } else {
                     tracing::warn!(
                         "Could not find dreamseeker.exe, presence tracking may not work"
@@ -1205,9 +1213,10 @@ async fn connect_impl(app: AppHandle, req: ConnectionRequest) -> CommandResult<C
                     server_name: server_name.clone(),
                     map_name: map_name.clone(),
                     server_id: server_id.clone(),
+                    launcher_key: launcher_key.clone(),
                 });
 
-                manager.start_game_session(server_name.clone(), map_name.clone(), child);
+                manager.start_game_session(server_name.clone(), map_name.clone(), players.unwrap_or(0) as u32, child);
             }
         }
 
@@ -1384,11 +1393,10 @@ fn get_dreamseeker_pids() -> std::collections::HashSet<u32> {
         s.processes()
             .iter()
             .filter(|(_, p)| {
-                p.cmd().iter().any(|arg| {
-                    arg.to_str()
-                        .map(|a| a.to_lowercase().ends_with("dreamseeker.exe"))
-                        .unwrap_or(false)
-                })
+                p.name()
+                    .to_str()
+                    .map(|n| n.eq_ignore_ascii_case("dreamseeker.exe"))
+                    .unwrap_or(false)
             })
             .map(|(pid, _)| pid.as_u32())
             .collect()
@@ -1427,6 +1435,48 @@ async fn wait_for_new_dreamseeker(
 
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     }
+}
+
+#[cfg(any(target_os = "windows", target_os = "linux"))]
+pub fn find_dreamseeker_pid_by_key(launcher_key: &str) -> Option<u32> {
+    use sysinfo::System;
+
+    let s = System::new_all();
+    s.processes()
+        .iter()
+        .find(|(_, p)| {
+            p.cmd().iter().any(|arg| {
+                arg.to_str()
+                    .map(|a| a.contains(launcher_key))
+                    .unwrap_or(false)
+            }) && p.cmd().iter().any(|arg| {
+                arg.to_str()
+                    .map(|a| a.to_lowercase().contains("dreamseeker.exe"))
+                    .unwrap_or(false)
+            })
+        })
+        .map(|(pid, _)| pid.as_u32())
+}
+
+#[cfg(any(target_os = "windows", target_os = "linux"))]
+pub fn kill_dreamseeker_by_key(launcher_key: &str) -> bool {
+    use sysinfo::System;
+
+    let s = System::new_all();
+    let mut killed = false;
+    for (pid, proc) in s.processes() {
+        let cmd_matches = proc.cmd().iter().any(|arg| {
+            arg.to_str()
+                .map(|a| a.contains(launcher_key))
+                .unwrap_or(false)
+        });
+        if cmd_matches {
+            tracing::info!("Killing process {} (name={:?})", pid.as_u32(), proc.name());
+            proc.kill();
+            killed = true;
+        }
+    }
+    killed
 }
 
 #[tauri::command]
@@ -1534,6 +1584,7 @@ pub async fn connect_to_url(
                 map_name: None,
                 source,
                 server_id: None,
+                players: None,
             },
         )
         .await

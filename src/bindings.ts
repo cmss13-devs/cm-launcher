@@ -199,6 +199,14 @@ async toggleServerNotifications(serverName: string, enabled: boolean) : Promise<
     else return { status: "error", error: e  as any };
 }
 },
+async setRenderingPipeline(pipeline: RenderingPipeline) : Promise<Result<AppSettings, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_rendering_pipeline", { pipeline }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async getControlServerPort() : Promise<number> {
     return await TAURI_INVOKE("get_control_server_port");
 },
@@ -288,9 +296,9 @@ async checkWineStatus() : Promise<Result<WineStatus, CommandError>> {
     else return { status: "error", error: e  as any };
 }
 },
-async initializeWinePrefix() : Promise<Result<null, CommandError>> {
+async initializeWinePrefix(pipeline: RenderingPipeline) : Promise<Result<null, CommandError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("initialize_wine_prefix") };
+    return { status: "ok", data: await TAURI_INVOKE("initialize_wine_prefix", { pipeline }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -371,7 +379,7 @@ async getLauncherConfig() : Promise<LauncherConfig> {
     return await TAURI_INVOKE("get_launcher_config");
 },
 /**
- * Open BYOND login window and wait for user to authenticate
+ * Open BYOND login and wait for user to authenticate
  */
 async startByondLogin() : Promise<Result<ByondLoginResult, CommandError>> {
     try {
@@ -380,6 +388,12 @@ async startByondLogin() : Promise<Result<ByondLoginResult, CommandError>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+/**
+ * Cancel an in-progress BYOND login
+ */
+async cancelByondLogin() : Promise<void> {
+    await TAURI_INVOKE("cancel_byond_login");
 },
 /**
  * Called from the login webview's JS when login is complete
@@ -436,7 +450,7 @@ async byondSessionCheckComplete(webId: string | null, username: string | null) :
 
 /** user-defined types **/
 
-export type AppSettings = { auth_mode: AuthMode; theme?: Theme; notification_servers?: string[]; age_verified?: boolean; locale?: string | null }
+export type AppSettings = { auth_mode: AuthMode; theme?: Theme; notification_servers?: string[]; age_verified?: boolean; locale?: string | null; rendering_pipeline?: RenderingPipeline }
 export type AuthError = { code: string; message: string; linking_url: string | null }
 export type AuthMode = "oidc" | "hub" | "byond" | "steam"
 export type AuthState = { logged_in: boolean; user: UserInfo | null; loading: boolean; error: string | null }
@@ -450,12 +464,13 @@ export type CommandError = { type: "network"; data: string } | { type: "not_auth
 export type ConnectionResult = { success: boolean; message: string; auth_error: AuthError | null }
 export type EngineRequirements = { min_version?: string | null; max_version?: string | null; blacklisted_versions?: string[] }
 export type LauncherConfig = { variant: string; product_name: string; logo: string; default_theme: string; app_identifier: string; default_byond_version: string | null; server_api: ServerApiType; features: LauncherFeatures; urls: LauncherUrls; strings: LauncherStrings; singleplayer: SingleplayerConfig; oidc: OidcConfig | null; social_links: SocialLink[] }
-export type LauncherFeatures = { relay_selector: boolean; singleplayer: boolean; server_search: boolean; server_filters: boolean; show_offline_servers: boolean; server_stats: boolean; auto_launch_byond: boolean; connection_timeout_fallback: boolean }
+export type LauncherFeatures = { relay_selector: boolean; singleplayer: boolean; server_search: boolean; server_filters: boolean; show_offline_servers: boolean; server_stats: boolean; auto_launch_byond: boolean; connection_timeout_fallback: boolean; connect_logo: boolean }
 export type LauncherStrings = { auth_provider_name: string; login_prompt: string; discord_game_name: string }
 export type LauncherUrls = { server_api: string; hub_api: string | null; auth_base: string | null; steam_auth: string | null; byond_hash_api: string | null; register_url: string | null; help_url: string }
 export type OidcConfig = { client_id: string; auth_url: string; token_url: string; userinfo_url: string }
 export type RelayWithPing = ({ id: string; name: string; host: string }) & { ping: number | null; checking: boolean }
 export type ReleaseInfo = { tag_name: string; name: string; published_at: string; download_url: string | null; size: number }
+export type RenderingPipeline = "dxvk" | "wined3d"
 export type Server = { id: string | null; name: string; url: string; status: string; hub_status?: string; players?: number; data?: ServerData | null; is_18_plus?: boolean; version?: string | null; engine?: EngineRequirements | null; tags?: string[]; auth_methods?: string[]; description?: string | null; links?: ServerLink[]; verified_domain?: string | null }
 export type ServerApiType = "hub_api" | "cm_api"
 export type ServerData = { round_id: number; mode: string; map_name: string; round_duration: number; gamestate: number; players: number; admins?: number | null; popcap?: number | null; security_level?: string | null }

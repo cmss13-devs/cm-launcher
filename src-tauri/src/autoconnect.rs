@@ -340,6 +340,7 @@ mod implementation {
                 map_name,
                 source: Some("autoconnect".to_string()),
                 server_id: server.id.clone(),
+                players: Some(server.players),
             },
         )
         .await

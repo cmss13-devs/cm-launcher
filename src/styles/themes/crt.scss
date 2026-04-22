@@ -86,7 +86,8 @@
     }
   }
 
-  .relay-dropdown-menu {
+  .relay-dropdown-menu,
+  .locale-dropdown-menu {
     box-shadow: 0 0 15px var(--primary);
   }
 
@@ -134,7 +135,7 @@
   }
 
   .auth-modal h2,
-  .settings-modal-header h2 {
+  .modal-header h2 {
     text-transform: uppercase;
     letter-spacing: 2px;
   }

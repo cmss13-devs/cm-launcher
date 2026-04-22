@@ -9,6 +9,7 @@
 //! Wine is bundled as a compressed archive (wine.tar.zst) and extracted to the
 //! app data directory on first use.
 
+use crate::settings::RenderingPipeline;
 use serde::{Deserialize, Serialize};
 use std::ffi::OsStr;
 use std::fs;
@@ -26,7 +27,7 @@ const WEBVIEW2_DOWNLOAD_URL: &str = "https://github.com/aedancullen/webview2-eve
 const INIT_MARKER_FILE: &str = ".cm_launcher_initialized";
 
 /// Current initialization version - bump this to force re-initialization
-const INIT_VERSION: u32 = 1;
+const INIT_VERSION: u32 = 2;
 
 /// Resource names for bundled Wine
 const WINE_ARCHIVE_RESOURCE: &str = "wine.tar.zst";
@@ -35,13 +36,30 @@ const CABEXTRACT_RESOURCE: &str = "cabextract";
 /// Directory name for extracted Wine in app data
 const WINE_EXTRACTED_DIR: &str = "wine";
 
-/// Winetricks verbs to install, in order
-const WINETRICKS_VERBS: &[(&str, &str)] = &[
+/// Winetricks verbs shared by all rendering pipelines
+const COMMON_WINETRICKS_VERBS: &[(&str, &str)] = &[
     ("vcrun2022", "Visual C++ 2022 runtime"),
     ("dxtrans", "DirectX Transform libraries"),
     ("corefonts", "Microsoft core fonts"),
-    ("dxvk", "DXVK (Vulkan-based DirectX)"),
 ];
+
+/// Additional verbs for the DXVK pipeline (Vulkan-based)
+const DXVK_VERBS: &[(&str, &str)] = &[("dxvk", "DXVK (Vulkan-based DirectX)")];
+
+/// Additional verbs for the WineD3D pipeline (OpenGL-based)
+const WINED3D_VERBS: &[(&str, &str)] = &[
+    ("d3dx9", "DirectX 9 runtime libraries"),
+    ("d3dcompiler_47", "DirectX shader compiler"),
+];
+
+fn get_winetricks_verbs(pipeline: RenderingPipeline) -> Vec<(&'static str, &'static str)> {
+    let mut verbs: Vec<(&str, &str)> = COMMON_WINETRICKS_VERBS.to_vec();
+    match pipeline {
+        RenderingPipeline::Dxvk => verbs.extend_from_slice(DXVK_VERBS),
+        RenderingPipeline::Wined3d => verbs.extend_from_slice(WINED3D_VERBS),
+    }
+    verbs
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct WineStatus {
@@ -653,8 +671,21 @@ fn run_winetricks_with_paths(
 
     let output = cmd.output()?;
 
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    if !stdout.is_empty() {
+        for line in stdout.lines() {
+            tracing::debug!(target: "wine", "[winetricks:{}] {}", verb, line);
+        }
+    }
+    if !stderr.is_empty() {
+        for line in stderr.lines() {
+            tracing::warn!(target: "wine", "[winetricks:{}] {}", verb, line);
+        }
+    }
+
     if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(WineError::WinetricksFailed(
             verb.to_string(),
             stderr.to_string(),
@@ -748,7 +779,10 @@ fn kill_wine_process_with_paths(
 }
 
 /// Initialize the Wine prefix with all required dependencies
-pub async fn initialize_prefix(app: &AppHandle) -> Result<(), WineError> {
+pub async fn initialize_prefix(
+    app: &AppHandle,
+    pipeline: RenderingPipeline,
+) -> Result<(), WineError> {
     let prefix = get_wine_prefix(app)?;
 
     emit_progress(
@@ -788,15 +822,27 @@ pub async fn initialize_prefix(app: &AppHandle) -> Result<(), WineError> {
         cmd.stderr(Stdio::piped());
         cmd.output()?
     };
+    let boot_stdout = String::from_utf8_lossy(&output.stdout);
+    let boot_stderr = String::from_utf8_lossy(&output.stderr);
+    if !boot_stdout.is_empty() {
+        for line in boot_stdout.lines() {
+            tracing::debug!(target: "wine", "[wineboot] {}", line);
+        }
+    }
+    if !boot_stderr.is_empty() {
+        for line in boot_stderr.lines() {
+            tracing::warn!(target: "wine", "[wineboot] {}", line);
+        }
+    }
     if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(WineError::PrefixCreationFailed(stderr.to_string()));
+        return Err(WineError::PrefixCreationFailed(boot_stderr.to_string()));
     }
 
     tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
-    let verb_count = WINETRICKS_VERBS.len();
-    for (i, (verb, description)) in WINETRICKS_VERBS.iter().enumerate() {
+    let verbs = get_winetricks_verbs(pipeline);
+    let verb_count = verbs.len();
+    for (i, (verb, description)) in verbs.iter().enumerate() {
         let progress = 10 + ((i as u8 * 40) / verb_count as u8);
         emit_progress(
             app,
@@ -848,10 +894,32 @@ pub async fn initialize_prefix(app: &AppHandle) -> Result<(), WineError> {
     for (key, value) in paths.get_env_vars() {
         cmd.env(key, value);
     }
-    cmd.stdout(Stdio::null());
-    cmd.stderr(Stdio::null());
+    cmd.stdout(Stdio::piped());
+    cmd.stderr(Stdio::piped());
 
     let mut child = cmd.spawn()?;
+
+    let stderr_handle = child.stderr.take().map(|stderr| {
+        std::thread::spawn(move || {
+            use std::io::{BufRead, BufReader};
+            let mut lines = Vec::new();
+            let reader = BufReader::new(stderr);
+            for line in reader.lines().map_while(Result::ok) {
+                tracing::warn!(target: "wine", "[webview2-installer] {}", line);
+                lines.push(line);
+            }
+            lines
+        })
+    });
+    if let Some(stdout) = child.stdout.take() {
+        std::thread::spawn(move || {
+            use std::io::{BufRead, BufReader};
+            let reader = BufReader::new(stdout);
+            for line in reader.lines().map_while(Result::ok) {
+                tracing::debug!(target: "wine", "[webview2-installer] {}", line);
+            }
+        });
+    }
 
     // Poll registry key to detect when WebView2 is installed
     let webview2_reg_key = r"HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}";
@@ -931,7 +999,7 @@ async fn download_webview2(dest: &Path) -> Result<(), WineError> {
 }
 
 /// Reset the Wine prefix by deleting and recreating it
-pub async fn reset_prefix(app: &AppHandle) -> Result<(), WineError> {
+pub async fn reset_prefix(app: &AppHandle, pipeline: RenderingPipeline) -> Result<(), WineError> {
     let prefix = get_wine_prefix(app)?;
 
     tracing::info!("Resetting Wine prefix at {:?}", prefix);
@@ -940,16 +1008,17 @@ pub async fn reset_prefix(app: &AppHandle) -> Result<(), WineError> {
         fs::remove_dir_all(&prefix)?;
     }
 
-    initialize_prefix(app).await
+    initialize_prefix(app, pipeline).await
 }
 
-/// Launch an executable using Wine
+/// Launch an executable using Wine.
 pub fn launch_with_wine(
     app: &AppHandle,
     exe_path: &Path,
     args: &[&str],
     env_vars: &[(&str, &str)],
 ) -> Result<std::process::Child, WineError> {
+    use std::io::{BufRead, BufReader};
     use std::os::unix::process::CommandExt;
 
     let prefix = get_wine_prefix(app)?;
@@ -968,6 +1037,9 @@ pub fn launch_with_wine(
         cmd.env(key, value);
     }
 
+    cmd.stdout(Stdio::piped());
+    cmd.stderr(Stdio::piped());
+
     // SAFETY: prctl is a simple syscall that only affects this process's children
     unsafe {
         cmd.pre_exec(|| {
@@ -976,11 +1048,42 @@ pub fn launch_with_wine(
         });
     }
 
+    let exe_name = exe_path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "unknown".to_string());
+
     tracing::info!("Launching via Wine: {:?} {:?}", exe_path, args);
 
-    let child = cmd
+    let mut child = cmd
         .spawn()
         .map_err(|e| WineError::LaunchFailed(e.to_string()))?;
+
+    if let Some(stdout) = child.stdout.take() {
+        let name = exe_name.clone();
+        std::thread::spawn(move || {
+            let reader = BufReader::new(stdout);
+            for line in reader.lines().map_while(Result::ok) {
+                tracing::debug!(target: "wine", "[{}] {}", name, line);
+            }
+        });
+    }
+
+    if let Some(stderr) = child.stderr.take() {
+        let app_handle = app.clone();
+        std::thread::spawn(move || {
+            let mut lines = Vec::new();
+            let reader = BufReader::new(stderr);
+            for line in reader.lines().map_while(Result::ok) {
+                tracing::warn!(target: "wine", "[{}] {}", exe_name, line);
+                lines.push(line);
+            }
+            if !lines.is_empty() {
+                let output = lines.join("\n");
+                let _ = app_handle.emit("wine-error", &output);
+            }
+        });
+    }
 
     Ok(child)
 }
@@ -995,8 +1098,11 @@ pub async fn check_wine_status(app: AppHandle) -> crate::error::CommandResult<Wi
 
 #[tauri::command]
 #[specta::specta]
-pub async fn initialize_wine_prefix(app: AppHandle) -> crate::error::CommandResult<()> {
-    initialize_prefix(&app)
+pub async fn initialize_wine_prefix(
+    app: AppHandle,
+    pipeline: RenderingPipeline,
+) -> crate::error::CommandResult<()> {
+    initialize_prefix(&app, pipeline)
         .await
         .map_err(|e| crate::error::CommandError::Io(e.to_string()))
 }
@@ -1004,7 +1110,10 @@ pub async fn initialize_wine_prefix(app: AppHandle) -> crate::error::CommandResu
 #[tauri::command]
 #[specta::specta]
 pub async fn reset_wine_prefix(app: AppHandle) -> crate::error::CommandResult<()> {
-    reset_prefix(&app)
+    let pipeline = crate::settings::load_settings(&app)
+        .map(|s| s.rendering_pipeline)
+        .unwrap_or_default();
+    reset_prefix(&app, pipeline)
         .await
         .map_err(|e| crate::error::CommandError::Io(e.to_string()))
 }

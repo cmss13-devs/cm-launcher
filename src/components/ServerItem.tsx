@@ -167,6 +167,20 @@ export const ServerItem = ({
               <>
                 <div className="server-name">
                   {server.name}
+                  {!data && server.verified_domain && (
+                    <button
+                      type="button"
+                      className="badge badge-verified"
+                      title={server.verified_domain}
+                      onClick={() => setPendingUrl(`https://${server.verified_domain}`)}
+                    >
+                      <FontAwesomeIcon icon={faCircleCheck} /> {server.verified_domain}
+                    </button>
+                  )}
+                  {!data && server.is_18_plus && <span className="badge badge-18plus">18+</span>}
+                  {!data && server.tags?.filter((tag) => tag !== "18+").map((tag) => (
+                    <span key={tag} className="badge badge-tag">{tag}</span>
+                  ))}
                 </div>
                 {data ? (
                   <div className="server-details">
@@ -259,11 +273,13 @@ export const ServerItem = ({
               >
                 {connecting || autoConnecting ? "..." : (
                   <>
-                    <img
-                      src={supportsHub ? "/logo-ss13.png" : "/byond.png"}
-                      alt=""
-                      className="connect-auth-icon"
-                    />
+                    {config?.features.connect_logo && (
+                      <img
+                        src={supportsHub ? "/logo-ss13.png" : "/byond.png"}
+                        alt=""
+                        className="connect-auth-icon"
+                      />
+                    )}
                     {t("common.join")}
                   </>
                 )}
