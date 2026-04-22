@@ -1089,7 +1089,7 @@ async fn connect_impl(app: AppHandle, req: ConnectionRequest) -> CommandResult<C
             }
             tracing::info!("Got web_id, launching byond.exe with web authentication");
 
-            let existing_pids = get_dreamseeker_pids();
+            let mut existing_pids = get_dreamseeker_pids();
 
             let mut query_params = Vec::new();
             if let Some(lp) = &control_port {
@@ -1138,6 +1138,11 @@ async fn connect_impl(app: AppHandle, req: ConnectionRequest) -> CommandResult<C
                 )
                 .map_err(|e| CommandError::Io(format!("Failed to launch BYOND via Wine: {e}")))?
             };
+
+            // Exclude the pager's PID so we don't confuse it with dreamseeker
+            if let Some(pager_pid) = pager_child.id() {
+                existing_pids.insert(pager_pid);
+            }
 
             let dreamseeker_pid = wait_for_new_dreamseeker(existing_pids, 30).await;
 
@@ -1383,17 +1388,39 @@ fn get_dreamseeker_pids() -> std::collections::HashSet<u32> {
 
     #[cfg(target_os = "linux")]
     {
-        s.processes()
+        let pids: HashSet<u32> = s
+            .processes()
             .iter()
             .filter(|(_, p)| {
                 p.cmd().iter().any(|arg| {
                     arg.to_str()
-                        .map(|a| a.to_lowercase().ends_with("dreamseeker.exe"))
+                        .map(|a| a.to_lowercase().contains("dreamseeker.exe"))
                         .unwrap_or(false)
                 })
             })
             .map(|(pid, _)| pid.as_u32())
-            .collect()
+            .collect();
+
+        for (pid_val, proc) in s.processes() {
+            let cmd: Vec<String> = proc
+                .cmd()
+                .iter()
+                .filter_map(|a| a.to_str().map(String::from))
+                .collect();
+            if cmd.iter().any(|a| {
+                let l = a.to_lowercase();
+                l.contains("dreamseeker.exe") || l.contains("byond.exe")
+            }) {
+                tracing::debug!(
+                    "BYOND process: pid={} name={:?} cmd={:?}",
+                    pid_val.as_u32(),
+                    proc.name(),
+                    cmd
+                );
+            }
+        }
+
+        pids
     }
 
     #[cfg(not(any(target_os = "windows", target_os = "linux")))]
