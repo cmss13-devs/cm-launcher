@@ -69,7 +69,7 @@ export const AuthModal = ({
   };
 
   return (
-    <Modal visible={visible} onClose={onClose}>
+    <Modal visible={visible} onClose={onClose} closeOnOverlayClick>
       <ModalCloseButton onClick={onClose} />
       {state === "idle" && !useHubAuth && (
         <ModalContent title={t("auth.authRequired")}>

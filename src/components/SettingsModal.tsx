@@ -387,7 +387,6 @@ export const SettingsModal = ({
       visible={visible}
       onClose={onClose}
       className="settings-modal"
-      overlayClassName="settings-modal-overlay"
       closeOnOverlayClick
     >
       <div className="modal-header">

@@ -4,6 +4,7 @@ import { useShallow } from "zustand/react/shallow";
 
 import {
   AccountInfo,
+  ByondLoginModal,
   ErrorNotifications,
   GameConnectionModal,
   RelayDropdown,
@@ -188,22 +189,10 @@ const AppContent = () => {
           <div className="crt" />
         </>
       )}
-      {byondLoginVisible && (
-        <div className="byond-login-overlay" onClick={() => commands.cancelByondLogin()}>
-          <div className="byond-login-modal section" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>BYOND Login</h2>
-              <button
-                type="button"
-                className="modal-close-button"
-                onClick={() => commands.cancelByondLogin()}
-              >
-                &times;
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ByondLoginModal
+        visible={byondLoginVisible}
+        onClose={() => commands.cancelByondLogin()}
+      />
       <UpdateNotification />
       <ErrorNotifications errors={errors} onDismiss={dismissError} />
       <SettingsModal

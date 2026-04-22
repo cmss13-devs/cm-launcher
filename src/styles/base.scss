@@ -1263,19 +1263,6 @@ body {
   margin: 16px auto 0;
 }
 
-.settings-modal-overlay {
-  position: fixed;
-  top: var(--titlebar-height);
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.75);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 900;
-}
-
 .settings-modal {
   background: var(--bg-darker);
   border: 2px solid var(--primary);
@@ -2067,23 +2054,3 @@ body {
   font-size: 12px;
 }
 
-.byond-login-overlay {
-  position: fixed;
-  top: var(--titlebar-height);
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.75);
-  z-index: 950;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.byond-login-modal {
-  position: relative;
-  width: 520px;
-  height: 440px;
-  padding: 0;
-  background-color: var(--bg);
-}
