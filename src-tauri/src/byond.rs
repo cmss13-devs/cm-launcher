@@ -1140,7 +1140,9 @@ async fn connect_impl(app: AppHandle, req: ConnectionRequest) -> CommandResult<C
             };
 
             // Exclude the pager's PID so we don't confuse it with dreamseeker
-            existing_pids.insert(pager_child.id());
+            let pager_pid = pager_child.id();
+            tracing::info!("Pager spawned with PID {}", pager_pid);
+            existing_pids.insert(pager_pid);
 
             let dreamseeker_pid = wait_for_new_dreamseeker(existing_pids, 30).await;
 
@@ -1409,7 +1411,7 @@ fn get_dreamseeker_pids() -> std::collections::HashSet<u32> {
                 let l = a.to_lowercase();
                 l.contains("dreamseeker.exe") || l.contains("byond.exe")
             }) {
-                tracing::debug!(
+                tracing::info!(
                     "BYOND process: pid={} name={:?} cmd={:?}",
                     pid_val.as_u32(),
                     proc.name(),
