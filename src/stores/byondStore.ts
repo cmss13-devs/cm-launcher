@@ -7,9 +7,11 @@ interface ByondStore {
   username: string | null;
   pagerRunning: boolean | null;
   loginVisible: boolean;
+  loggingIn: boolean;
   loggingOut: boolean;
   setUsername: (username: string | null) => void;
   setPagerRunning: (running: boolean | null) => void;
+  setLoggingIn: (loggingIn: boolean) => void;
   setLoggingOut: (loggingOut: boolean) => void;
   checkStatus: () => Promise<void>;
   checkSession: () => Promise<void>;
@@ -20,10 +22,12 @@ export const useByondStore = create<ByondStore>()((set) => ({
   username: null,
   pagerRunning: null,
   loginVisible: false,
+  loggingIn: false,
   loggingOut: false,
 
   setUsername: (username) => set({ username }),
   setPagerRunning: (pagerRunning) => set({ pagerRunning }),
+  setLoggingIn: (loggingIn) => set({ loggingIn }),
   setLoggingOut: (loggingOut) => set({ loggingOut }),
 
   checkStatus: async () => {

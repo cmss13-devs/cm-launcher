@@ -100,6 +100,7 @@ const AppContent = () => {
   } = useWine();
 
   const byondLoginVisible = useByondStore((s) => s.loginVisible);
+  const byondLoggingIn = useByondStore((s) => s.loggingIn);
 
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [relayDropdownOpen, setRelayDropdownOpen] = useState(false);
@@ -198,6 +199,7 @@ const AppContent = () => {
       )}
       <ByondLoginModal
         visible={byondLoginVisible}
+        loggingIn={byondLoggingIn}
         onClose={() => commands.cancelByondLogin()}
       />
       {config?.features.direct_connect && (

@@ -99,7 +99,7 @@
     "reportIssue": "Report an issue",
     "loginToByond": "BYOND Login",
     "byondPagerWarning": "BYOND pager is not running. You can either open BYOND and log in, or use web login below.",
-    "byondWaiting": "Waiting for BYOND login... (check the login window)",
+    "byondWaiting": "Logging in to BYOND...",
     "byondSuccess": "Logged in to BYOND successfully!",
     "byondLoginFailed": "Login failed: {{error}}",
     "language": "Language",

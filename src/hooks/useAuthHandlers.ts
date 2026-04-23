@@ -46,15 +46,21 @@ export function useAuthHandlers() {
     }
   }, [logout, showError]);
 
+  const setLoggingIn = useByondStore((s) => s.setLoggingIn);
   const handleByondLogin = useCallback(async () => {
-    const result = await commands.startByondLogin();
-    if (result.status === "error") {
-      if (result.error.type === "cancelled") return;
-      try { unwrap(result); } catch (err) {
-        showError(err instanceof Error ? err.message : String(err));
+    setLoggingIn(true);
+    try {
+      const result = await commands.startByondLogin();
+      if (result.status === "error") {
+        if (result.error.type === "cancelled") return;
+        try { unwrap(result); } catch (err) {
+          showError(err instanceof Error ? err.message : String(err));
+        }
       }
+    } finally {
+      setLoggingIn(false);
     }
-  }, [showError]);
+  }, [showError, setLoggingIn]);
 
   const setLoggingOut = useByondStore((s) => s.setLoggingOut);
   const handleByondLogout = useCallback(async () => {

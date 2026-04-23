@@ -1,18 +1,26 @@
 import { useTranslation } from "react-i18next";
-import { Modal, ModalCloseButton } from "./Modal";
+import { Modal, ModalCloseButton, ModalSpinner } from "./Modal";
 
 interface ByondLoginModalProps {
   visible: boolean;
+  loggingIn: boolean;
   onClose: () => void;
 }
 
-export const ByondLoginModal = ({ visible, onClose }: ByondLoginModalProps) => {
+export const ByondLoginModal = ({ visible, loggingIn, onClose }: ByondLoginModalProps) => {
   const { t } = useTranslation();
+  const showSpinner = !visible && loggingIn;
 
   return (
-    <Modal visible={visible} onClose={onClose} className="auth-modal byond-login-modal" closeOnOverlayClick>
+    <Modal visible={visible || showSpinner} onClose={onClose} className="auth-modal byond-login-modal" closeOnOverlayClick={showSpinner}>
       <ModalCloseButton onClick={onClose} />
       <h2>{t("settings.loginToByond")}</h2>
+      {showSpinner && (
+        <div className="byond-login-spinner">
+          <p>{t("settings.byondWaiting")}</p>
+          <ModalSpinner />
+        </div>
+      )}
     </Modal>
   );
 };
