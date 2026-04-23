@@ -24,6 +24,7 @@ interface SettingsStore {
   lastPlayedServer: string | null;
   lastViewMode: string | null;
   favoriteServers: Set<string>;
+  trustedAddresses: Set<string>;
   filters: StoredFilters;
 
   setAuthMode: (mode: AuthMode) => void;
@@ -40,6 +41,8 @@ interface SettingsStore {
   saveLastViewMode: (mode: string) => Promise<void>;
   toggleFavoriteServer: (serverId: string, favorited: boolean) => Promise<void>;
   isServerFavorited: (serverId: string) => boolean;
+  trustDirectConnectAddress: (address: string) => Promise<void>;
+  isAddressTrusted: (address: string) => boolean;
   saveFilters: (filters: StoredFilters) => Promise<void>;
 }
 
@@ -55,6 +58,7 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
   lastPlayedServer: null,
   lastViewMode: null,
   favoriteServers: new Set<string>(),
+  trustedAddresses: new Set<string>(),
   filters: {
     tags: new Set<string>(),
     show18Plus: false,
@@ -85,6 +89,7 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
         lastPlayedServer: settings.last_played_server ?? null,
         lastViewMode: settings.last_view_mode ?? null,
         favoriteServers: new Set(settings.favorite_servers ?? []),
+        trustedAddresses: new Set(settings.trusted_direct_connect_addresses ?? []),
         filters: {
           tags: new Set(settings.filter_tags ?? []),
           show18Plus: settings.filter_show_18_plus ?? false,
@@ -156,6 +161,15 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
 
   isServerFavorited: (serverId: string) => {
     return get().favoriteServers.has(serverId);
+  },
+
+  trustDirectConnectAddress: async (address: string) => {
+    const settings = unwrap(await commands.trustDirectConnectAddress(address));
+    set({ trustedAddresses: new Set(settings.trusted_direct_connect_addresses ?? []) });
+  },
+
+  isAddressTrusted: (address: string) => {
+    return get().trustedAddresses.has(address.toLowerCase());
   },
 
   saveFilters: async (filters: StoredFilters) => {

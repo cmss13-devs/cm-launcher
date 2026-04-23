@@ -1,11 +1,74 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCircleCheck } from "@fortawesome/free-solid-svg-icons";
 import { commands, DirectConnectInfo } from "../bindings";
 import { formatCommandError } from "../lib/formatCommandError";
 import { useConnect, useError } from "../hooks";
+import { useSettingsStore } from "../stores";
 import { Modal } from "./Modal";
+
+function TrustInfo({ connectInfo }: { connectInfo: DirectConnectInfo }) {
+  const { t } = useTranslation();
+
+  if (connectInfo.trust === "DomainAttested" && connectInfo.verified_domain) {
+    return (
+      <>
+        <p className="settings-description">
+          {t("directConnect.domainAttestedInfo")}{" "}
+          <span className="badge badge-verified">
+            <FontAwesomeIcon icon={faCircleCheck} /> {connectInfo.verified_domain}
+          </span>
+        </p>
+        <p className="settings-description settings-description-hint">
+          {t("directConnect.domainAttestedDetail")}
+        </p>
+      </>
+    );
+  }
+
+  if (connectInfo.trust === "Unreachable") {
+    return (
+      <>
+        <p className="settings-description">
+          {t("directConnect.unreachableWarning")}
+        </p>
+        <p className="settings-description settings-description-hint">
+          {t("directConnect.unreachableDetail")}
+        </p>
+      </>
+    );
+  }
+
+  if (connectInfo.trust === "SelfReported") {
+    return (
+      <>
+        <p className="settings-description">
+          {t("directConnect.selfReportedWarning")}
+        </p>
+        <p className="settings-description settings-description-hint">
+          {t("directConnect.selfReportedDetail")}
+        </p>
+      </>
+    );
+  }
+
+  return (
+    <p className="settings-description">
+      {t("directConnect.byondOnlyInfo")}
+    </p>
+  );
+}
+
+function shouldSkipConfirmation(info: DirectConnectInfo, address: string): boolean {
+  if (info.trust === "HubVerified" || info.trust === "HubKnown") return true;
+  if (useSettingsStore.getState().isAddressTrusted(address)) return true;
+
+  const needsHubAuth = useSettingsStore.getState().authMode !== "byond";
+  if (!needsHubAuth && info.trust !== "Unreachable") return true;
+
+  return false;
+}
 
 interface DirectConnectModalProps {
   visible: boolean;
@@ -17,6 +80,7 @@ export const DirectConnectModal = ({ visible, onClose }: DirectConnectModalProps
   const [address, setAddress] = useState("");
   const [resolving, setResolving] = useState(false);
   const [connectInfo, setConnectInfo] = useState<DirectConnectInfo | null>(null);
+  const [trustAddress, setTrustAddress] = useState(false);
   const { showError } = useError();
   const { connectToAddress } = useConnect();
 
@@ -32,7 +96,7 @@ export const DirectConnectModal = ({ visible, onClose }: DirectConnectModalProps
         return;
       }
       const info = result.data;
-      if (info.trust === "HubVerified" || info.trust === "HubKnown") {
+      if (shouldSkipConfirmation(info, trimmed)) {
         await doConnect(trimmed);
       } else {
         setConnectInfo(info);
@@ -50,11 +114,15 @@ export const DirectConnectModal = ({ visible, onClose }: DirectConnectModalProps
   };
 
   const handleConfirm = async () => {
+    if (trustAddress) {
+      await useSettingsStore.getState().trustDirectConnectAddress(address.trim());
+    }
     await doConnect(address.trim());
   };
 
   const handleClose = () => {
     setConnectInfo(null);
+    setTrustAddress(false);
     onClose();
   };
 
@@ -75,41 +143,26 @@ export const DirectConnectModal = ({ visible, onClose }: DirectConnectModalProps
       >
         <div className="modal-body">
           <div className="settings-section">
-            {connectInfo.trust === "DomainAttested" && connectInfo.verified_domain ? (
-              <>
-                <p className="settings-description">
-                  {t("directConnect.domainAttestedInfo")}{" "}
-                  <span className="badge badge-verified">
-                    <FontAwesomeIcon icon={faCircleCheck} /> {connectInfo.verified_domain}
-                  </span>
-                </p>
-                <p className="settings-description settings-description-hint">
-                  {t("directConnect.domainAttestedDetail")}
-                </p>
-              </>
-            ) : connectInfo.trust === "SelfReported" ? (
-              <>
-                <p className="settings-description">
-                  {t("directConnect.selfReportedWarning")}
-                </p>
-                <p className="settings-description settings-description-hint">
-                  {t("directConnect.selfReportedDetail")}
-                </p>
-              </>
-            ) : (
-              <p className="settings-description">
-                {t("directConnect.byondOnlyInfo")}
-              </p>
-            )}
+            <TrustInfo connectInfo={connectInfo} />
           </div>
         </div>
-        <div className="modal-footer">
-          <button type="button" className="button-secondary" onClick={handleClose}>
-            {t("common.cancel")}
-          </button>
-          <button type="button" className="button" onClick={handleConfirm}>
-            {t("common.connect")}
-          </button>
+        <div className="modal-footer" style={{ justifyContent: "space-between" }}>
+          <label className="styled-checkbox">
+            <input
+              type="checkbox"
+              checked={trustAddress}
+              onChange={(e) => setTrustAddress(e.target.checked)}
+            />
+            {t("directConnect.rememberTrust")}
+          </label>
+          <div>
+            <button type="button" className="button-secondary" onClick={handleClose}>
+              {t("common.cancel")}
+            </button>{" "}
+            <button type="button" className="button" onClick={handleConfirm}>
+              {t("common.connect")}
+            </button>
+          </div>
         </div>
       </Modal>
     );

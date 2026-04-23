@@ -155,7 +155,7 @@ export const ServerFilterPanel = ({
                       {features.server_filters && (
                         <>
                           {hasHubStatus && (
-                            <label className="filter-checkbox">
+                            <label className="styled-checkbox">
                               <input
                                 type="checkbox"
                                 checked={showHubStatus}
@@ -164,7 +164,7 @@ export const ServerFilterPanel = ({
                               <span>{t("servers.hubStatus")}</span>
                             </label>
                           )}
-                          <label className="filter-checkbox">
+                          <label className="styled-checkbox">
                             <input
                               type="checkbox"
                               checked={show18Plus}
@@ -173,7 +173,7 @@ export const ServerFilterPanel = ({
                             <span>{t("servers.eighteenPlus")}</span>
                           </label>
                           {hasOffline && (
-                            <label className="filter-checkbox">
+                            <label className="styled-checkbox">
                               <input
                                 type="checkbox"
                                 checked={showOffline}
@@ -188,7 +188,7 @@ export const ServerFilterPanel = ({
                         <div className="filter-divider" />
                       )}
                       {tagCategories.map((tag) => (
-                        <label className="filter-checkbox" key={tag}>
+                        <label className="styled-checkbox" key={tag}>
                           <input
                             type="checkbox"
                             checked={selectedTags.has(tag)}
@@ -201,7 +201,7 @@ export const ServerFilterPanel = ({
                         <>
                           <div className="filter-divider" />
                           {regions.map((region) => (
-                            <label className="filter-checkbox" key={region}>
+                            <label className="styled-checkbox" key={region}>
                               <input
                                 type="checkbox"
                                 checked={selectedRegions.has(region)}

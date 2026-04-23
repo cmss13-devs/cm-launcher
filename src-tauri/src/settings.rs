@@ -68,6 +68,8 @@ pub struct AppSettings {
     pub last_view_mode: Option<String>,
     #[serde(default)]
     pub search_query: Option<String>,
+    #[serde(default)]
+    pub trusted_direct_connect_addresses: HashSet<String>,
 }
 
 impl Default for AppSettings {
@@ -111,6 +113,7 @@ impl Default for AppSettings {
             filter_regions: HashSet::new(),
             last_view_mode: None,
             search_query: None,
+            trusted_direct_connect_addresses: HashSet::new(),
         }
     }
 }
@@ -264,6 +267,20 @@ pub async fn toggle_favorite_server(
     } else {
         settings.favorite_servers.remove(&server_id);
     }
+    save_settings(&app, &settings)?;
+    Ok(settings)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn trust_direct_connect_address(
+    app: AppHandle,
+    address: String,
+) -> CommandResult<AppSettings> {
+    let mut settings = load_settings(&app)?;
+    settings
+        .trusted_direct_connect_addresses
+        .insert(address.to_lowercase());
     save_settings(&app, &settings)?;
     Ok(settings)
 }

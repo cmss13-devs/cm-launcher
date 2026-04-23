@@ -46,7 +46,7 @@ use relays::{get_relays, get_selected_relay, set_selected_relay};
 use servers::get_servers;
 use settings::{
     get_settings, save_filter_settings, set_age_verified, set_auth_mode, set_last_played_server,
-    set_last_view_mode, set_locale, set_rendering_pipeline, set_theme, toggle_favorite_server,
+    set_last_view_mode, set_locale, set_rendering_pipeline, set_theme, toggle_favorite_server, trust_direct_connect_address,
     toggle_server_notifications,
 };
 
@@ -194,6 +194,7 @@ pub fn build_specta() -> tauri_specta::Builder<tauri::Wry> {
         set_last_played_server,
         set_last_view_mode,
         toggle_favorite_server,
+        trust_direct_connect_address,
         save_filter_settings,
         get_control_server_port,
         kill_game,
@@ -257,6 +258,7 @@ pub fn build_specta() -> tauri_specta::Builder<tauri::Wry> {
         set_last_played_server,
         set_last_view_mode,
         toggle_favorite_server,
+        trust_direct_connect_address,
         save_filter_settings,
         get_control_server_port,
         kill_game,

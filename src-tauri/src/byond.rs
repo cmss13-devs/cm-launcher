@@ -1026,6 +1026,7 @@ pub enum DirectConnectTrust {
     DomainAttested,
     SelfReported,
     ByondOnly,
+    Unreachable,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -1046,45 +1047,63 @@ struct PreflightResult {
     signature: Option<String>,
 }
 
-async fn topic_preflight(ip: &str, port: u16, challenge: &str) -> Option<PreflightResult> {
-    let addr: std::net::SocketAddr = format!("{ip}:{port}").parse().ok()?;
+enum PreflightOutcome {
+    Ok(PreflightResult),
+    NoHubAuth,
+    ConnectionFailed,
+}
+
+async fn topic_preflight(ip: &str, port: u16, challenge: &str) -> PreflightOutcome {
+    let Some(addr) = format!("{ip}:{port}").parse::<std::net::SocketAddr>().ok() else {
+        return PreflightOutcome::ConnectionFailed;
+    };
     let query = format!("?ss13hub_preflight=1&challenge={challenge}");
     tracing::debug!("[topic_preflight] querying {addr}");
     let result = tokio::task::spawn_blocking(move || {
         http2byond::send_byond(&addr, &query)
     })
-    .await
-    .ok()?;
+    .await;
+
+    let result = match result {
+        Ok(Ok(r)) => r,
+        Ok(Err(e)) => {
+            tracing::debug!("[topic_preflight] {ip}:{port} connection failed: {e}");
+            return PreflightOutcome::ConnectionFailed;
+        }
+        Err(e) => {
+            tracing::warn!("[topic_preflight] spawn_blocking panicked: {e}");
+            return PreflightOutcome::ConnectionFailed;
+        }
+    };
 
     match result {
-        Ok(http2byond::ByondTopicValue::String(s)) => {
+        http2byond::ByondTopicValue::String(s) => {
             let s = s.trim_end_matches('\0');
             let v: serde_json::Value = match serde_json::from_str(s) {
                 Ok(v) => v,
                 Err(e) => {
                     tracing::warn!("[topic_preflight] invalid JSON from {ip}:{port}: {e}");
-                    return None;
+                    return PreflightOutcome::NoHubAuth;
                 }
             };
-            let server_id = v["server_id"].as_str()?.to_string();
+            let Some(server_id) = v["server_id"].as_str().map(String::from) else {
+                tracing::debug!("[topic_preflight] {ip}:{port} no server_id in response");
+                return PreflightOutcome::NoHubAuth;
+            };
             let domain = v["domain"].as_str().map(String::from);
             let signature = v["signature"].as_str().map(String::from);
             tracing::info!(
                 "[topic_preflight] {ip}:{port} server_id={server_id} domain={domain:?}"
             );
-            Some(PreflightResult {
+            PreflightOutcome::Ok(PreflightResult {
                 server_id,
                 domain,
                 signature,
             })
         }
-        Ok(_) => {
+        _ => {
             tracing::debug!("[topic_preflight] {ip}:{port} returned non-string response");
-            None
-        }
-        Err(e) => {
-            tracing::debug!("[topic_preflight] {ip}:{port} connection failed: {e}");
-            None
+            PreflightOutcome::NoHubAuth
         }
     }
 }
@@ -1240,39 +1259,53 @@ pub async fn resolve_direct_connect(address: String) -> CommandResult<DirectConn
         hex::encode(bytes)
     };
 
-    if let Some(preflight) = topic_preflight(&resolved_ip, port, &challenge).await {
-        tracing::info!(
-            "[resolve_direct_connect] topic preflight returned server_id={}",
-            preflight.server_id
-        );
-
-        if let (Some(domain), Some(signature)) = (&preflight.domain, &preflight.signature) {
-            if verify_domain_attestation(domain, &challenge, signature).await {
-                return Ok(DirectConnectInfo {
-                    hostname: hostname.to_string(),
-                    port,
-                    server_id: Some(preflight.server_id),
-                    trust: DirectConnectTrust::DomainAttested,
-                    verified_domain: Some(domain.clone()),
-                    server_name: None,
-                });
-            }
-            tracing::warn!(
-                "[resolve_direct_connect] domain attestation failed for {domain}"
+    match topic_preflight(&resolved_ip, port, &challenge).await {
+        PreflightOutcome::Ok(preflight) => {
+            tracing::info!(
+                "[resolve_direct_connect] topic preflight returned server_id={}",
+                preflight.server_id
             );
+
+            if let (Some(domain), Some(signature)) = (&preflight.domain, &preflight.signature) {
+                if verify_domain_attestation(domain, &challenge, signature).await {
+                    return Ok(DirectConnectInfo {
+                        hostname: hostname.to_string(),
+                        port,
+                        server_id: Some(preflight.server_id),
+                        trust: DirectConnectTrust::DomainAttested,
+                        verified_domain: Some(domain.clone()),
+                        server_name: None,
+                    });
+                }
+                tracing::warn!(
+                    "[resolve_direct_connect] domain attestation failed for {domain}"
+                );
+            }
+
+            return Ok(DirectConnectInfo {
+                hostname: hostname.to_string(),
+                port,
+                server_id: Some(preflight.server_id),
+                trust: DirectConnectTrust::SelfReported,
+                verified_domain: None,
+                server_name: None,
+            });
         }
-
-        return Ok(DirectConnectInfo {
-            hostname: hostname.to_string(),
-            port,
-            server_id: Some(preflight.server_id),
-            trust: DirectConnectTrust::SelfReported,
-            verified_domain: None,
-            server_name: None,
-        });
+        PreflightOutcome::NoHubAuth => {
+            tracing::info!("[resolve_direct_connect] no hub auth available, byond-only");
+        }
+        PreflightOutcome::ConnectionFailed => {
+            tracing::info!("[resolve_direct_connect] could not reach server");
+            return Ok(DirectConnectInfo {
+                hostname: hostname.to_string(),
+                port,
+                server_id: None,
+                trust: DirectConnectTrust::Unreachable,
+                verified_domain: None,
+                server_name: None,
+            });
+        }
     }
-
-    tracing::info!("[resolve_direct_connect] no hub auth available, byond-only");
 
     Ok(DirectConnectInfo {
         hostname: hostname.to_string(),
