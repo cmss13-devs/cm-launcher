@@ -3,6 +3,7 @@ export { useAuthHandlers } from "./useAuthHandlers";
 export { AuthFlowProvider, useAuthFlow } from "./useAuthFlow";
 export { useAutoConnect } from "./useAutoConnect";
 export { useConnect } from "./useConnect";
+export { useDeepLink } from "./useDeepLink";
 export { ErrorProvider, useError } from "./useError";
 export { useGameConnection } from "./useGameConnection";
 export { useServerFilters } from "./useServerFilters";

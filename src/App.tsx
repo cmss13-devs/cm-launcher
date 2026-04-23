@@ -25,6 +25,7 @@ import {
   ErrorProvider,
   useAppBootstrap,
   useAutoConnect,
+  useDeepLink,
   useError,
   useGameConnection,
   useServerFilters,
@@ -45,6 +46,7 @@ const AppContent = () => {
 
   useAppBootstrap();
 
+  const settingsLoaded = useSettingsStore((s) => s.loaded);
   const config = useConfigStore((s) => s.config);
   const steamAvailable = useSteamStore((s) => s.available);
 
@@ -108,12 +110,21 @@ const AppContent = () => {
   const [directConnectVisible, setDirectConnectVisible] = useState(false);
 
   const showHome = config?.features.favorites ?? false;
-  const [viewMode, setViewMode] = useState<ViewMode>(showHome ? "home" : "browse");
+  const lastViewMode = useSettingsStore((s) => s.lastViewMode) as ViewMode | null;
+  const saveLastViewMode = useSettingsStore((s) => s.saveLastViewMode);
+
+  const defaultMode: ViewMode = showHome ? "home" : "browse";
+  const viewMode = (lastViewMode && (lastViewMode !== "home" || showHome)) ? lastViewMode : defaultMode;
+
+  const handleViewModeChange = (mode: ViewMode) => {
+    saveLastViewMode(mode);
+  };
 
   const filters = useServerFilters(servers, config);
   const { showHubStatus, filteredServers } = filters;
 
   const autoConnecting = useAutoConnect();
+  useDeepLink();
 
   useEffect(() => {
     document.documentElement.className = `theme-${theme}`;
@@ -189,6 +200,8 @@ const AppContent = () => {
     setRelayDropdownOpen((prev) => !prev);
   }, []);
 
+  if (!settingsLoaded) return null;
+
   return (
     <div className="launcher-frame">
       {theme === "crt" && (
@@ -259,7 +272,7 @@ const AppContent = () => {
                   .filter((s) => s.status === "available")
                   .reduce((sum, s) => sum + (s.players ?? 0), 0)}
                 viewMode={viewMode}
-                onViewModeChange={setViewMode}
+                onViewModeChange={handleViewModeChange}
                 showHome={showHome}
                 onDirectConnect={config.features.direct_connect ? () => setDirectConnectVisible(true) : undefined}
               />

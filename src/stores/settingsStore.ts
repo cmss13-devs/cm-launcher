@@ -9,9 +9,11 @@ export interface StoredFilters {
   showOffline: boolean | null;
   showHubStatus: boolean;
   regions: Set<string>;
+  searchQuery: string;
 }
 
 interface SettingsStore {
+  loaded: boolean;
   authMode: AuthMode;
   theme: Theme;
   devMode: boolean;
@@ -20,6 +22,7 @@ interface SettingsStore {
   locale: string | null;
   renderingPipeline: RenderingPipeline;
   lastPlayedServer: string | null;
+  lastViewMode: string | null;
   favoriteServers: Set<string>;
   filters: StoredFilters;
 
@@ -34,12 +37,14 @@ interface SettingsStore {
   toggleServerNotifications: (serverName: string, enabled: boolean) => Promise<void>;
   isServerNotificationsEnabled: (serverName: string) => boolean;
   saveLastPlayedServer: (serverId: string) => Promise<void>;
+  saveLastViewMode: (mode: string) => Promise<void>;
   toggleFavoriteServer: (serverId: string, favorited: boolean) => Promise<void>;
   isServerFavorited: (serverId: string) => boolean;
   saveFilters: (filters: StoredFilters) => Promise<void>;
 }
 
 export const useSettingsStore = create<SettingsStore>()((set, get) => ({
+  loaded: false,
   authMode: "oidc",
   theme: "tgui",
   devMode: false,
@@ -48,6 +53,7 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
   locale: null,
   renderingPipeline: "dxvk",
   lastPlayedServer: null,
+  lastViewMode: null,
   favoriteServers: new Set<string>(),
   filters: {
     tags: new Set<string>(),
@@ -55,6 +61,7 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
     showOffline: null,
     showHubStatus: false,
     regions: new Set<string>(),
+    searchQuery: "",
   },
 
   setAuthMode: (authMode) => set({ authMode }),
@@ -67,6 +74,7 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
         commands.isDevMode(),
       ]);
       set({
+        loaded: true,
         authMode: settings.auth_mode,
         theme: settings.theme ?? "tgui",
         devMode,
@@ -75,6 +83,7 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
         locale: settings.locale ?? null,
         renderingPipeline: settings.rendering_pipeline ?? "dxvk",
         lastPlayedServer: settings.last_played_server ?? null,
+        lastViewMode: settings.last_view_mode ?? null,
         favoriteServers: new Set(settings.favorite_servers ?? []),
         filters: {
           tags: new Set(settings.filter_tags ?? []),
@@ -82,6 +91,7 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
           showOffline: settings.filter_show_offline ?? null,
           showHubStatus: settings.filter_show_hub_status ?? false,
           regions: new Set(settings.filter_regions ?? []),
+          searchQuery: settings.search_query ?? "",
         },
       });
       if (settings.locale) {
@@ -134,6 +144,11 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
     set({ lastPlayedServer: settings.last_played_server ?? null });
   },
 
+  saveLastViewMode: async (mode: string) => {
+    unwrap(await commands.setLastViewMode(mode));
+    set({ lastViewMode: mode });
+  },
+
   toggleFavoriteServer: async (serverId: string, favorited: boolean) => {
     const settings = unwrap(await commands.toggleFavoriteServer(serverId, favorited));
     set({ favoriteServers: new Set(settings.favorite_servers ?? []) });
@@ -151,6 +166,7 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
       show_offline: filters.showOffline,
       show_hub_status: filters.showHubStatus,
       regions: Array.from(filters.regions),
+      search_query: filters.searchQuery || null,
     };
     unwrap(await commands.saveFilterSettings(payload));
   },

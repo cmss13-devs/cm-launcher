@@ -223,6 +223,14 @@ async setLastPlayedServer(serverId: string) : Promise<Result<AppSettings, Comman
     else return { status: "error", error: e  as any };
 }
 },
+async setLastViewMode(mode: string) : Promise<Result<AppSettings, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_last_view_mode", { mode }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async toggleFavoriteServer(serverId: string, favorited: boolean) : Promise<Result<AppSettings, CommandError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("toggle_favorite_server", { serverId, favorited }) };
@@ -482,7 +490,7 @@ async byondSessionCheckComplete(webId: string | null, username: string | null) :
 
 /** user-defined types **/
 
-export type AppSettings = { auth_mode: AuthMode; theme?: Theme; notification_servers?: string[]; age_verified?: boolean; locale?: string | null; rendering_pipeline?: RenderingPipeline; last_played_server?: string | null; favorite_servers?: string[]; filter_tags?: string[]; filter_show_18_plus?: boolean; filter_show_offline?: boolean | null; filter_show_hub_status?: boolean; filter_regions?: string[] }
+export type AppSettings = { auth_mode: AuthMode; theme?: Theme; notification_servers?: string[]; age_verified?: boolean; locale?: string | null; rendering_pipeline?: RenderingPipeline; last_played_server?: string | null; favorite_servers?: string[]; filter_tags?: string[]; filter_show_18_plus?: boolean; filter_show_offline?: boolean | null; filter_show_hub_status?: boolean; filter_regions?: string[]; last_view_mode?: string | null; search_query?: string | null }
 export type AuthError = { code: string; message: string; linking_url: string | null }
 export type AuthMode = "oidc" | "hub" | "byond" | "steam"
 export type AuthState = { logged_in: boolean; user: UserInfo | null; loading: boolean; error: string | null }
@@ -495,7 +503,7 @@ export type ByondVersionInfo = { version: string; installed: boolean; path: stri
 export type CommandError = { type: "network"; data: string } | { type: "not_authenticated" } | { type: "token_expired" } | { type: "requires_2fa" } | { type: "invalid_credentials" } | { type: "account_locked" } | { type: "requires_linking"; data: { url: string } } | { type: "not_found"; data: string } | { type: "io"; data: string } | { type: "not_configured"; data: { feature: string } } | { type: "unsupported_platform"; data: { feature: string; platform: string } } | { type: "busy"; data: { operation: string } } | { type: "cancelled"; data: { operation: string } } | { type: "timeout"; data: { operation: string } } | { type: "internal"; data: string } | { type: "webview"; data: string } | { type: "invalid_response"; data: string } | { type: "invalid_input"; data: string }
 export type ConnectionResult = { success: boolean; message: string; auth_error: AuthError | null }
 export type EngineRequirements = { min_version?: string | null; max_version?: string | null; blacklisted_versions?: string[] }
-export type FilterSettings = { tags: string[]; show_18_plus: boolean; show_offline: boolean | null; show_hub_status: boolean; regions: string[] }
+export type FilterSettings = { tags: string[]; show_18_plus: boolean; show_offline: boolean | null; show_hub_status: boolean; regions: string[]; search_query: string | null }
 export type LauncherConfig = { variant: string; product_name: string; logo: string; default_theme: string; app_identifier: string; default_byond_version: string | null; server_api: ServerApiType; features: LauncherFeatures; urls: LauncherUrls; strings: LauncherStrings; singleplayer: SingleplayerConfig; oidc: OidcConfig | null; social_links: SocialLink[] }
 export type LauncherFeatures = { relay_selector: boolean; singleplayer: boolean; server_search: boolean; server_filters: boolean; show_offline_servers: boolean; server_stats: boolean; auto_launch_byond: boolean; connection_timeout_fallback: boolean; connect_logo: boolean; favorites: boolean; direct_connect: boolean }
 export type LauncherStrings = { auth_provider_name: string; login_prompt: string; discord_game_name: string }

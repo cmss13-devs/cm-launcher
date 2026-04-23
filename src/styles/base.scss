@@ -862,6 +862,7 @@ body {
 .account-name {
   color: var(--text);
   font-weight: normal;
+  font-size: 13px;
 }
 
 .account-status {
@@ -1328,11 +1329,16 @@ body {
   justify-content: center;
   gap: 8px;
   margin-top: 12px;
+
+  .hub-login-toggle {
+    margin-top: 0;
+  }
 }
 
 .hub-login-separator {
   color: var(--text-dim);
   font-size: 12px;
+  line-height: 1;
 }
 
 .hub-login-toggle {

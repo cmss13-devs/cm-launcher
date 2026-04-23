@@ -26,7 +26,7 @@ pub const DEFAULT_STEAM_NAME: &str = "production";
 
 mod webview2;
 
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 use auth::{
     background_refresh_task, get_access_token, get_auth_state, get_hub_oauth_providers, hub_login,
@@ -46,7 +46,7 @@ use relays::{get_relays, get_selected_relay, set_selected_relay};
 use servers::get_servers;
 use settings::{
     get_settings, save_filter_settings, set_age_verified, set_auth_mode, set_last_played_server,
-    set_locale, set_rendering_pipeline, set_theme, toggle_favorite_server,
+    set_last_view_mode, set_locale, set_rendering_pipeline, set_theme, toggle_favorite_server,
     toggle_server_notifications,
 };
 
@@ -191,6 +191,7 @@ pub fn build_specta() -> tauri_specta::Builder<tauri::Wry> {
         toggle_server_notifications,
         set_rendering_pipeline,
         set_last_played_server,
+        set_last_view_mode,
         toggle_favorite_server,
         save_filter_settings,
         get_control_server_port,
@@ -252,6 +253,7 @@ pub fn build_specta() -> tauri_specta::Builder<tauri::Wry> {
         toggle_server_notifications,
         set_rendering_pipeline,
         set_last_played_server,
+        set_last_view_mode,
         toggle_favorite_server,
         save_filter_settings,
         get_control_server_port,
@@ -287,6 +289,26 @@ pub fn build_specta() -> tauri_specta::Builder<tauri::Wry> {
     ])
 }
 
+#[cfg(target_os = "windows")]
+fn register_deep_link_protocol() -> Result<(), Box<dyn std::error::Error>> {
+    use winreg::enums::HKEY_CURRENT_USER;
+    use winreg::RegKey;
+
+    let exe_path = std::env::current_exe()?;
+    let exe_str = exe_path.to_string_lossy();
+
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let (key, _) = hkcu.create_subkey(r"Software\Classes\ss13")?;
+    key.set_value("", &"SS13 Launcher")?;
+    key.set_value("URL Protocol", &"")?;
+
+    let (command_key, _) = hkcu.create_subkey(r"Software\Classes\ss13\shell\open\command")?;
+    command_key.set_value("", &format!("\"{exe_str}\" \"%1\""))?;
+
+    tracing::info!("Registered ss13:// protocol handler");
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let _guard = logging::init_logging();
@@ -301,6 +323,10 @@ pub fn run() {
             webview2::show_webview2_error();
             let _ = open::that("https://go.microsoft.com/fwlink/p/?LinkId=2124703");
             std::process::exit(1);
+        }
+
+        if let Err(e) = register_deep_link_protocol() {
+            tracing::error!("Failed to register ss13:// protocol: {}", e);
         }
     }
 
@@ -322,6 +348,22 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            let deep_link_urls: Vec<String> = argv
+                .iter()
+                .filter(|arg| arg.starts_with("ss13://"))
+                .cloned()
+                .collect();
+
+            if !deep_link_urls.is_empty() {
+                let _ = app.emit("deep-link://new-url", deep_link_urls);
+            }
+
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_focus();
+            }
+        }))
         .invoke_handler(specta_builder.invoke_handler());
 
     // Only include updater for non-CM builds (CM uses Steam for updates)

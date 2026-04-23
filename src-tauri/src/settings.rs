@@ -64,6 +64,10 @@ pub struct AppSettings {
     pub filter_show_hub_status: bool,
     #[serde(default)]
     pub filter_regions: HashSet<String>,
+    #[serde(default)]
+    pub last_view_mode: Option<String>,
+    #[serde(default)]
+    pub search_query: Option<String>,
 }
 
 impl Default for AppSettings {
@@ -105,6 +109,8 @@ impl Default for AppSettings {
             filter_show_offline: None,
             filter_show_hub_status: false,
             filter_regions: HashSet::new(),
+            last_view_mode: None,
+            search_query: None,
         }
     }
 }
@@ -262,6 +268,18 @@ pub async fn toggle_favorite_server(
     Ok(settings)
 }
 
+#[tauri::command]
+#[specta::specta]
+pub async fn set_last_view_mode(
+    app: AppHandle,
+    mode: String,
+) -> CommandResult<AppSettings> {
+    let mut settings = load_settings(&app)?;
+    settings.last_view_mode = Some(mode);
+    save_settings(&app, &settings)?;
+    Ok(settings)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct FilterSettings {
     pub tags: Vec<String>,
@@ -269,6 +287,7 @@ pub struct FilterSettings {
     pub show_offline: Option<bool>,
     pub show_hub_status: bool,
     pub regions: Vec<String>,
+    pub search_query: Option<String>,
 }
 
 #[tauri::command]
@@ -283,6 +302,7 @@ pub async fn save_filter_settings(
     settings.filter_show_offline = filters.show_offline;
     settings.filter_show_hub_status = filters.show_hub_status;
     settings.filter_regions = filters.regions.into_iter().collect();
+    settings.search_query = filters.search_query;
     save_settings(&app, &settings)?;
     Ok(settings)
 }

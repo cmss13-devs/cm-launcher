@@ -3,35 +3,38 @@ import type { LauncherConfig, Server } from "../bindings";
 import { useSettingsStore, type StoredFilters } from "../stores/settingsStore";
 
 export function useServerFilters(servers: Server[], config: LauncherConfig | null) {
-  const storedFilters = useSettingsStore((s) => s.filters);
+  const filters = useSettingsStore((s) => s.filters);
   const saveFilters = useSettingsStore((s) => s.saveFilters);
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedTags, setSelectedTags] = useState<Set<string>>(storedFilters.tags);
-  const [show18Plus, setShow18Plus] = useState(storedFilters.show18Plus);
-  const [showOffline, setShowOffline] = useState(
-    storedFilters.showOffline ?? config?.features.show_offline_servers ?? false,
-  );
-  const [showHubStatus, setShowHubStatus] = useState(storedFilters.showHubStatus);
-  const [selectedRegions, setSelectedRegions] = useState<Set<string>>(storedFilters.regions);
+  const searchQuery = filters.searchQuery;
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filtersRef = useRef<HTMLDivElement>(null);
-  const initialized = useRef(false);
 
-  useEffect(() => {
-    if (!initialized.current) {
-      initialized.current = true;
-      return;
-    }
-    const filters: StoredFilters = {
-      tags: selectedTags,
-      show18Plus,
-      showOffline,
-      showHubStatus,
-      regions: selectedRegions,
-    };
-    saveFilters(filters);
-  }, [selectedTags, show18Plus, showOffline, showHubStatus, selectedRegions, saveFilters]);
+  const selectedTags = filters.tags;
+  const show18Plus = filters.show18Plus;
+  const showOffline = filters.showOffline ?? config?.features.show_offline_servers ?? false;
+  const showHubStatus = filters.showHubStatus;
+  const selectedRegions = filters.regions;
+
+  const updateFilters = useCallback((patch: Partial<StoredFilters>) => {
+    saveFilters({ ...filters, ...patch });
+  }, [filters, saveFilters]);
+
+  const setShow18Plus = useCallback((value: boolean) => {
+    updateFilters({ show18Plus: value });
+  }, [updateFilters]);
+
+  const setShowOffline = useCallback((value: boolean) => {
+    updateFilters({ showOffline: value });
+  }, [updateFilters]);
+
+  const setSearchQuery = useCallback((value: string) => {
+    updateFilters({ searchQuery: value });
+  }, [updateFilters]);
+
+  const setShowHubStatus = useCallback((value: boolean) => {
+    updateFilters({ showHubStatus: value });
+  }, [updateFilters]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -44,22 +47,18 @@ export function useServerFilters(servers: Server[], config: LauncherConfig | nul
   }, []);
 
   const toggleTag = useCallback((tag: string, on: boolean) => {
-    setSelectedTags((prev) => {
-      const next = new Set(prev);
-      if (on) next.add(tag);
-      else next.delete(tag);
-      return next;
-    });
-  }, []);
+    const next = new Set(filters.tags);
+    if (on) next.add(tag);
+    else next.delete(tag);
+    saveFilters({ ...filters, tags: next });
+  }, [filters, saveFilters]);
 
   const toggleRegion = useCallback((region: string, on: boolean) => {
-    setSelectedRegions((prev) => {
-      const next = new Set(prev);
-      if (on) next.add(region);
-      else next.delete(region);
-      return next;
-    });
-  }, []);
+    const next = new Set(filters.regions);
+    if (on) next.add(region);
+    else next.delete(region);
+    saveFilters({ ...filters, regions: next });
+  }, [filters, saveFilters]);
 
   const categories = useMemo(() => {
     const tagSet = new Set<string>();
