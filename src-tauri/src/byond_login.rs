@@ -249,14 +249,8 @@ fn login_init_script() -> &'static str {
                 }
 
                 const username = extractUsername();
-                const path = window.location.pathname.toLowerCase();
-                const onLoginPage = path.includes('login');
 
-                if (!onLoginPage && username) {
-                    console.log('[BYOND LOGIN] detected username:', username, 'at:', window.location.href);
-                }
-
-                if (false && !onLoginPage && username) {
+                if (username) {
                     window.__TAURI_INTERNALS__.invoke('byond_login_complete', { username });
                     return;
                 }
@@ -328,12 +322,14 @@ pub async fn start_byond_login(app: AppHandle) -> CommandResult<ByondLoginResult
     match tokio::time::timeout(std::time::Duration::from_secs(300), rx).await {
         Ok(Ok(Some(username))) => {
             tracing::info!("BYOND login completed with username: {}", username);
+            dismiss_login(&app);
             Ok(ByondLoginResult {
                 username: Some(username),
             })
         }
         Ok(Ok(None)) => {
             tracing::info!("BYOND login dismissed, checking session");
+            dismiss_login(&app);
             match check_byond_web_session(app.clone()).await {
                 Ok(session) if session.logged_in => {
                     if let Some(ref name) = session.username {
@@ -374,6 +370,8 @@ fn create_login_webview(app: &AppHandle, data_dir: std::path::PathBuf) -> Comman
         .get_window("main")
         .ok_or_else(|| CommandError::Internal("main window not found".into()))?;
 
+    let app_for_nav = app.clone();
+
     let login_webview = WebviewBuilder::new(
         "byond_login_content",
         WebviewUrl::External(
@@ -391,7 +389,17 @@ fn create_login_webview(app: &AppHandle, data_dir: std::path::PathBuf) -> Comman
         }
     })
     .on_navigation(move |url| {
-        tracing::info!("BYOND login: navigation to {}", url);
+        if url.scheme() != "https" && url.scheme() != "http" {
+            return true;
+        }
+        let path = url.path().to_lowercase();
+        if !path.contains("login") {
+            tracing::debug!("BYOND login: navigating away to {}, hiding webview", url);
+            let _ = app_for_nav.emit("byond-login-visible", false);
+            if let Some(webview) = app_for_nav.get_webview("byond_login_content") {
+                let _ = webview.set_size(LogicalSize::new(0.0, 0.0));
+            }
+        }
         true
     });
 
