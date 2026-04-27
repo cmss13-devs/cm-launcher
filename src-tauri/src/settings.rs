@@ -70,6 +70,12 @@ pub struct AppSettings {
     pub search_query: Option<String>,
     #[serde(default)]
     pub trusted_direct_connect_addresses: HashSet<String>,
+    #[serde(default = "default_true")]
+    pub rich_presence_enabled: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl Default for AppSettings {
@@ -114,6 +120,7 @@ impl Default for AppSettings {
             last_view_mode: None,
             search_query: None,
             trusted_direct_connect_addresses: HashSet::new(),
+            rich_presence_enabled: true,
         }
     }
 }
@@ -294,6 +301,23 @@ pub async fn set_last_view_mode(
     let mut settings = load_settings(&app)?;
     settings.last_view_mode = Some(mode);
     save_settings(&app, &settings)?;
+    Ok(settings)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn set_rich_presence(
+    app: AppHandle,
+    enabled: bool,
+) -> CommandResult<AppSettings> {
+    let mut settings = load_settings(&app)?;
+    settings.rich_presence_enabled = enabled;
+    save_settings(&app, &settings)?;
+
+    if let Some(manager) = app.try_state::<std::sync::Arc<crate::presence::PresenceManager>>() {
+        manager.set_enabled(enabled);
+    }
+
     Ok(settings)
 }
 

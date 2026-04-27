@@ -17,6 +17,8 @@ pub struct PresenceManager {
     game_process: Arc<Mutex<Option<Child>>>,
     game_process_pid: Arc<Mutex<Option<u32>>>,
     last_connection_params: Arc<Mutex<Option<ConnectionParams>>>,
+    enabled: Arc<Mutex<bool>>,
+    presence_dirty: Arc<Mutex<bool>>,
 }
 
 impl PresenceManager {
@@ -27,7 +29,29 @@ impl PresenceManager {
             game_process: Arc::new(Mutex::new(None)),
             game_process_pid: Arc::new(Mutex::new(None)),
             last_connection_params: Arc::new(Mutex::new(None)),
+            enabled: Arc::new(Mutex::new(true)),
+            presence_dirty: Arc::new(Mutex::new(false)),
         }
+    }
+
+    pub fn set_enabled(&self, enabled: bool) {
+        *self.enabled.lock().unwrap() = enabled;
+        if enabled {
+            *self.presence_dirty.lock().unwrap() = true;
+        } else {
+            self.clear_all_presence();
+        }
+    }
+
+    pub fn take_dirty(&self) -> bool {
+        let mut dirty = self.presence_dirty.lock().unwrap();
+        let was_dirty = *dirty;
+        *dirty = false;
+        was_dirty
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        *self.enabled.lock().unwrap()
     }
 
     #[allow(dead_code)]
@@ -218,6 +242,9 @@ impl PresenceManager {
     }
 
     pub fn update_all_presence(&self, state: &PresenceState) {
+        if !self.is_enabled() {
+            return;
+        }
         tracing::debug!("Updating presence: {:?}", state);
         for provider in &self.providers {
             provider.update_presence(state);
@@ -257,6 +284,7 @@ pub fn start_presence_background_task(
             }
 
             let game_running = presence_manager.check_game_running();
+            let force_update = presence_manager.take_dirty();
 
             if game_running {
                 was_game_running = true;
@@ -282,7 +310,7 @@ pub fn start_presence_background_task(
                         (None, session.map_name.clone())
                     };
 
-                    if player_count != last_player_count || map_name != last_map_name {
+                    if force_update || player_count != last_player_count || map_name != last_map_name {
                         last_player_count = player_count;
                         last_map_name.clone_from(&map_name);
 
@@ -300,6 +328,8 @@ pub fn start_presence_background_task(
                 last_map_name = None;
                 presence_manager.update_all_presence(&PresenceState::InLauncher);
                 app_handle.emit("game-closed", ()).ok();
+            } else if force_update {
+                presence_manager.update_all_presence(&PresenceState::InLauncher);
             }
 
             tokio::time::sleep(poll_interval).await;

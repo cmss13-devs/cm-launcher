@@ -223,6 +223,14 @@ async setRenderingPipeline(pipeline: RenderingPipeline) : Promise<Result<AppSett
     else return { status: "error", error: e  as any };
 }
 },
+async setRichPresence(enabled: boolean) : Promise<Result<AppSettings, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("set_rich_presence", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async setLastPlayedServer(serverId: string) : Promise<Result<AppSettings, CommandError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("set_last_played_server", { serverId }) };
@@ -506,7 +514,7 @@ async byondSessionCheckComplete(webId: string | null, username: string | null) :
 
 /** user-defined types **/
 
-export type AppSettings = { auth_mode: AuthMode; theme?: Theme; notification_servers?: string[]; age_verified?: boolean; locale?: string | null; rendering_pipeline?: RenderingPipeline; last_played_server?: string | null; favorite_servers?: string[]; filter_tags?: string[]; filter_show_18_plus?: boolean; filter_show_offline?: boolean | null; filter_show_hub_status?: boolean; filter_regions?: string[]; last_view_mode?: string | null; search_query?: string | null; trusted_direct_connect_addresses?: string[] }
+export type AppSettings = { auth_mode: AuthMode; theme?: Theme; notification_servers?: string[]; age_verified?: boolean; locale?: string | null; rendering_pipeline?: RenderingPipeline; last_played_server?: string | null; favorite_servers?: string[]; filter_tags?: string[]; filter_show_18_plus?: boolean; filter_show_offline?: boolean | null; filter_show_hub_status?: boolean; filter_regions?: string[]; last_view_mode?: string | null; search_query?: string | null; trusted_direct_connect_addresses?: string[]; rich_presence_enabled?: boolean }
 export type AuthError = { code: string; message: string; linking_url: string | null }
 export type AuthMode = "oidc" | "hub" | "byond" | "steam"
 export type AuthState = { logged_in: boolean; user: UserInfo | null; loading: boolean; error: string | null }

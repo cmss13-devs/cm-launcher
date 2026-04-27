@@ -25,6 +25,7 @@ interface SettingsStore {
   lastViewMode: string | null;
   favoriteServers: Set<string>;
   trustedAddresses: Set<string>;
+  richPresenceEnabled: boolean;
   filters: StoredFilters;
 
   setAuthMode: (mode: AuthMode) => void;
@@ -43,6 +44,7 @@ interface SettingsStore {
   isServerFavorited: (serverId: string) => boolean;
   trustDirectConnectAddress: (address: string) => Promise<void>;
   isAddressTrusted: (address: string) => boolean;
+  saveRichPresence: (enabled: boolean) => Promise<void>;
   saveFilters: (filters: StoredFilters) => Promise<void>;
 }
 
@@ -59,6 +61,7 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
   lastViewMode: null,
   favoriteServers: new Set<string>(),
   trustedAddresses: new Set<string>(),
+  richPresenceEnabled: true,
   filters: {
     tags: new Set<string>(),
     show18Plus: false,
@@ -90,6 +93,7 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
         lastViewMode: settings.last_view_mode ?? null,
         favoriteServers: new Set(settings.favorite_servers ?? []),
         trustedAddresses: new Set(settings.trusted_direct_connect_addresses ?? []),
+        richPresenceEnabled: settings.rich_presence_enabled ?? true,
         filters: {
           tags: new Set(settings.filter_tags ?? []),
           show18Plus: settings.filter_show_18_plus ?? false,
@@ -170,6 +174,11 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
 
   isAddressTrusted: (address: string) => {
     return get().trustedAddresses.has(address.toLowerCase());
+  },
+
+  saveRichPresence: async (enabled: boolean) => {
+    unwrap(await commands.setRichPresence(enabled));
+    set({ richPresenceEnabled: enabled });
   },
 
   saveFilters: async (filters: StoredFilters) => {

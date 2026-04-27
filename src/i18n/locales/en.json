@@ -106,7 +106,10 @@
     "byondLoginFailed": "Login failed: {{error}}",
     "language": "Language",
     "languageDescription": "Choose the display language for the launcher.",
-    "languageAuto": "Auto (system)"
+    "languageAuto": "Auto (system)",
+    "richPresence": "Rich Presence",
+    "richPresenceDescription": "Show your current game activity on Discord and Steam.",
+    "richPresenceEnabled": "Enable Rich Presence"
   },
   "account": {
     "loggedInViaByondWeb": "Logged in via BYOND Web",

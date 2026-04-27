@@ -350,6 +350,8 @@ export const SettingsModal = ({
   const checkByondStatus = useByondStore((s) => s.checkStatus);
   const locale = useSettingsStore((s) => s.locale);
   const saveLocale = useSettingsStore((s) => s.saveLocale);
+  const richPresenceEnabled = useSettingsStore((s) => s.richPresenceEnabled);
+  const saveRichPresence = useSettingsStore((s) => s.saveRichPresence);
 
   const [appVersion, setAppVersion] = useState<string>("");
   const [byondLoginState, setByondLoginState] = useState<
@@ -437,6 +439,21 @@ export const SettingsModal = ({
             options={getAvailableLocales().map((loc) => ({ value: loc, label: loc.toUpperCase() }))}
             onChange={saveLocale}
           />
+        </div>
+
+        <div className="settings-section">
+          <h3>{t("settings.richPresence")}</h3>
+          <p className="settings-description">
+            {t("settings.richPresenceDescription")}
+          </p>
+          <label className="toggle-setting">
+            <input
+              type="checkbox"
+              checked={richPresenceEnabled}
+              onChange={(e) => saveRichPresence(e.target.checked)}
+            />
+            <span>{t("settings.richPresenceEnabled")}</span>
+          </label>
         </div>
 
         <div className="settings-section">
