@@ -251,7 +251,7 @@ fn trim_byond_install(version_dir: &std::path::Path) -> CommandResult<()> {
         let entry = entry?;
         let path = entry.path();
         let name = entry.file_name();
-        if name == "bin" {
+        if name == "bin" || name == "directx" {
             continue;
         }
         if path.is_dir() {
@@ -1059,10 +1059,7 @@ async fn topic_preflight(ip: &str, port: u16, challenge: &str) -> PreflightOutco
     };
     let query = format!("?ss13hub_preflight=1&challenge={challenge}");
     tracing::debug!("[topic_preflight] querying {addr}");
-    let result = tokio::task::spawn_blocking(move || {
-        http2byond::send_byond(&addr, &query)
-    })
-    .await;
+    let result = tokio::task::spawn_blocking(move || http2byond::send_byond(&addr, &query)).await;
 
     let result = match result {
         Ok(Ok(r)) => r,
@@ -1092,9 +1089,7 @@ async fn topic_preflight(ip: &str, port: u16, challenge: &str) -> PreflightOutco
             };
             let domain = v["domain"].as_str().map(String::from);
             let signature = v["signature"].as_str().map(String::from);
-            tracing::info!(
-                "[topic_preflight] {ip}:{port} server_id={server_id} domain={domain:?}"
-            );
+            tracing::info!("[topic_preflight] {ip}:{port} server_id={server_id} domain={domain:?}");
             PreflightOutcome::Ok(PreflightResult {
                 server_id,
                 domain,
@@ -1143,7 +1138,8 @@ async fn verify_domain_attestation(domain: &str, challenge: &str, signature: &st
         .filter_map(|record| match &record.data {
             RData::TXT(txt) => {
                 let s = txt.to_string();
-                s.strip_prefix("ss13hub-ed25519=").map(|k| k.trim().to_string())
+                s.strip_prefix("ss13hub-ed25519=")
+                    .map(|k| k.trim().to_string())
             }
             _ => None,
         })
@@ -1154,10 +1150,9 @@ async fn verify_domain_attestation(domain: &str, challenge: &str, signature: &st
         return false;
     };
 
-    let Ok(key_bytes) = base64::Engine::decode(
-        &base64::engine::general_purpose::STANDARD,
-        &pubkey_b64,
-    ) else {
+    let Ok(key_bytes) =
+        base64::Engine::decode(&base64::engine::general_purpose::STANDARD, &pubkey_b64)
+    else {
         tracing::warn!("[verify_attestation] malformed base64 pubkey for {domain}");
         return false;
     };
@@ -1172,10 +1167,9 @@ async fn verify_domain_attestation(domain: &str, challenge: &str, signature: &st
         return false;
     };
 
-    let Ok(sig_bytes) = base64::Engine::decode(
-        &base64::engine::general_purpose::STANDARD,
-        signature,
-    ) else {
+    let Ok(sig_bytes) =
+        base64::Engine::decode(&base64::engine::general_purpose::STANDARD, signature)
+    else {
         tracing::warn!("[verify_attestation] malformed base64 signature");
         return false;
     };
@@ -1219,9 +1213,7 @@ pub async fn resolve_direct_connect(address: String) -> CommandResult<DirectConn
         .ip()
         .to_string();
 
-    tracing::info!(
-        "[resolve_direct_connect] resolving {hostname}:{port} (ip={resolved_ip})"
-    );
+    tracing::info!("[resolve_direct_connect] resolving {hostname}:{port} (ip={resolved_ip})");
 
     match crate::auth::hub_client::HubClient::resolve_server(&resolved_ip, port).await {
         Ok(result) => {
@@ -1277,9 +1269,7 @@ pub async fn resolve_direct_connect(address: String) -> CommandResult<DirectConn
                         server_name: None,
                     });
                 }
-                tracing::warn!(
-                    "[resolve_direct_connect] domain attestation failed for {domain}"
-                );
+                tracing::warn!("[resolve_direct_connect] domain attestation failed for {domain}");
             }
 
             return Ok(DirectConnectInfo {
@@ -1592,7 +1582,12 @@ async fn connect_impl(app: AppHandle, req: ConnectionRequest) -> CommandResult<C
                 });
 
                 if let Some(pid) = dreamseeker_pid {
-                    manager.start_game_session_by_pid(server_name.clone(), map_name.clone(), players.unwrap_or(0) as u32, pid);
+                    manager.start_game_session_by_pid(
+                        server_name.clone(),
+                        map_name.clone(),
+                        players.unwrap_or(0) as u32,
+                        pid,
+                    );
                 } else {
                     tracing::warn!(
                         "Could not find dreamseeker.exe, presence tracking may not work"
@@ -1639,7 +1634,12 @@ async fn connect_impl(app: AppHandle, req: ConnectionRequest) -> CommandResult<C
                     launcher_key: launcher_key.clone(),
                 });
 
-                manager.start_game_session(server_name.clone(), map_name.clone(), players.unwrap_or(0) as u32, child);
+                manager.start_game_session(
+                    server_name.clone(),
+                    map_name.clone(),
+                    players.unwrap_or(0) as u32,
+                    child,
+                );
             }
         }
 
