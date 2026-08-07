@@ -118,7 +118,7 @@ pub fn get_config() -> LauncherConfig {
             steam_auth: Some("https://db.cm-ss13.com/api/Steam/Authenticate"),
             byond_hash_api: Some("https://db.cm-ss13.com/api/ByondHash"),
             register_url: None,
-            help_url: "https://github.com/cmss13-devs/cm-launcher/issues",
+            help_url: "https://github.com/spacestation13/launcher/issues",
         },
         strings: LauncherStrings {
             auth_provider_name: "CM-SS13",
@@ -194,7 +194,7 @@ pub fn get_config() -> LauncherConfig {
             steam_auth: Some("https://api.spacestation13.com/auth/steam"),
             byond_hash_api: None,
             register_url: Some("https://hub.spacestation13.com/register"),
-            help_url: "https://github.com/hry-gh/ss13-launcher/issues",
+            help_url: "https://github.com/spacestation13/launcher/issues",
         },
         strings: LauncherStrings {
             auth_provider_name: "SS13",
