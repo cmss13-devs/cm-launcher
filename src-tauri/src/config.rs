@@ -171,7 +171,7 @@ pub fn get_config() -> LauncherConfig {
         app_identifier: "com.ss13.launcher",
         #[allow(clippy::unreadable_literal)]
         discord_app_id: 1497648590095646791,
-        default_byond_version: Some("516.1667"),
+        default_byond_version: Some("516.1687"),
         server_api: ServerApiType::HubApi,
         features: LauncherFeatures {
             relay_selector: false,

@@ -233,7 +233,7 @@ const DevConnectSection = () => {
   const { t } = useTranslation();
   const { onLoginRequired, onSteamAuthRequired } = useAuthFlow();
   const [url, setUrl] = useState("localhost:1337");
-  const [version, setVersion] = useState("516.1667");
+  const [version, setVersion] = useState("516.1687");
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -281,7 +281,7 @@ const DevConnectSection = () => {
           type="text"
           value={version}
           onChange={(e) => setVersion(e.target.value)}
-          placeholder="516.1667"
+          placeholder="516.1687"
         />
       </div>
       {error && <div className="dev-error">{error}</div>}
