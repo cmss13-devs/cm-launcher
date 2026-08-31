@@ -2,7 +2,7 @@ import type { IconDefinition } from "@fortawesome/fontawesome-svg-core";
 import { faSteam, faDiscord } from "@fortawesome/free-brands-svg-icons";
 import { faKey } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { commands } from "../bindings";
@@ -57,10 +57,23 @@ export const AuthModal = ({
   const [totpCode, setTotpCode] = useState("");
   const [showHubLogin, setShowHubLogin] = useState(false);
 
+  useEffect(() => {
+    if (visible) {
+      setTotpCode("");
+    }
+    if (!visible) {
+      setUsername("");
+      setPassword("");
+      setTotpCode("");
+      setShowHubLogin(false);
+    }
+  }, [visible]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (state === "2fa") {
       onHubLogin(username, password, totpCode);
+      setTotpCode("");
     } else {
       onHubLogin(username, password);
     }
