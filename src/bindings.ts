@@ -510,6 +510,12 @@ async checkByondWebSession() : Promise<Result<ByondSessionCheck, CommandError>> 
 async byondSessionCheckComplete(webId: string | null, username: string | null) : Promise<void> {
     await TAURI_INVOKE("byond_session_check_complete", { webId, username });
 },
+/**
+ * Called from JS in BYOND webviews to relay console-style logs back to Rust
+ */
+async byondWebviewLog(level: string, message: string) : Promise<void> {
+    await TAURI_INVOKE("byond_webview_log", { level, message });
+},
 async getInitialDeepLinks() : Promise<string[]> {
     return await TAURI_INVOKE("get_initial_deep_links");
 }
