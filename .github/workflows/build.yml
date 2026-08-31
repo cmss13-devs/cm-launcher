@@ -108,7 +108,7 @@ jobs:
 
       - name: Install custom tauri-cli (Linux)
         if: matrix.platform == 'ubuntu-24.04' && steps.cache-tauri-cli.outputs.cache-hit != 'true'
-        run: cargo install tauri-cli --git https://github.com/tauri-apps/tauri --rev e0e9a5561c44fbd999528e2105e2d94270b79f76 --force
+        run: cargo install tauri-cli --git https://github.com/tauri-apps/tauri --rev e0e9a5561c44fbd999528e2105e2d94270b79f76 --locked --force
 
       - name: Pin quick-sharun.sh (Linux)
         if: matrix.platform == 'ubuntu-24.04'
@@ -289,7 +289,7 @@ jobs:
 
       - name: Install custom tauri-cli (Linux)
         if: matrix.platform == 'ubuntu-24.04' && steps.cache-tauri-cli.outputs.cache-hit != 'true'
-        run: cargo install tauri-cli --git https://github.com/tauri-apps/tauri --rev e0e9a5561c44fbd999528e2105e2d94270b79f76 --force
+        run: cargo install tauri-cli --git https://github.com/tauri-apps/tauri --rev e0e9a5561c44fbd999528e2105e2d94270b79f76 --locked --force
 
       - name: Pin quick-sharun.sh (Linux)
         if: matrix.platform == 'ubuntu-24.04'
