@@ -1,18 +1,42 @@
-name: "GitHub Deploy"
+name: "Build Tauri App"
 
 on:
-  push:
-    tags:
-      - "v*"
-    branches:
-      - dev
+  workflow_call:
+    inputs:
+      variant:
+        description: "Build variant name (cm, ss13)"
+        required: true
+        type: string
+      features:
+        description: "Cargo features to enable"
+        required: true
+        type: string
+      tauri-configs:
+        description: "Extra --config flags (space-separated)"
+        required: false
+        type: string
+        default: ""
+      tarball-prefix:
+        description: "Linux tarball archive name prefix"
+        required: true
+        type: string
+      enable-updater-signing:
+        description: "Enable Tauri updater signing keys"
+        required: false
+        type: boolean
+        default: false
+      updater-json-prefer-nsis:
+        description: "Pass updaterJsonPreferNsis to tauri-action"
+        required: false
+        type: boolean
+        default: false
 
 env:
   CARGO_NET_GIT_FETCH_WITH_CLI: "true"
 
 jobs:
-  build-cm:
-    name: Build CM-SS13 Launcher
+  build:
+    name: ${{ inputs.variant }} / ${{ matrix.platform }}
     permissions:
       contents: write
       issues: write
@@ -21,121 +45,18 @@ jobs:
       matrix:
         include:
           - platform: "ubuntu-24.04"
-            args: ""
           - platform: "windows-latest"
-            args: ""
 
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Sync version to tag
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: bash
-        run: sed -i "s/^version = .*/version = \"${GITHUB_REF_NAME#v}\"/" src-tauri/Cargo.toml
-
-      - name: setup node
-        uses: actions/setup-node@v4
+      - name: Setup
+        uses: ./.github/actions/tauri-setup
         with:
-          node-version: lts/*
-          cache: 'npm'
-
-      - name: install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-          shared-key: ${{ matrix.platform }}-cm
-
-      - name: install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-24.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-0=2.44.0-2 \
-            libwebkit2gtk-4.1-dev=2.44.0-2 \
-            libjavascriptcoregtk-4.1-0=2.44.0-2 \
-            libjavascriptcoregtk-4.1-dev=2.44.0-2 \
-            gir1.2-javascriptcoregtk-4.1=2.44.0-2 \
-            gir1.2-webkit2-4.1=2.44.0-2 \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf \
-            musl-tools \
-            cabextract
-
-      - name: Cache Wine build
-        if: matrix.platform == 'ubuntu-24.04'
-        id: cache-wine
-        uses: actions/cache@v4
-        with:
-          path: |
-            src-tauri/wine.tar.zst
-            src-tauri/winetricks
-            src-tauri/cabextract
-          key: wine-10.5-musl-${{ hashFiles('scripts/download-wine.sh') }}
-
-      - name: Download Wine (ubuntu only)
-        if: matrix.platform == 'ubuntu-24.04' && steps.cache-wine.outputs.cache-hit != 'true'
-        run: ./scripts/download-wine.sh
-
-      - name: Download WebView2 Fixed Runtime (Windows)
-        if: matrix.platform == 'windows-latest'
-        shell: pwsh
-        run: ./scripts/download-webview2.ps1
-
-      - name: Download WebView2 Fixed Runtime (Linux)
-        if: matrix.platform == 'ubuntu-24.04'
-        run: ./scripts/download-webview2.sh
-
-      - name: Prepare sidecar files for AppImage (ubuntu only)
-        if: matrix.platform == 'ubuntu-24.04'
-        run: |
-          mkdir -p "/tmp/lib/SS13 Launcher"
-          cp src-tauri/wine.tar.zst "/tmp/lib/SS13 Launcher/"
-          cp src-tauri/winetricks "/tmp/lib/SS13 Launcher/"
-          cp src-tauri/cabextract "/tmp/lib/SS13 Launcher/"
-          chmod +x "/tmp/lib/SS13 Launcher/winetricks" "/tmp/lib/SS13 Launcher/cabextract"
-          cp -r src-tauri/webview2-runtime "/tmp/lib/SS13 Launcher/webview2-runtime"
-
-      - name: install frontend dependencies
-        run: npm install
-
-      - name: Cache custom tauri-cli
-        if: matrix.platform == 'ubuntu-24.04'
-        id: cache-tauri-cli
-        uses: actions/cache@v4
-        with:
-          path: ~/.cargo/bin/cargo-tauri
-          key: tauri-cli-e0e9a556-${{ runner.os }}
-
-      - name: Install custom tauri-cli (Linux)
-        if: matrix.platform == 'ubuntu-24.04' && steps.cache-tauri-cli.outputs.cache-hit != 'true'
-        run: cargo install tauri-cli --git https://github.com/tauri-apps/tauri --rev e0e9a5561c44fbd999528e2105e2d94270b79f76 --locked --force
-
-      - name: Pin quick-sharun.sh (Linux)
-        if: matrix.platform == 'ubuntu-24.04'
-        run: |
-          mkdir -p ~/.cache/tauri
-          curl -fsSL --max-time 30 "https://raw.githubusercontent.com/pkgforge-dev/Anylinux-AppImages/0131d579b5f5a1633fb6372de991428755f6a437/useful-tools/quick-sharun.sh" \
-            -o ~/.cache/tauri/quick-sharun.sh
-          chmod +x ~/.cache/tauri/quick-sharun.sh
-
-      - name: Configure SSH for private HWID crate
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SS13HWID_DEPLOY_KEY }}
-
-      - name: Inject real HWID crate
-        run: ./scripts/inject-hwid.sh
-
-      - name: Write HWID signing key
-        shell: bash
-        run: |
-          echo -n "${{ secrets.SS13HWID_SIGNING_KEY }}" | base64 -d > "$RUNNER_TEMP/hwid-signing-key"
-          echo "SS13HWID_SIGNING_KEY_PATH=$RUNNER_TEMP/hwid-signing-key" >> "$GITHUB_ENV"
+          cache-key: ${{ matrix.platform }}-${{ inputs.variant }}
+          ssh-deploy-key: ${{ secrets.SS13HWID_DEPLOY_KEY }}
+          hwid-signing-key: ${{ secrets.SS13HWID_SIGNING_KEY }}
 
       - uses: tauri-apps/tauri-action@v0.6.1
         env:
@@ -143,12 +64,15 @@ jobs:
           TAURI_BUNDLER_NEW_APPIMAGE_FORMAT: "true"
           ADD_DIR: "/tmp/lib/SS13 Launcher"
           SS13HWID_SIGNING_KEY_PATH: ${{ env.SS13HWID_SIGNING_KEY_PATH }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ inputs.enable-updater-signing && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ inputs.enable-updater-signing && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         with:
           tagName: ${{ github.ref == 'refs/heads/dev' && 'v__VERSION__-dev' || 'v__VERSION__' }}
           releaseName: ${{ github.ref == 'refs/heads/dev' && 'v__VERSION__-dev' || 'v__VERSION__' }}
           releaseBody: "See the assets to download this version and install."
           prerelease: ${{ github.ref == 'refs/heads/dev' }}
-          args: --features cm_ss13,hwid --config src-tauri/tauri.cm.conf.json ${{ matrix.args }} ${{ matrix.platform == 'ubuntu-24.04' && '--config src-tauri/tauri.linux.conf.json' || '' }}
+          args: --features ${{ inputs.features }} ${{ inputs.tauri-configs }} ${{ matrix.platform == 'ubuntu-24.04' && '--config src-tauri/tauri.linux.conf.json' || '' }}
+          updaterJsonPreferNsis: ${{ inputs.updater-json-prefer-nsis }}
           tauriScript: ${{ matrix.platform == 'ubuntu-24.04' && 'cargo tauri' || 'npm tauri' }}
 
       - name: Scan with Windows Defender
@@ -156,7 +80,7 @@ jobs:
         uses: ./.github/actions/defender-scan
         with:
           exe_path: src-tauri/target/release/SS13_Launcher.exe
-          build_name: ${{ github.ref_name }}-cm
+          build_name: ${{ github.ref_name }}-${{ inputs.variant }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build portable Linux tarball
@@ -184,197 +108,7 @@ jobs:
           chmod +x portable-linux/launch.sh portable-linux/install.sh
 
           VERSION=$(grep -oP '^version = "\K[^"]+' src-tauri/Cargo.toml)
-          ARCHIVE_NAME="cm-ss13-launcher_${VERSION}_linux-x86_64.tar.zst"
-          tar -C portable-linux -cf - . | zstd -19 -o "$ARCHIVE_NAME"
-          echo "LINUX_ARCHIVE=$ARCHIVE_NAME" >> "$GITHUB_ENV"
-
-      - name: Upload portable Linux tarball to release
-        if: matrix.platform == 'ubuntu-24.04' && startsWith(github.ref, 'refs/tags/')
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          TAG="${GITHUB_REF#refs/tags/}"
-          gh release upload "$TAG" "$LINUX_ARCHIVE" --clobber
-
-  build-ss13:
-    name: Build SS13 Launcher
-    needs: build-cm
-    permissions:
-      contents: write
-      issues: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: "ubuntu-24.04"
-            args: ""
-          - platform: "windows-latest"
-            args: ""
-
-    runs-on: ${{ matrix.platform }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Sync version to tag
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: bash
-        run: sed -i "s/^version = .*/version = \"${GITHUB_REF_NAME#v}\"/" src-tauri/Cargo.toml
-
-      - name: setup node
-        uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-          cache: 'npm'
-
-      - name: install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-          shared-key: ${{ matrix.platform }}-ss13
-
-      - name: install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-24.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-0=2.44.0-2 \
-            libwebkit2gtk-4.1-dev=2.44.0-2 \
-            libjavascriptcoregtk-4.1-0=2.44.0-2 \
-            libjavascriptcoregtk-4.1-dev=2.44.0-2 \
-            gir1.2-javascriptcoregtk-4.1=2.44.0-2 \
-            gir1.2-webkit2-4.1=2.44.0-2 \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf \
-            musl-tools \
-            cabextract
-
-      - name: Cache Wine build
-        if: matrix.platform == 'ubuntu-24.04'
-        id: cache-wine
-        uses: actions/cache@v4
-        with:
-          path: |
-            src-tauri/wine.tar.zst
-            src-tauri/winetricks
-            src-tauri/cabextract
-          key: wine-10.5-musl-${{ hashFiles('scripts/download-wine.sh') }}
-
-      - name: Download Wine (ubuntu only)
-        if: matrix.platform == 'ubuntu-24.04' && steps.cache-wine.outputs.cache-hit != 'true'
-        run: ./scripts/download-wine.sh
-
-      - name: Download WebView2 Fixed Runtime (Windows)
-        if: matrix.platform == 'windows-latest'
-        shell: pwsh
-        run: ./scripts/download-webview2.ps1
-
-      - name: Download WebView2 Fixed Runtime (Linux)
-        if: matrix.platform == 'ubuntu-24.04'
-        run: ./scripts/download-webview2.sh
-
-      - name: Prepare sidecar files for AppImage (ubuntu only)
-        if: matrix.platform == 'ubuntu-24.04'
-        run: |
-          mkdir -p "/tmp/lib/SS13 Launcher"
-          cp src-tauri/wine.tar.zst "/tmp/lib/SS13 Launcher/"
-          cp src-tauri/winetricks "/tmp/lib/SS13 Launcher/"
-          cp src-tauri/cabextract "/tmp/lib/SS13 Launcher/"
-          chmod +x "/tmp/lib/SS13 Launcher/winetricks" "/tmp/lib/SS13 Launcher/cabextract"
-          cp -r src-tauri/webview2-runtime "/tmp/lib/SS13 Launcher/webview2-runtime"
-
-      - name: install frontend dependencies
-        run: npm install
-
-      - name: Cache custom tauri-cli
-        if: matrix.platform == 'ubuntu-24.04'
-        id: cache-tauri-cli
-        uses: actions/cache@v4
-        with:
-          path: ~/.cargo/bin/cargo-tauri
-          key: tauri-cli-e0e9a556-${{ runner.os }}
-
-      - name: Install custom tauri-cli (Linux)
-        if: matrix.platform == 'ubuntu-24.04' && steps.cache-tauri-cli.outputs.cache-hit != 'true'
-        run: cargo install tauri-cli --git https://github.com/tauri-apps/tauri --rev e0e9a5561c44fbd999528e2105e2d94270b79f76 --locked --force
-
-      - name: Pin quick-sharun.sh (Linux)
-        if: matrix.platform == 'ubuntu-24.04'
-        run: |
-          mkdir -p ~/.cache/tauri
-          curl -fsSL --max-time 30 "https://raw.githubusercontent.com/pkgforge-dev/Anylinux-AppImages/0131d579b5f5a1633fb6372de991428755f6a437/useful-tools/quick-sharun.sh" \
-            -o ~/.cache/tauri/quick-sharun.sh
-          chmod +x ~/.cache/tauri/quick-sharun.sh
-
-      - name: Configure SSH for private HWID crate
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SS13HWID_DEPLOY_KEY }}
-
-      - name: Inject real HWID crate
-        run: ./scripts/inject-hwid.sh
-
-      - name: Write HWID signing key
-        shell: bash
-        run: |
-          echo -n "${{ secrets.SS13HWID_SIGNING_KEY }}" | base64 -d > "$RUNNER_TEMP/hwid-signing-key"
-          echo "SS13HWID_SIGNING_KEY_PATH=$RUNNER_TEMP/hwid-signing-key" >> "$GITHUB_ENV"
-
-      - uses: tauri-apps/tauri-action@v0.6.1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          TAURI_BUNDLER_NEW_APPIMAGE_FORMAT: "true"
-          ADD_DIR: "/tmp/lib/SS13 Launcher"
-          SS13HWID_SIGNING_KEY_PATH: ${{ env.SS13HWID_SIGNING_KEY_PATH }}
-        with:
-          tagName: ${{ github.ref == 'refs/heads/dev' && 'v__VERSION__-dev' || 'v__VERSION__' }}
-          releaseName: ${{ github.ref == 'refs/heads/dev' && 'v__VERSION__-dev' || 'v__VERSION__' }}
-          releaseBody: "See the assets to download this version and install."
-          prerelease: ${{ github.ref == 'refs/heads/dev' }}
-          args: --features hwid ${{ matrix.args }} ${{ matrix.platform == 'ubuntu-24.04' && '--config src-tauri/tauri.linux.conf.json' || '' }}
-          updaterJsonPreferNsis: true
-          tauriScript: ${{ matrix.platform == 'ubuntu-24.04' && 'cargo tauri' || 'npm tauri' }}
-
-
-      - name: Scan with Windows Defender
-        if: matrix.platform == 'windows-latest'
-        uses: ./.github/actions/defender-scan
-        with:
-          exe_path: src-tauri/target/release/SS13_Launcher.exe
-          build_name: ${{ github.ref_name }}-ss13
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build portable Linux tarball
-        if: matrix.platform == 'ubuntu-24.04'
-        run: |
-          APPIMAGE=$(find src-tauri/target/release/bundle -name "*.AppImage" | head -1)
-          chmod +x "$APPIMAGE"
-          "$APPIMAGE" --appimage-extract
-
-          mkdir -p portable-linux
-          cp -r AppDir/* portable-linux/
-          rm -rf portable-linux/share/terminfo
-
-          cp -r src-tauri/webview2-runtime portable-linux/webview2-runtime
-
-          # Patch WebKit helper binaries to use bundled ld-linux and libraries
-          _tmp_lib=$(grep '_tmp_lib=' portable-linux/bin/01-path-mapping-hardcoded.hook | cut -d'=' -f2 | tr -d '"')
-          for f in portable-linux/lib/webkit2gtk-4.1/*; do
-            [ -f "$f" ] && file "$f" | grep -q ELF || continue
-            patchelf --force-rpath --set-rpath '$ORIGIN/..' --set-interpreter "/tmp/${_tmp_lib}/ld-linux-x86-64.so.2" "$f"
-          done
-
-          cp scripts/launch.sh portable-linux/launch.sh
-          cp scripts/install.sh portable-linux/install.sh
-          chmod +x portable-linux/launch.sh portable-linux/install.sh
-
-          VERSION=$(grep -oP '^version = "\K[^"]+' src-tauri/Cargo.toml)
-          ARCHIVE_NAME="ss13-launcher_${VERSION}_linux-x86_64.tar.zst"
+          ARCHIVE_NAME="${{ inputs.tarball-prefix }}_${VERSION}_linux-x86_64.tar.zst"
           tar -C portable-linux -cf - . | zstd -19 -o "$ARCHIVE_NAME"
           echo "LINUX_ARCHIVE=$ARCHIVE_NAME" >> "$GITHUB_ENV"
 

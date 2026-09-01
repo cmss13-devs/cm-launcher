@@ -1,0 +1,136 @@
+name: "Tauri Build Setup"
+description: "Common setup steps for all Tauri builds: toolchains, caches, dependencies, and HWID injection"
+
+inputs:
+  cache-key:
+    description: "Rust cache shared-key"
+    required: true
+  sidecar-app-name:
+    description: "App name for the Linux sidecar directory"
+    required: false
+    default: "SS13 Launcher"
+  ssh-deploy-key:
+    description: "SSH private key for the HWID crate"
+    required: true
+  hwid-signing-key:
+    description: "Base64-encoded HWID signing key"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Sync version to tag
+      if: startsWith(github.ref, 'refs/tags/v')
+      shell: bash
+      run: sed -i "s/^version = .*/version = \"${GITHUB_REF_NAME#v}\"/" src-tauri/Cargo.toml
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: lts/*
+        cache: "npm"
+
+    - name: Install Rust stable
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Rust cache
+      uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: src-tauri
+        shared-key: ${{ inputs.cache-key }}
+
+    - name: Install dependencies (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libwebkit2gtk-4.1-0=2.44.0-2 \
+          libwebkit2gtk-4.1-dev=2.44.0-2 \
+          libjavascriptcoregtk-4.1-0=2.44.0-2 \
+          libjavascriptcoregtk-4.1-dev=2.44.0-2 \
+          gir1.2-javascriptcoregtk-4.1=2.44.0-2 \
+          gir1.2-webkit2-4.1=2.44.0-2 \
+          libappindicator3-dev \
+          librsvg2-dev \
+          patchelf \
+          musl-tools \
+          cabextract
+
+    - name: Cache Wine build
+      if: runner.os == 'Linux'
+      id: cache-wine
+      uses: actions/cache@v4
+      with:
+        path: |
+          src-tauri/wine.tar.zst
+          src-tauri/winetricks
+          src-tauri/cabextract
+        key: wine-10.5-musl-${{ hashFiles('scripts/download-wine.sh') }}
+
+    - name: Download Wine
+      if: runner.os == 'Linux' && steps.cache-wine.outputs.cache-hit != 'true'
+      shell: bash
+      run: ./scripts/download-wine.sh
+
+    - name: Download WebView2 Fixed Runtime (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: ./scripts/download-webview2.ps1
+
+    - name: Download WebView2 Fixed Runtime (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: ./scripts/download-webview2.sh
+
+    - name: Prepare sidecar files for AppImage
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        mkdir -p "/tmp/lib/${{ inputs.sidecar-app-name }}"
+        cp src-tauri/wine.tar.zst "/tmp/lib/${{ inputs.sidecar-app-name }}/"
+        cp src-tauri/winetricks "/tmp/lib/${{ inputs.sidecar-app-name }}/"
+        cp src-tauri/cabextract "/tmp/lib/${{ inputs.sidecar-app-name }}/"
+        chmod +x "/tmp/lib/${{ inputs.sidecar-app-name }}/winetricks" "/tmp/lib/${{ inputs.sidecar-app-name }}/cabextract"
+        cp -r src-tauri/webview2-runtime "/tmp/lib/${{ inputs.sidecar-app-name }}/webview2-runtime"
+
+    - name: Install frontend dependencies
+      shell: bash
+      run: npm install
+
+    - name: Cache custom tauri-cli
+      if: runner.os == 'Linux'
+      id: cache-tauri-cli
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo/bin/cargo-tauri
+        key: tauri-cli-e0e9a556-${{ runner.os }}
+
+    - name: Install custom tauri-cli
+      if: runner.os == 'Linux' && steps.cache-tauri-cli.outputs.cache-hit != 'true'
+      shell: bash
+      run: cargo install tauri-cli --git https://github.com/tauri-apps/tauri --rev e0e9a5561c44fbd999528e2105e2d94270b79f76 --locked --force
+
+    - name: Pin quick-sharun.sh
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        mkdir -p ~/.cache/tauri
+        curl -fsSL --max-time 30 "https://raw.githubusercontent.com/pkgforge-dev/Anylinux-AppImages/0131d579b5f5a1633fb6372de991428755f6a437/useful-tools/quick-sharun.sh" \
+          -o ~/.cache/tauri/quick-sharun.sh
+        chmod +x ~/.cache/tauri/quick-sharun.sh
+
+    - name: Configure SSH for private HWID crate
+      uses: webfactory/ssh-agent@v0.9.0
+      with:
+        ssh-private-key: ${{ inputs.ssh-deploy-key }}
+
+    - name: Inject real HWID crate
+      shell: bash
+      run: ./scripts/inject-hwid.sh
+
+    - name: Write HWID signing key
+      shell: bash
+      run: |
+        echo -n "${{ inputs.hwid-signing-key }}" | base64 -d > "$RUNNER_TEMP/hwid-signing-key"
+        echo "SS13HWID_SIGNING_KEY_PATH=$RUNNER_TEMP/hwid-signing-key" >> "$GITHUB_ENV"

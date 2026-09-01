@@ -20,25 +20,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Sync version to tag
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: bash
-        run: sed -i "s/^version = .*/version = \"${GITHUB_REF_NAME#v}\"/" src-tauri/Cargo.toml
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup
+        uses: ./.github/actions/tauri-setup
         with:
-          node-version: lts/*
-          cache: 'npm'
-
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-          shared-key: steam-windows
+          cache-key: steam-windows
+          sidecar-app-name: "CM-SS13 Launcher"
+          ssh-deploy-key: ${{ secrets.SS13HWID_DEPLOY_KEY }}
+          hwid-signing-key: ${{ secrets.SS13HWID_SIGNING_KEY }}
 
       - name: Cache Steamworks SDK
         id: cache-steamworks
@@ -61,28 +49,6 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path "src-tauri/resources"
           Copy-Item "steamworks_sdk/redistributable_bin/win64/steam_api64.dll" -Destination "src-tauri/resources/"
-
-      - name: Download WebView2 Fixed Runtime
-        shell: pwsh
-        run: ./scripts/download-webview2.ps1
-
-      - name: Install frontend dependencies
-        run: npm install
-
-      - name: Configure SSH for private HWID crate
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SS13HWID_DEPLOY_KEY }}
-
-      - name: Inject real HWID crate
-        run: ./scripts/inject-hwid.sh
-
-      - name: Write HWID signing key
-        shell: pwsh
-        run: |
-          $bytes = [Convert]::FromBase64String("${{ secrets.SS13HWID_SIGNING_KEY }}")
-          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\hwid-signing-key", $bytes)
-          "SS13HWID_SIGNING_KEY_PATH=$env:RUNNER_TEMP\hwid-signing-key" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0.6.1
@@ -121,66 +87,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Sync version to tag
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: sed -i "s/^version = .*/version = \"${GITHUB_REF_NAME#v}\"/" src-tauri/Cargo.toml
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup
+        uses: ./.github/actions/tauri-setup
         with:
-          node-version: lts/*
-          cache: 'npm'
-
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-          shared-key: steam-linux
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-0=2.44.0-2 \
-            libwebkit2gtk-4.1-dev=2.44.0-2 \
-            libjavascriptcoregtk-4.1-0=2.44.0-2 \
-            libjavascriptcoregtk-4.1-dev=2.44.0-2 \
-            gir1.2-javascriptcoregtk-4.1=2.44.0-2 \
-            gir1.2-webkit2-4.1=2.44.0-2 \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf \
-            musl-tools \
-            cabextract
-
-      - name: Cache Wine build
-        id: cache-wine
-        uses: actions/cache@v4
-        with:
-          path: |
-            src-tauri/wine.tar.zst
-            src-tauri/winetricks
-            src-tauri/cabextract
-          key: wine-10.5-musl-${{ hashFiles('scripts/download-wine.sh') }}
-
-      - name: Download Wine
-        if: steps.cache-wine.outputs.cache-hit != 'true'
-        run: ./scripts/download-wine.sh
-
-      - name: Download WebView2 Fixed Runtime
-        run: ./scripts/download-webview2.sh
-
-      - name: Prepare sidecar files for AppImage
-        run: |
-          mkdir -p "/tmp/lib/CM-SS13 Launcher"
-          cp src-tauri/wine.tar.zst "/tmp/lib/CM-SS13 Launcher/"
-          cp src-tauri/winetricks "/tmp/lib/CM-SS13 Launcher/"
-          cp src-tauri/cabextract "/tmp/lib/CM-SS13 Launcher/"
-          chmod +x "/tmp/lib/CM-SS13 Launcher/winetricks" "/tmp/lib/CM-SS13 Launcher/cabextract"
-          cp -r src-tauri/webview2-runtime "/tmp/lib/CM-SS13 Launcher/webview2-runtime"
+          cache-key: steam-linux
+          sidecar-app-name: "CM-SS13 Launcher"
+          ssh-deploy-key: ${{ secrets.SS13HWID_DEPLOY_KEY }}
+          hwid-signing-key: ${{ secrets.SS13HWID_SIGNING_KEY }}
 
       - name: Cache Steamworks SDK
         id: cache-steamworks
@@ -202,40 +115,6 @@ jobs:
           cp steamworks_sdk/redistributable_bin/linux64/libsteam_api.so src-tauri/resources/
           sudo cp steamworks_sdk/redistributable_bin/linux64/libsteam_api.so /usr/lib/
           sudo ldconfig
-
-      - name: Install frontend dependencies
-        run: npm install
-
-      - name: Cache custom tauri-cli
-        id: cache-tauri-cli
-        uses: actions/cache@v4
-        with:
-          path: ~/.cargo/bin/cargo-tauri
-          key: tauri-cli-e0e9a556-${{ runner.os }}
-
-      - name: Install custom tauri-cli
-        if: steps.cache-tauri-cli.outputs.cache-hit != 'true'
-        run: cargo install tauri-cli --git https://github.com/tauri-apps/tauri --rev e0e9a5561c44fbd999528e2105e2d94270b79f76 --locked --force
-
-      - name: Pin quick-sharun.sh
-        run: |
-          mkdir -p ~/.cache/tauri
-          curl -fsSL --max-time 30 "https://raw.githubusercontent.com/pkgforge-dev/Anylinux-AppImages/0131d579b5f5a1633fb6372de991428755f6a437/useful-tools/quick-sharun.sh" \
-            -o ~/.cache/tauri/quick-sharun.sh
-          chmod +x ~/.cache/tauri/quick-sharun.sh
-
-      - name: Configure SSH for private HWID crate
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SS13HWID_DEPLOY_KEY }}
-
-      - name: Inject real HWID crate
-        run: ./scripts/inject-hwid.sh
-
-      - name: Write HWID signing key
-        run: |
-          echo -n "${{ secrets.SS13HWID_SIGNING_KEY }}" | base64 -d > /tmp/hwid-signing-key
-          echo "SS13HWID_SIGNING_KEY_PATH=/tmp/hwid-signing-key" >> "$GITHUB_ENV"
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0.6.1
@@ -265,9 +144,7 @@ jobs:
           cp src-tauri/resources/libsteam_api.so steam-build/linux/shared/lib/
           cp -r src-tauri/webview2-runtime steam-build/linux/webview2-runtime
 
-          # Patch WebKit helper binaries to use bundled ld-linux and libraries.
-          # sharun patches the main binary but not WebKit subprocesses, which fail
-          # on distros without system webkit2gtk (e.g. Steam Deck pressure-vessel).
+          # Patch WebKit helper binaries to use bundled ld-linux and libraries
           _tmp_lib=$(grep '_tmp_lib=' steam-build/linux/bin/01-path-mapping-hardcoded.hook | cut -d'=' -f2 | tr -d '"')
           for f in steam-build/linux/lib/webkit2gtk-4.1/*; do
             [ -f "$f" ] && file "$f" | grep -q ELF || continue
@@ -290,12 +167,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Sync version to tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: sed -i "s/^version = .*/version = \"${GITHUB_REF_NAME#v}\"/" src-tauri/Cargo.toml
+
       - name: Deploy to Steam
         uses: ./.github/actions/steam-deploy
         with:
           variant: production
           steam_app_id: "4313790"
-          steam_app_name: "production"
           steam_username: ${{ secrets.STEAM_USERNAME }}
           steam_password: ${{ secrets.STEAM_PASSWORD }}
           steam_shared_secret: ${{ secrets.STEAM_SHARED_SECRET }}

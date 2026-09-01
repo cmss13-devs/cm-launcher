@@ -1,0 +1,31 @@
+name: "GitHub Deploy"
+
+on:
+  push:
+    tags:
+      - "v*"
+    branches:
+      - dev
+
+jobs:
+  build-cm:
+    name: CM-SS13 Launcher
+    uses: ./.github/workflows/build.yml
+    with:
+      variant: cm
+      features: "cm_ss13,hwid"
+      tauri-configs: "--config src-tauri/tauri.cm.conf.json"
+      tarball-prefix: "cm-ss13-launcher"
+    secrets: inherit
+
+  build-ss13:
+    name: SS13 Launcher
+    needs: build-cm
+    uses: ./.github/workflows/build.yml
+    with:
+      variant: ss13
+      features: "hwid"
+      tarball-prefix: "ss13-launcher"
+      enable-updater-signing: true
+      updater-json-prefer-nsis: true
+    secrets: inherit
