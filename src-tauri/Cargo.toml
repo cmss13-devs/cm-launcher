@@ -43,6 +43,7 @@ oauth2 = "5"
 tiny_http = "0.12"
 rand = "0.8"
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
+aes-gcm = "0.10"
 base64 = "0.22"
 dirs = "5"
 open = "5"
