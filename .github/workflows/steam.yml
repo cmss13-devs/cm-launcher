@@ -79,7 +79,7 @@ jobs:
           sudo ldconfig
 
       - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v1
+        uses: tauri-apps/tauri-action@v0.6.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LD_LIBRARY_PATH: ${{ runner.os == 'Linux' && format('/usr/lib:{0}/src-tauri/resources', github.workspace) || '' }}

@@ -58,7 +58,7 @@ jobs:
           ssh-deploy-key: ${{ secrets.SS13HWID_DEPLOY_KEY }}
           hwid-signing-key: ${{ secrets.SS13HWID_SIGNING_KEY }}
 
-      - uses: tauri-apps/tauri-action@v1
+      - uses: tauri-apps/tauri-action@v0.6.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_BUNDLER_NEW_APPIMAGE_FORMAT: "true"
