@@ -25,7 +25,7 @@ runs:
       run: sed -i "s/^version = .*/version = \"${GITHUB_REF_NAME#v}\"/" src-tauri/Cargo.toml
 
     - name: Setup Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v7
       with:
         node-version: lts/*
         cache: "npm"
@@ -60,7 +60,7 @@ runs:
     - name: Cache Wine build
       if: runner.os == 'Linux'
       id: cache-wine
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: |
           src-tauri/wine.tar.zst
@@ -101,7 +101,7 @@ runs:
     - name: Cache custom tauri-cli
       if: runner.os == 'Linux'
       id: cache-tauri-cli
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: ~/.cargo/bin/cargo-tauri
         key: tauri-cli-e0e9a556-${{ runner.os }}
@@ -121,7 +121,7 @@ runs:
         chmod +x ~/.cache/tauri/quick-sharun.sh
 
     - name: Configure SSH for private HWID crate
-      uses: webfactory/ssh-agent@v0.9.0
+      uses: webfactory/ssh-agent@v0.10.0
       with:
         ssh-private-key: ${{ inputs.ssh-deploy-key }}
 

@@ -49,7 +49,7 @@ jobs:
 
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup
         uses: ./.github/actions/tauri-setup
@@ -58,7 +58,7 @@ jobs:
           ssh-deploy-key: ${{ secrets.SS13HWID_DEPLOY_KEY }}
           hwid-signing-key: ${{ secrets.SS13HWID_SIGNING_KEY }}
 
-      - uses: tauri-apps/tauri-action@v0.6.1
+      - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_BUNDLER_NEW_APPIMAGE_FORMAT: "true"

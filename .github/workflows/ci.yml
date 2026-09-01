@@ -12,7 +12,7 @@ jobs:
   bindings-check:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -61,10 +61,10 @@ jobs:
 
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: lts/*
           cache: 'npm'
@@ -98,7 +98,7 @@ jobs:
       - name: Cache Wine build
         if: matrix.platform == 'ubuntu-24.04'
         id: cache-wine
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             src-tauri/wine.tar.zst

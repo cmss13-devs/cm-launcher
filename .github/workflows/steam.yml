@@ -30,7 +30,7 @@ jobs:
             sidecar-app-name: "CM-SS13 Launcher"
             exe-rename: "CM_Launcher.exe"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup
         uses: ./.github/actions/tauri-setup
@@ -42,7 +42,7 @@ jobs:
 
       - name: Cache Steamworks SDK
         id: cache-steamworks
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: steamworks_sdk
           key: steamworks-sdk-${{ env.STEAMWORKS_SDK_COMMIT }}
@@ -79,7 +79,7 @@ jobs:
           sudo ldconfig
 
       - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0.6.1
+        uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LD_LIBRARY_PATH: ${{ runner.os == 'Linux' && format('/usr/lib:{0}/src-tauri/resources', github.workspace) || '' }}
@@ -111,7 +111,7 @@ jobs:
 
       - name: Upload Windows build
         if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: build-steam-${{ matrix.variant }}-windows
           path: steam-build/windows/
@@ -144,7 +144,7 @@ jobs:
 
       - name: Upload Linux build
         if: runner.os == 'Linux'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: build-steam-${{ matrix.variant }}-linux
           path: steam-build/linux/
@@ -160,7 +160,7 @@ jobs:
           - variant: cm
             steam-app-id: "4313790"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Sync version to tag
         if: startsWith(github.ref, 'refs/tags/v')
