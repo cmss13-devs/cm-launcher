@@ -36,7 +36,7 @@ env:
 
 jobs:
   build:
-    name: ${{ inputs.variant }} / ${{ matrix.platform }}
+    name: ${{ matrix.platform }}
     permissions:
       contents: write
       issues: write

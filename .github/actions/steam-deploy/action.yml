@@ -34,13 +34,13 @@ runs:
     - name: Download Windows build
       uses: actions/download-artifact@v4
       with:
-        name: windows-build-${{ inputs.variant }}
+        name: build-steam-${{ inputs.variant }}-windows
         path: build/windows
 
     - name: Download Linux build
       uses: actions/download-artifact@v4
       with:
-        name: linux-build-${{ inputs.variant }}
+        name: build-steam-${{ inputs.variant }}-linux
         path: build/linux
 
     - name: Get version from Cargo.toml

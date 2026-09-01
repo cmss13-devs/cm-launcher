@@ -12,19 +12,31 @@ env:
   CARGO_NET_GIT_FETCH_WITH_CLI: "true"
 
 jobs:
-  build-windows:
-    runs-on: windows-latest
+  build-steam:
+    name: build-steam / ${{ matrix.variant }} / ${{ matrix.platform }}
+    runs-on: ${{ matrix.platform }}
     permissions:
       contents: read
       issues: write
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [cm]
+        platform: [windows-latest, ubuntu-24.04]
+        include:
+          - variant: cm
+            features: "cm_ss13,steam,hwid"
+            tauri-configs: "--config src-tauri/tauri.cm.conf.json --config src-tauri/tauri.steam.conf.json"
+            sidecar-app-name: "CM-SS13 Launcher"
+            exe-rename: "CM_Launcher.exe"
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup
         uses: ./.github/actions/tauri-setup
         with:
-          cache-key: steam-windows
-          sidecar-app-name: "CM-SS13 Launcher"
+          cache-key: steam-${{ matrix.variant }}-${{ runner.os }}
+          sidecar-app-name: ${{ matrix.sidecar-app-name }}
           ssh-deploy-key: ${{ secrets.SS13HWID_DEPLOY_KEY }}
           hwid-signing-key: ${{ secrets.SS13HWID_SIGNING_KEY }}
 
@@ -35,8 +47,8 @@ jobs:
           path: steamworks_sdk
           key: steamworks-sdk-${{ env.STEAMWORKS_SDK_COMMIT }}
 
-      - name: Download Steamworks SDK
-        if: steps.cache-steamworks.outputs.cache-hit != 'true'
+      - name: Download Steamworks SDK (Windows)
+        if: runner.os == 'Windows' && steps.cache-steamworks.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           $commit = "$env:STEAMWORKS_SDK_COMMIT"
@@ -44,72 +56,22 @@ jobs:
           Expand-Archive -Path "steamworks_sdk.zip" -DestinationPath "."
           Move-Item "SteamworksSDK-$commit" "steamworks_sdk"
 
-      - name: Install Steam SDK library
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path "src-tauri/resources"
-          Copy-Item "steamworks_sdk/redistributable_bin/win64/steam_api64.dll" -Destination "src-tauri/resources/"
-
-      - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0.6.1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          STEAM_APP_ID: "4313790"
-          STEAM_APP_NAME: "production"
-          SS13HWID_SIGNING_KEY_PATH: ${{ env.SS13HWID_SIGNING_KEY_PATH }}
-        with:
-          args: --features cm_ss13,steam,hwid --config src-tauri/tauri.cm.conf.json --config src-tauri/tauri.steam.conf.json
-
-      - name: Prepare Windows artifacts
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path steam-build/windows
-          Copy-Item "src-tauri/target/release/SS13_Launcher.exe" -Destination "steam-build/windows/CM_Launcher.exe"
-          Copy-Item "src-tauri/resources/steam_api64.dll" -Destination "steam-build/windows/"
-          Copy-Item "src-tauri/webview2-runtime" -Destination "steam-build/windows/webview2-runtime" -Recurse
-
-      - name: Scan with Windows Defender
-        uses: ./.github/actions/defender-scan
-        with:
-          exe_path: steam-build/windows/CM_Launcher.exe
-          build_name: "Steam ${{ github.ref_name }}"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload Windows build
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-build-production
-          path: steam-build/windows/
-          retention-days: 1
-
-  build-linux:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup
-        uses: ./.github/actions/tauri-setup
-        with:
-          cache-key: steam-linux
-          sidecar-app-name: "CM-SS13 Launcher"
-          ssh-deploy-key: ${{ secrets.SS13HWID_DEPLOY_KEY }}
-          hwid-signing-key: ${{ secrets.SS13HWID_SIGNING_KEY }}
-
-      - name: Cache Steamworks SDK
-        id: cache-steamworks
-        uses: actions/cache@v4
-        with:
-          path: steamworks_sdk
-          key: steamworks-sdk-${{ env.STEAMWORKS_SDK_COMMIT }}
-
-      - name: Download Steamworks SDK
-        if: steps.cache-steamworks.outputs.cache-hit != 'true'
+      - name: Download Steamworks SDK (Linux)
+        if: runner.os == 'Linux' && steps.cache-steamworks.outputs.cache-hit != 'true'
         run: |
           curl -L "https://github.com/rlabrecque/SteamworksSDK/archive/$STEAMWORKS_SDK_COMMIT.zip" -o steamworks_sdk.zip
           unzip steamworks_sdk.zip
           mv "SteamworksSDK-$STEAMWORKS_SDK_COMMIT" steamworks_sdk
 
-      - name: Install Steam SDK library
+      - name: Install Steam SDK library (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "src-tauri/resources"
+          Copy-Item "steamworks_sdk/redistributable_bin/win64/steam_api64.dll" -Destination "src-tauri/resources/"
+
+      - name: Install Steam SDK library (Linux)
+        if: runner.os == 'Linux'
         run: |
           mkdir -p src-tauri/resources
           cp steamworks_sdk/redistributable_bin/linux64/libsteam_api.so src-tauri/resources/
@@ -120,17 +82,43 @@ jobs:
         uses: tauri-apps/tauri-action@v0.6.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          LD_LIBRARY_PATH: /usr/lib:${{ github.workspace }}/src-tauri/resources
+          LD_LIBRARY_PATH: ${{ runner.os == 'Linux' && format('/usr/lib:{0}/src-tauri/resources', github.workspace) || '' }}
           STEAM_APP_ID: "4313790"
           STEAM_APP_NAME: "production"
           TAURI_BUNDLER_NEW_APPIMAGE_FORMAT: "true"
-          ADD_DIR: "/tmp/lib/CM-SS13 Launcher"
+          ADD_DIR: "/tmp/lib/${{ matrix.sidecar-app-name }}"
           SS13HWID_SIGNING_KEY_PATH: ${{ env.SS13HWID_SIGNING_KEY_PATH }}
         with:
-          args: --features cm_ss13,steam,hwid --config src-tauri/tauri.cm.conf.json --config src-tauri/tauri.steam.conf.json --config src-tauri/tauri.linux.conf.json
-          tauriScript: cargo tauri
+          args: --features ${{ matrix.features }} ${{ matrix.tauri-configs }} ${{ matrix.platform == 'ubuntu-24.04' && '--config src-tauri/tauri.linux.conf.json' || '' }}
+          tauriScript: ${{ matrix.platform == 'ubuntu-24.04' && 'cargo tauri' || 'npm tauri' }}
+
+      - name: Prepare Windows artifacts
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path steam-build/windows
+          Copy-Item "src-tauri/target/release/SS13_Launcher.exe" -Destination "steam-build/windows/${{ matrix.exe-rename }}"
+          Copy-Item "src-tauri/resources/steam_api64.dll" -Destination "steam-build/windows/"
+          Copy-Item "src-tauri/webview2-runtime" -Destination "steam-build/windows/webview2-runtime" -Recurse
+
+      - name: Scan with Windows Defender
+        if: runner.os == 'Windows'
+        uses: ./.github/actions/defender-scan
+        with:
+          exe_path: steam-build/windows/${{ matrix.exe-rename }}
+          build_name: steam-${{ matrix.variant }}-${{ github.ref_name }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Windows build
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-steam-${{ matrix.variant }}-windows
+          path: steam-build/windows/
+          retention-days: 1
 
       - name: Extract AppImage and prepare artifacts
+        if: runner.os == 'Linux'
         run: |
           APPIMAGE=$(find src-tauri/target/release/bundle -name "*.AppImage" | head -1)
           chmod +x "$APPIMAGE"
@@ -155,15 +143,22 @@ jobs:
           chmod +x steam-build/linux/launch.sh
 
       - name: Upload Linux build
+        if: runner.os == 'Linux'
         uses: actions/upload-artifact@v4
         with:
-          name: linux-build-production
+          name: build-steam-${{ matrix.variant }}-linux
           path: steam-build/linux/
           retention-days: 1
 
   deploy-steam:
-    needs: [build-windows, build-linux]
+    needs: build-steam
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: cm
+            steam-app-id: "4313790"
     steps:
       - uses: actions/checkout@v4
 
@@ -174,8 +169,8 @@ jobs:
       - name: Deploy to Steam
         uses: ./.github/actions/steam-deploy
         with:
-          variant: production
-          steam_app_id: "4313790"
+          variant: ${{ matrix.variant }}
+          steam_app_id: ${{ matrix.steam-app-id }}
           steam_username: ${{ secrets.STEAM_USERNAME }}
           steam_password: ${{ secrets.STEAM_PASSWORD }}
           steam_shared_secret: ${{ secrets.STEAM_SHARED_SECRET }}
