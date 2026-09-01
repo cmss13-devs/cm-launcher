@@ -7,6 +7,10 @@ on:
     branches:
       - dev
 
+permissions:
+  contents: write
+  issues: write
+
 jobs:
   build-cm:
     name: CM-SS13 Launcher
