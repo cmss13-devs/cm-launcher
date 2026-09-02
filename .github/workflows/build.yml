@@ -58,7 +58,7 @@ jobs:
           ssh-deploy-key: ${{ secrets.SS13HWID_DEPLOY_KEY }}
           hwid-signing-key: ${{ secrets.SS13HWID_SIGNING_KEY }}
 
-      - uses: tauri-apps/tauri-action@v0.6.1
+      - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_BUNDLER_NEW_APPIMAGE_FORMAT: "true"
@@ -73,7 +73,7 @@ jobs:
           prerelease: ${{ github.ref == 'refs/heads/dev' }}
           args: --features ${{ inputs.features }} ${{ inputs.tauri-configs }} ${{ matrix.platform == 'ubuntu-24.04' && '--config src-tauri/tauri.linux.conf.json' || '' }}
           updaterJsonPreferNsis: ${{ inputs.updater-json-prefer-nsis }}
-          tauriScript: ${{ matrix.platform == 'ubuntu-24.04' && 'cargo tauri' || 'npm tauri' }}
+          tauriScript: ${{ matrix.platform == 'ubuntu-24.04' && 'cargo tauri' || 'npx tauri' }}
 
       - name: Scan with Windows Defender
         if: matrix.platform == 'windows-latest'

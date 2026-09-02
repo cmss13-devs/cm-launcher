@@ -79,7 +79,7 @@ jobs:
           sudo ldconfig
 
       - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0.6.1
+        uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LD_LIBRARY_PATH: ${{ runner.os == 'Linux' && format('/usr/lib:{0}/src-tauri/resources', github.workspace) || '' }}
@@ -90,7 +90,7 @@ jobs:
           SS13HWID_SIGNING_KEY_PATH: ${{ env.SS13HWID_SIGNING_KEY_PATH }}
         with:
           args: --features ${{ matrix.features }} ${{ matrix.tauri-configs }} ${{ matrix.platform == 'ubuntu-24.04' && '--config src-tauri/tauri.linux.conf.json' || '' }}
-          tauriScript: ${{ matrix.platform == 'ubuntu-24.04' && 'cargo tauri' || 'npm tauri' }}
+          tauriScript: ${{ matrix.platform == 'ubuntu-24.04' && 'cargo tauri' || 'npx tauri' }}
 
       - name: Prepare Windows artifacts
         if: runner.os == 'Windows'
