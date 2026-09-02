@@ -10,41 +10,27 @@
     {
       "label": "Dev",
       "type": "shell",
-      "command": "npm run dev",
-      "isBackground": true,
-      "problemMatcher": {
-        "owner": "tauri-dev",
-        "background": {
-          "activeOnStart": true,
-          "beginsPattern": ".",
-          "endsPattern": "Local:"
-        },
-        "pattern": {
-          "regexp": "^$"
-        }
-      },
+      "command": "npm run tauri -- dev",
+      "dependsOn": ["npm install"],
+      "problemMatcher": [],
       "group": {
         "kind": "build",
         "isDefault": true
       }
     },
     {
+      "label": "Dev (CM)",
+      "type": "shell",
+      "command": "npm run tauri -- dev --config src-tauri/tauri.cm.conf.json -- --features cm_ss13",
+      "dependsOn": ["npm install"],
+      "problemMatcher": []
+    },
+    {
       "label": "Dev (HWID)",
       "type": "shell",
-      "command": "bash ./scripts/with-hwid.sh npm run dev",
+      "command": "bash ./scripts/with-hwid.sh npm run tauri -- dev -- --features hwid",
       "dependsOn": ["npm install"],
-      "isBackground": true,
-      "problemMatcher": {
-        "owner": "tauri-dev-hwid",
-        "background": {
-          "activeOnStart": true,
-          "beginsPattern": ".",
-          "endsPattern": "Local:"
-        },
-        "pattern": {
-          "regexp": "^$"
-        }
-      }
+      "problemMatcher": []
     },
     {
       "label": "Build",

@@ -1,35 +1,4 @@
 {
   "version": "0.2.0",
-  "configurations": [
-    {
-      "name": "Dev",
-      "type": "lldb",
-      "request": "launch",
-      "cargo": {
-        "args": ["build", "--manifest-path=src-tauri/Cargo.toml", "--no-default-features"],
-        "problemMatcher": "$rustc"
-      },
-      "preLaunchTask": "Dev"
-    },
-    {
-      "name": "Dev (CM)",
-      "type": "lldb",
-      "request": "launch",
-      "cargo": {
-        "args": ["build", "--manifest-path=src-tauri/Cargo.toml", "--no-default-features", "--features", "cm_ss13"],
-        "problemMatcher": "$rustc"
-      },
-      "preLaunchTask": "Dev"
-    },
-    {
-      "name": "Dev (HWID)",
-      "type": "lldb",
-      "request": "launch",
-      "cargo": {
-        "args": ["build", "--manifest-path=src-tauri/Cargo.toml", "--no-default-features", "--features", "hwid"],
-        "problemMatcher": "$rustc"
-      },
-      "preLaunchTask": "Dev (HWID)"
-    }
-  ]
+  "configurations": []
 }
