@@ -113,21 +113,17 @@ export const useAuthStore = create<AuthStore>()((set, get) => ({
   },
 
   initListener: async () => {
-    try {
-      const state = unwrap(await commands.getAuthState());
-      get().setAuthState(state);
-    } catch (err) {
-      get().setAuthState({
-        logged_in: false,
-        user: null,
-        loading: false,
-        error: String(err),
-      });
-    }
-
     const unlisten = await listen<AuthState>("auth-state-changed", (event) => {
       get().setAuthState(event.payload);
     });
+
+    try {
+      const cached = unwrap(await commands.getCurrentAuthState());
+      if (cached) {
+        get().setAuthState(cached);
+      }
+    } catch {
+    }
 
     return unlisten;
   },

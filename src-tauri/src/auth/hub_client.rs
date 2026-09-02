@@ -125,18 +125,27 @@ impl HubClient {
     pub async fn refresh(token: &str) -> Result<LoginResponse, HubAuthError> {
         let client = Self::from_config()?;
 
+        let url = format!("{}/auth/refresh", client.base_url);
+        tracing::info!("Hub refresh: POST {url}");
         let response = client
             .http
-            .post(format!("{}/auth/refresh", client.base_url))
+            .post(&url)
             .header("Authorization", format!("SS13Auth {token}"))
             .send()
             .await
-            .map_err(|e| HubAuthError::Network(format!("Failed to connect: {e}")))?;
+            .map_err(|e| {
+                tracing::warn!("Hub refresh: network error: {e}");
+                HubAuthError::Network(format!("Failed to connect: {e}"))
+            })?;
 
-        if !response.status().is_success() {
+        let status = response.status();
+        if !status.is_success() {
+            let body = response.text().await.unwrap_or_default();
+            tracing::warn!("Hub refresh: HTTP {status}, body={body}");
             return Err(HubAuthError::TokenExpired);
         }
 
+        tracing::info!("Hub refresh: HTTP {status} OK");
         response
             .json::<LoginResponse>()
             .await
@@ -352,18 +361,27 @@ impl HubClient {
     pub async fn get_profile(token: &str) -> Result<UserInfo, HubAuthError> {
         let client = Self::from_config()?;
 
+        let url = format!("{}/account", client.base_url);
+        tracing::info!("Hub get_profile: GET {url}");
         let response = client
             .http
-            .get(format!("{}/account", client.base_url))
+            .get(&url)
             .header("Authorization", format!("SS13Auth {token}"))
             .send()
             .await
-            .map_err(|e| HubAuthError::Network(format!("Failed to connect: {e}")))?;
+            .map_err(|e| {
+                tracing::warn!("Hub get_profile: network error: {e}");
+                HubAuthError::Network(format!("Failed to connect: {e}"))
+            })?;
 
-        if !response.status().is_success() {
+        let status = response.status();
+        if !status.is_success() {
+            let body = response.text().await.unwrap_or_default();
+            tracing::warn!("Hub get_profile: HTTP {status}, body={body}");
             return Err(HubAuthError::TokenExpired);
         }
 
+        tracing::info!("Hub get_profile: HTTP {status} OK");
         let body: serde_json::Value = response
             .json()
             .await

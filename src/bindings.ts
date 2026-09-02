@@ -159,6 +159,14 @@ async getAuthState() : Promise<Result<AuthState, CommandError>> {
     else return { status: "error", error: e  as any };
 }
 },
+async getCurrentAuthState() : Promise<Result<AuthState | null, CommandError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_current_auth_state") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async refreshAuth() : Promise<Result<AuthState, CommandError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("refresh_auth") };
