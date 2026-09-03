@@ -70,4 +70,20 @@ if (-not (Test-Path (Join-Path $OutputDir "msedgewebview2.exe"))) {
     exit 1
 }
 
+$PrunePatterns = @(
+    "*copilot*",
+    "mscopilot.exe",
+    "elevated_tracing_service.exe",
+    "dual_engine_adapter_x64.dll",
+    "learning_tools.dll",
+    "microsoft_shell_integration.dll",
+    "edge_feedback",
+    "AdSelectionAttestationsPreloaded"
+)
+foreach ($pattern in $PrunePatterns) {
+    Get-ChildItem -Path $OutputDir -Recurse -Filter $pattern -ErrorAction SilentlyContinue |
+    Remove-Item -Recurse -Force
+}
+Write-Host "Pruned Edge files"
+
 Write-Host "WebView2 fixed runtime v$version ready at $OutputDir"

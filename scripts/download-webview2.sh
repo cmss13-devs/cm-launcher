@@ -33,4 +33,16 @@ if [ ! -f "$OUTPUT_DIR/msedgewebview2.exe" ]; then
     exit 1
 fi
 
+echo "Pruning Edge files..."
+find "$OUTPUT_DIR" \( \
+    -iname "*copilot*" \
+    -o -name "mscopilot.exe" \
+    -o -name "elevated_tracing_service.exe" \
+    -o -name "dual_engine_adapter_x64.dll" \
+    -o -name "learning_tools.dll" \
+    -o -name "microsoft_shell_integration.dll" \
+    -o -name "edge_feedback" \
+    -o -name "AdSelectionAttestationsPreloaded" \
+\) -exec rm -rf {} + 2>/dev/null || true
+
 echo "WebView2 fixed runtime v$WEBVIEW2_VERSION ready at $OUTPUT_DIR"
