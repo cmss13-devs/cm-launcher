@@ -563,7 +563,6 @@ impl ControlServer {
     }
 }
 
-
 #[allow(clippy::unused_async)]
 async fn refresh_auth_token(
     #[allow(unused_variables)] app_handle: &tauri::AppHandle,

@@ -218,10 +218,7 @@ impl CallbackServer {
                 })?
                 .clone();
 
-            let state = params
-                .get("state")
-                .cloned()
-                .unwrap_or_default();
+            let state = params.get("state").cloned().unwrap_or_default();
 
             if let Some(ref expected) = self.expected_state {
                 if &state != expected {

@@ -141,7 +141,10 @@ impl TokenStorage {
             })?;
         }
 
-        tracing::info!("Tokens stored successfully ({} bytes encrypted)", encrypted.len());
+        tracing::info!(
+            "Tokens stored successfully ({} bytes encrypted)",
+            encrypted.len()
+        );
         Ok(())
     }
 

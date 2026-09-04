@@ -296,25 +296,27 @@ pub fn start_presence_background_task(
                 was_game_running = true;
 
                 if let Some(session) = presence_manager.get_game_session() {
-                    let (player_count, map_name) = if let Some(server_state) =
-                        app_handle.try_state::<Arc<ServerState>>()
-                    {
-                        let servers = server_state.get_servers().await;
-                        if let Some(server) = session.server_id.as_ref().and_then(|id| servers.iter().find(|s| s.id == *id))
-                        {
-                            let player_count = server.data.as_ref().map(|d| d.players);
-                            let map_name = server
-                                .data
+                    let (player_count, map_name) =
+                        if let Some(server_state) = app_handle.try_state::<Arc<ServerState>>() {
+                            let servers = server_state.get_servers().await;
+                            if let Some(server) = session
+                                .server_id
                                 .as_ref()
-                                .map(|d| d.map_name.clone())
-                                .or_else(|| session.map_name.clone());
-                            (player_count, map_name)
+                                .and_then(|id| servers.iter().find(|s| s.id == *id))
+                            {
+                                let player_count = server.data.as_ref().map(|d| d.players);
+                                let map_name = server
+                                    .data
+                                    .as_ref()
+                                    .map(|d| d.map_name.clone())
+                                    .or_else(|| session.map_name.clone());
+                                (player_count, map_name)
+                            } else {
+                                (None, session.map_name.clone())
+                            }
                         } else {
                             (None, session.map_name.clone())
-                        }
-                    } else {
-                        (None, session.map_name.clone())
-                    };
+                        };
 
                     if force_update
                         || player_count != last_player_count

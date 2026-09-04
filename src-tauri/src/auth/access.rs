@@ -5,11 +5,11 @@ use crate::auth::TokenStorage;
 use crate::settings::{load_settings, AuthMode};
 
 #[cfg(feature = "steam")]
+use crate::steam::{authenticate_with_steam, SteamState};
+#[cfg(feature = "steam")]
 use std::sync::Arc;
 #[cfg(feature = "steam")]
 use tauri::Manager;
-#[cfg(feature = "steam")]
-use crate::steam::{authenticate_with_steam, SteamState};
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
@@ -171,7 +171,11 @@ pub async fn resolve_access_method(
         AuthMode::Hub => {
             let method = get_session_token()?;
             let has_hub_api = crate::config::get_config().urls.hub_api.is_some();
-            tracing::info!(has_hub_api, has_server_id = server_id.is_some(), "hub auth: checking ticket exchange");
+            tracing::info!(
+                has_hub_api,
+                has_server_id = server_id.is_some(),
+                "hub auth: checking ticket exchange"
+            );
             if let (true, Some(sid), AccessMethod::SessionToken { ref token, .. }) =
                 (has_hub_api, server_id, &method)
             {

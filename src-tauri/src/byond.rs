@@ -26,9 +26,7 @@ use std::process::Command;
 #[cfg(target_os = "linux")]
 use crate::wine;
 
-
 static CONNECTING: AtomicBool = AtomicBool::new(false);
-
 
 pub struct ConnectionRequest {
     pub version: String,
@@ -163,8 +161,7 @@ pub fn cleanup_old_versions(app: &AppHandle) {
     let mut versions_to_remove = Vec::new();
     for (version, entry) in to_check {
         let is_old = match &entry.last_used {
-            Some(ts) => chrono::DateTime::parse_from_rfc3339(ts)
-                .map_or(true, |t| t < cutoff),
+            Some(ts) => chrono::DateTime::parse_from_rfc3339(ts).map_or(true, |t| t < cutoff),
             None => {
                 // Never used - check installed_at instead
                 chrono::DateTime::parse_from_rfc3339(&entry.installed_at)
@@ -258,7 +255,6 @@ pub struct ByondVersionInfo {
     pub path: Option<String>,
     pub last_used: Option<String>,
 }
-
 
 #[derive(Debug, Serialize, Deserialize, specta::Type)]
 pub struct ConnectionResult {
@@ -733,7 +729,6 @@ pub async fn connect(app: AppHandle, req: ConnectionRequest) -> CommandResult<Co
     result
 }
 
-
 #[cfg(any(target_os = "windows", target_os = "linux"))]
 async fn ensure_byond_web_session(
     app: AppHandle,
@@ -1164,12 +1159,11 @@ pub async fn connect_to_address(
     #[allow(clippy::indexing_slicing)]
     let (hostname, port_str) = (parts[0], parts[1]);
 
-    let server_id = match server_id {
-        Some(id) => Some(id),
-        None => {
-            let info = resolve_direct_connect(address.clone()).await.ok();
-            info.and_then(|i| i.server_id)
-        }
+    let server_id = if let Some(id) = server_id {
+        Some(id)
+    } else {
+        let info = resolve_direct_connect(address.clone()).await.ok();
+        info.and_then(|i| i.server_id)
     };
 
     let (access_method, server_id) = if let Some(server_id) = server_id {
@@ -1184,17 +1178,16 @@ pub async fn connect_to_address(
             Vec::new()
         };
 
-        let method =
-            match resolve_access_method(&app, &auth_methods, Some(&server_id)).await {
-                Ok(method) => method,
-                Err(auth_error) => {
-                    return Ok(ConnectionResult {
-                        success: false,
-                        message: auth_error.message.clone(),
-                        auth_error: Some(auth_error),
-                    });
-                }
-            };
+        let method = match resolve_access_method(&app, &auth_methods, Some(&server_id)).await {
+            Ok(method) => method,
+            Err(auth_error) => {
+                return Ok(ConnectionResult {
+                    success: false,
+                    message: auth_error.message.clone(),
+                    auth_error: Some(auth_error),
+                });
+            }
+        };
         (method, Some(server_id))
     } else {
         (AccessMethod::Byond, None)
@@ -1236,8 +1229,8 @@ async fn connect_impl(app: AppHandle, req: ConnectionRequest) -> CommandResult<C
         server_name,
         map_name,
         source,
-        server_id,
-        players,
+        server_id: _,
+        players: _,
     } = req;
 
     let version_info = install_byond_version(app.clone(), version.clone()).await?;

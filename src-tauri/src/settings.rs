@@ -301,4 +301,3 @@ pub async fn set_rich_presence(app: AppHandle, enabled: bool) -> CommandResult<A
 
     Ok(settings)
 }
-

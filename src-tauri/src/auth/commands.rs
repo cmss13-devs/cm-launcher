@@ -70,7 +70,10 @@ impl AuthState {
 }
 
 fn parse_hub_expiry(expire_time: &str) -> i64 {
-    chrono::DateTime::parse_from_rfc3339(expire_time).map_or_else(|_| chrono::Utc::now().timestamp() + 86400 * 30, |dt| dt.timestamp())
+    chrono::DateTime::parse_from_rfc3339(expire_time).map_or_else(
+        |_| chrono::Utc::now().timestamp() + 86400 * 30,
+        |dt| dt.timestamp(),
+    )
 }
 
 async fn fetch_user_info(token: &str) -> CommandResult<UserInfo> {
@@ -470,7 +473,10 @@ async fn refresh_tokens_internal(token: &str) -> CommandResult<AuthState> {
             tracing::warn!("refresh_tokens_internal: get_profile after refresh failed: {e:?}");
             CommandError::from(e)
         })?;
-        tracing::info!("refresh_tokens_internal: complete, user={:?}", user_info.preferred_username);
+        tracing::info!(
+            "refresh_tokens_internal: complete, user={:?}",
+            user_info.preferred_username
+        );
         Ok(AuthState::logged_in(user_info))
     } else {
         tracing::info!("refresh_tokens_internal: calling OIDC refresh");

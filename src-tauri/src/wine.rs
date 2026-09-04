@@ -679,7 +679,9 @@ fn set_registry_key(
     reg_type: &str,
 ) -> Result<(), WineError> {
     let mut cmd = Command::new(&paths.wine);
-    cmd.args(["reg", "add", path, "/v", key, "/t", reg_type, "/d", value, "/f"]);
+    cmd.args([
+        "reg", "add", path, "/v", key, "/t", reg_type, "/d", value, "/f",
+    ]);
     cmd.env("WINEPREFIX", prefix);
     for (k, v) in paths.get_env_vars() {
         cmd.env(k, v);
@@ -689,7 +691,10 @@ fn set_registry_key(
     let output = cmd.output()?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(WineError::Other(format!("Failed to set registry key {}\\{}: {}", path, key, stderr)));
+        return Err(WineError::Other(format!(
+            "Failed to set registry key {}\\{}: {}",
+            path, key, stderr
+        )));
     }
     tracing::info!("Set registry key: {}\\{} = {}", path, key, value);
     Ok(())

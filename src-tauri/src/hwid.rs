@@ -5,7 +5,10 @@ use crate::auth::hub_client::{HubAuthError, HubClient};
 pub async fn exchange_hub_ticket(token: &str, server_id: &str) -> Result<String, HubAuthError> {
     tracing::info!(server_id, "exchange_hub_ticket: calling join");
     let nonce_b64 = HubClient::join(token, server_id).await?;
-    tracing::info!(server_id, "exchange_hub_ticket: got nonce, calling join_complete");
+    tracing::info!(
+        server_id,
+        "exchange_hub_ticket: got nonce, calling join_complete"
+    );
 
     let nonce_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
         .decode(&nonce_b64)
@@ -13,7 +16,14 @@ pub async fn exchange_hub_ticket(token: &str, server_id: &str) -> Result<String,
 
     let (version, components, signature) = collect_hwid(&nonce_bytes);
 
-    let ticket = HubClient::join_complete(token, &nonce_b64, version, &components, signature.as_deref()).await?;
+    let ticket = HubClient::join_complete(
+        token,
+        &nonce_b64,
+        version,
+        &components,
+        signature.as_deref(),
+    )
+    .await?;
     tracing::info!(server_id, ticket = %ticket, "exchange_hub_ticket: got auth ticket from hub");
     Ok(ticket)
 }

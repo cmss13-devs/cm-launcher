@@ -49,8 +49,8 @@ use relays::{get_relays, get_selected_relay, set_selected_relay};
 use server_ping::get_server_pings;
 use servers::{get_announcements, get_servers};
 use settings::{
-    get_settings, set_auth_mode, set_locale, set_rendering_pipeline, set_rich_presence, set_theme,
-    set_accepted_tos_server, set_whitelisted_server, toggle_favorite_server,
+    get_settings, set_accepted_tos_server, set_auth_mode, set_locale, set_rendering_pipeline,
+    set_rich_presence, set_theme, set_whitelisted_server, toggle_favorite_server,
     toggle_server_notifications, trust_direct_connect_address,
 };
 use singleplayer::{
@@ -141,46 +141,73 @@ mod steam_stubs {
     #[tauri::command]
     #[specta::specta]
     pub async fn hub_steam_login() -> CommandResult<crate::auth::AuthState> {
-        Err(CommandError::NotConfigured { feature: "steam".into() })
+        Err(CommandError::NotConfigured {
+            feature: "steam".into(),
+        })
     }
     #[tauri::command]
     #[specta::specta]
     pub async fn get_steam_user_info() -> CommandResult<SteamUserInfo> {
-        Err(CommandError::NotConfigured { feature: "steam".into() })
+        Err(CommandError::NotConfigured {
+            feature: "steam".into(),
+        })
     }
     #[tauri::command]
     #[specta::specta]
     pub async fn get_steam_auth_ticket() -> CommandResult<String> {
-        Err(CommandError::NotConfigured { feature: "steam".into() })
+        Err(CommandError::NotConfigured {
+            feature: "steam".into(),
+        })
     }
     #[tauri::command]
     #[specta::specta]
     pub async fn cancel_steam_auth_ticket() -> CommandResult<()> {
-        Err(CommandError::NotConfigured { feature: "steam".into() })
+        Err(CommandError::NotConfigured {
+            feature: "steam".into(),
+        })
     }
     #[tauri::command]
     #[specta::specta]
-    pub async fn steam_authenticate(_create_account_if_missing: bool) -> CommandResult<SteamAuthResult> {
-        Err(CommandError::NotConfigured { feature: "steam".into() })
+    pub async fn steam_authenticate(
+        _create_account_if_missing: bool,
+    ) -> CommandResult<SteamAuthResult> {
+        Err(CommandError::NotConfigured {
+            feature: "steam".into(),
+        })
     }
     #[tauri::command]
     #[specta::specta]
     pub async fn get_steam_launch_options() -> CommandResult<SteamLaunchOptions> {
-        Err(CommandError::NotConfigured { feature: "steam".into() })
+        Err(CommandError::NotConfigured {
+            feature: "steam".into(),
+        })
     }
 
     #[derive(serde::Serialize, serde::Deserialize, specta::Type)]
-    pub struct SteamUserInfo { pub steam_id: String, pub display_name: String }
+    pub struct SteamUserInfo {
+        pub steam_id: String,
+        pub display_name: String,
+    }
     #[derive(serde::Serialize, serde::Deserialize, specta::Type)]
-    pub struct SteamAuthResult { pub success: bool, pub user_exists: bool, pub access_token: Option<String>, pub requires_linking: bool, pub linking_url: Option<String>, pub error: Option<String> }
+    pub struct SteamAuthResult {
+        pub success: bool,
+        pub user_exists: bool,
+        pub access_token: Option<String>,
+        pub requires_linking: bool,
+        pub linking_url: Option<String>,
+        pub error: Option<String>,
+    }
     #[derive(serde::Serialize, serde::Deserialize, specta::Type)]
-    pub struct SteamLaunchOptions { pub raw: String, pub connect_target: Option<String> }
+    pub struct SteamLaunchOptions {
+        pub raw: String,
+        pub connect_target: Option<String>,
+    }
 }
 
 #[cfg(not(feature = "steam"))]
 use steam_stubs::{
-    hub_steam_login, get_steam_user_info, get_steam_auth_ticket,
-    cancel_steam_auth_ticket, steam_authenticate, get_steam_launch_options,
+    cancel_steam_auth_ticket, get_steam_auth_ticket, get_steam_launch_options, get_steam_user_info,
+    hub_steam_login, steam_authenticate,
 };
 
 #[tauri::command]
@@ -466,9 +493,7 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 match get_auth_state().await {
                     Ok(state) => {
-                        handle_for_auth_init
-                            .emit("auth-state-changed", &state)
-                            .ok();
+                        handle_for_auth_init.emit("auth-state-changed", &state).ok();
                     }
                     Err(e) => {
                         tracing::error!("Initial auth state check failed: {e:?}");

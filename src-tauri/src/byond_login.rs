@@ -14,8 +14,8 @@ use tauri::{
 use tokio::sync::oneshot;
 
 /// Host used for navigation-based IPC from external BYOND webviews.
-/// External-origin webviews can't use Tauri's invoke() (ACL blocks it),
-/// so init scripts navigate to this fake host and on_navigation intercepts it.
+/// External-origin webviews can't use Tauri's `invoke()` (ACL blocks it),
+/// so init scripts navigate to this fake host and `on_navigation` intercepts it.
 const IPC_HOST: &str = "ipc.localhost";
 
 /// Parse a navigation URL as an IPC callback if it matches our IPC host.
@@ -25,7 +25,8 @@ fn parse_ipc_url(url: &url::Url) -> Option<(String, std::collections::HashMap<St
         return None;
     }
     let path = url.path().to_string();
-    let params: std::collections::HashMap<String, String> = url.query_pairs().into_owned().collect();
+    let params: std::collections::HashMap<String, String> =
+        url.query_pairs().into_owned().collect();
     Some((path, params))
 }
 
@@ -100,7 +101,7 @@ impl ByondLoginState {
     }
 }
 
-/// Core login-complete logic, callable from on_navigation IPC or the Tauri command.
+/// Core login-complete logic, callable from `on_navigation` IPC or the Tauri command.
 fn handle_login_complete(app: &AppHandle, username: Option<String>) {
     tracing::info!("BYOND login complete - username: {:?}", username);
 
@@ -410,7 +411,10 @@ fn create_login_webview(app: &AppHandle, data_dir: std::path::PathBuf) -> Comman
         if let Some((path, params)) = parse_ipc_url(url) {
             if path == "/login-complete" {
                 let username = params.get("username").cloned();
-                tracing::info!("BYOND login complete (via nav IPC): username={:?}", username);
+                tracing::info!(
+                    "BYOND login complete (via nav IPC): username={:?}",
+                    username
+                );
                 handle_login_complete(&app_for_nav, username);
             }
             return false; // cancel the navigation
@@ -485,7 +489,10 @@ fn create_login_webview(app: &AppHandle, data_dir: std::path::PathBuf) -> Comman
         if let Some((path, params)) = parse_ipc_url(url) {
             if path == "/login-complete" {
                 let username = params.get("username").cloned();
-                tracing::info!("BYOND login complete (via nav IPC): username={:?}", username);
+                tracing::info!(
+                    "BYOND login complete (via nav IPC): username={:?}",
+                    username
+                );
                 handle_login_complete(&app_for_nav, username);
             }
             return false; // cancel the navigation
@@ -550,7 +557,7 @@ impl SessionCheckState {
     }
 }
 
-/// Core session-check-complete logic, callable from on_navigation IPC or the Tauri command.
+/// Core session-check-complete logic, callable from `on_navigation` IPC or the Tauri command.
 fn handle_session_check_complete(
     app: &AppHandle,
     web_id: Option<String>,
@@ -601,7 +608,11 @@ pub fn byond_webview_log(level: String, message: String) {
 /// Called from JS when session check is complete
 #[tauri::command]
 #[specta::specta]
-pub fn byond_session_check_complete(app: AppHandle, web_id: Option<String>, username: Option<String>) {
+pub fn byond_session_check_complete(
+    app: AppHandle,
+    web_id: Option<String>,
+    username: Option<String>,
+) {
     handle_session_check_complete(&app, web_id, username);
 }
 
@@ -635,7 +646,7 @@ pub async fn check_byond_web_session(app: AppHandle) -> CommandResult<ByondSessi
         app.manage(check_state);
     }
 
-    let init_script = r#"
+    let init_script = r"
         if (window.location.hostname === 'www.byond.com' || window.location.hostname === 'byond.com') {
             const CHECK_INTERVAL = 500;
             const MAX_RETRIES = 60;
@@ -693,7 +704,7 @@ pub async fn check_byond_web_session(app: AppHandle) -> CommandResult<ByondSessi
                 window.addEventListener('load', checkSession);
             }
         }
-    "#;
+    ";
 
     let data_dir = app
         .path()
