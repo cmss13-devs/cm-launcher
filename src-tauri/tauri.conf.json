@@ -9,7 +9,7 @@
       }
     },
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDI1MjI2MkI0QTRENDY3QkUKUldTK1o5U210R0lpSmNpeWFpNGY2VFZWN3JVZEE4NTErN3Q3cWFiVjNjYTZQa1AwbFlOb3JsT2cK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFERUJFMEZCMDk3RTY2NDcKUldSSFpuNEorK0RycldJRVpmeUZnK0JxQ2JhRnhsc1FzL01iNFNlWGtDaE1wYWZMaTVVcVNCckoK",
       "endpoints": [
         "https://github.com/spacestation13/launcher/releases/latest/download/latest.json"
       ],
