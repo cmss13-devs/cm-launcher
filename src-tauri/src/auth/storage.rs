@@ -48,6 +48,7 @@ impl TokenStorage {
 
         match entry.get_password() {
             Ok(encoded) => {
+                tracing::debug!("Found existing encryption key in keyring");
                 use base64::Engine;
                 let bytes = b64.decode(&encoded).map_err(|e| {
                     CommandError::Io(format!("failed to decode encryption key: {e}"))
@@ -57,6 +58,7 @@ impl TokenStorage {
                 })
             }
             Err(keyring::Error::NoEntry) => {
+                tracing::info!("No encryption key in keyring, generating new key");
                 use base64::Engine;
                 let mut key = [0u8; KEY_LEN];
                 rand::thread_rng().fill_bytes(&mut key);
@@ -122,6 +124,12 @@ impl TokenStorage {
         let encrypted = Self::encrypt(json.as_bytes(), &key)?;
 
         let path = Self::tokens_path()?;
+        tracing::info!(
+            "Writing token file to {}, expires_at={}, has_refresh={}",
+            path.display(),
+            expires_at,
+            refresh_token.is_some()
+        );
         fs::write(&path, &encrypted)
             .map_err(|e| CommandError::Io(format!("failed to write token file: {e}")))?;
 
@@ -133,7 +141,7 @@ impl TokenStorage {
             })?;
         }
 
-        tracing::debug!("Tokens stored to encrypted file");
+        tracing::info!("Tokens stored successfully ({} bytes encrypted)", encrypted.len());
         Ok(())
     }
 
@@ -146,9 +154,17 @@ impl TokenStorage {
             }
         };
 
+        tracing::info!("Reading token file from {}", path.display());
+
         let encrypted = match fs::read(&path) {
-            Ok(data) => data,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Ok(data) => {
+                tracing::info!("Token file read OK ({} bytes)", data.len());
+                data
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                tracing::info!("Token file not found at {}", path.display());
+                return Ok(None);
+            }
             Err(e) => {
                 tracing::warn!("Failed to read token file: {e}");
                 return Ok(None);
@@ -164,9 +180,12 @@ impl TokenStorage {
         };
 
         let plaintext = match Self::decrypt(&encrypted, &key) {
-            Ok(p) => p,
+            Ok(p) => {
+                tracing::debug!("Token file decrypted OK");
+                p
+            }
             Err(e) => {
-                tracing::warn!("Failed to decrypt tokens: {e}");
+                tracing::warn!("Failed to decrypt tokens (keyring key may have changed): {e}");
                 return Ok(None);
             }
         };
@@ -179,14 +198,25 @@ impl TokenStorage {
             CommandError::InvalidResponse(format!("Failed to parse stored tokens: {e}"))
         })?;
 
+        let now = chrono::Utc::now().timestamp();
+        tracing::info!(
+            "Tokens loaded: expires_at={}, seconds_remaining={}, has_refresh={}",
+            tokens.expires_at,
+            tokens.expires_at.saturating_sub(now),
+            tokens.refresh_token.is_some()
+        );
+
         Ok(Some(tokens))
     }
 
     pub fn clear_tokens() -> CommandResult<()> {
         let path = Self::tokens_path()?;
+        tracing::warn!("Clearing token file at {}", path.display());
         match fs::remove_file(&path) {
-            Ok(()) => tracing::debug!("Token file removed"),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Ok(()) => tracing::warn!("Token file removed"),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                tracing::debug!("Token file already absent");
+            }
             Err(e) => {
                 return Err(CommandError::Io(format!(
                     "failed to remove token file: {e}"

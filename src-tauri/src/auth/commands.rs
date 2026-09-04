@@ -12,6 +12,9 @@ use super::hub_client::HubClient;
 
 static PENDING_2FA_CODE: tokio::sync::Mutex<Option<String>> = tokio::sync::Mutex::const_new(None);
 
+static CURRENT_AUTH_STATE: tokio::sync::RwLock<Option<AuthState>> =
+    tokio::sync::RwLock::const_new(None);
+
 impl From<HubAuthError> for CommandError {
     fn from(e: HubAuthError) -> Self {
         match e {
@@ -96,6 +99,7 @@ async fn complete_login(
         }
     };
     let auth_state = AuthState::logged_in(user_info);
+    *CURRENT_AUTH_STATE.write().await = Some(auth_state.clone());
     app.emit("auth-state-changed", &auth_state).ok();
     Ok(auth_state)
 }
@@ -143,44 +147,81 @@ pub async fn logout(app: AppHandle) -> CommandResult<AuthState> {
     TokenStorage::clear_tokens()?;
 
     let auth_state = AuthState::logged_out();
+    *CURRENT_AUTH_STATE.write().await = Some(auth_state.clone());
     app.emit("auth-state-changed", &auth_state).ok();
 
     Ok(auth_state)
 }
 
+/// Returns the current auth state if the backend has resolved it, otherwise
+/// `None`
+#[tauri::command]
+#[specta::specta]
+pub async fn get_current_auth_state() -> CommandResult<Option<AuthState>> {
+    Ok(CURRENT_AUTH_STATE.read().await.clone())
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn get_auth_state() -> CommandResult<AuthState> {
+    let result = get_auth_state_inner().await;
+
+    if let Ok(ref state) = result {
+        *CURRENT_AUTH_STATE.write().await = Some(state.clone());
+    }
+
+    result
+}
+
+async fn get_auth_state_inner() -> CommandResult<AuthState> {
     let Some(tokens) = TokenStorage::get_tokens()? else {
+        tracing::info!("No stored tokens found, returning logged_out");
         return Ok(AuthState::logged_out());
     };
 
     if TokenStorage::is_expired() {
+        tracing::info!("Stored tokens are expired, attempting refresh");
         let token_to_use = tokens
             .refresh_token
             .as_deref()
             .unwrap_or(&tokens.access_token);
 
         if let Ok(state) = refresh_tokens_internal(token_to_use).await {
+            tracing::info!("Expired token refresh succeeded");
             return Ok(state);
         }
+        tracing::warn!("Expired token refresh failed, clearing tokens");
         TokenStorage::clear_tokens()?;
         return Ok(AuthState::logged_out());
     }
+
+    tracing::info!("Stored tokens are valid (not expired)");
 
     let config = crate::config::get_config();
     if config.urls.hub_api.is_some() {
         // Hub auth: refresh on launch to reset the 28-day expiry window.
         // If refresh fails (e.g. network issue), fall back to validating
         // the existing token so we don't log the user out unnecessarily.
+        tracing::info!("Hub auth: attempting token refresh");
         match refresh_tokens_internal(&tokens.access_token).await {
-            Ok(state) => Ok(state),
-            Err(_) => {
-                if let Ok(user_info) = HubClient::get_profile(&tokens.access_token).await {
-                    Ok(AuthState::logged_in(user_info))
-                } else {
-                    TokenStorage::clear_tokens()?;
-                    Ok(AuthState::logged_out())
+            Ok(state) => {
+                tracing::info!("Hub token refresh succeeded");
+                Ok(state)
+            }
+            Err(e) => {
+                tracing::warn!("Hub token refresh failed: {e:?}, falling back to get_profile");
+                match HubClient::get_profile(&tokens.access_token).await {
+                    Ok(user_info) => {
+                        tracing::info!("Hub get_profile fallback succeeded");
+                        Ok(AuthState::logged_in(user_info))
+                    }
+                    Err(profile_err) => {
+                        tracing::warn!(
+                            "Hub get_profile fallback also failed: {profile_err:?}, clearing tokens"
+                        );
+                        TokenStorage::clear_tokens()?;
+                        Ok(AuthState::logged_out())
+                    }
                 }
             }
         }
@@ -412,13 +453,27 @@ async fn refresh_tokens_internal(token: &str) -> CommandResult<AuthState> {
     let config = crate::config::get_config();
 
     if config.urls.hub_api.is_some() {
-        let result = HubClient::refresh(token).await?;
+        tracing::info!("refresh_tokens_internal: calling Hub refresh endpoint");
+        let result = HubClient::refresh(token).await.map_err(|e| {
+            tracing::warn!("refresh_tokens_internal: Hub refresh failed: {e:?}");
+            CommandError::from(e)
+        })?;
         let expires_at = parse_hub_expiry(&result.expire_time);
+        tracing::info!(
+            "refresh_tokens_internal: Hub refresh succeeded, new expire_time={}",
+            result.expire_time
+        );
 
         TokenStorage::store_tokens(&result.token, None, "", expires_at)?;
-        let user_info = HubClient::get_profile(&result.token).await?;
+        tracing::info!("refresh_tokens_internal: fetching profile with new token");
+        let user_info = HubClient::get_profile(&result.token).await.map_err(|e| {
+            tracing::warn!("refresh_tokens_internal: get_profile after refresh failed: {e:?}");
+            CommandError::from(e)
+        })?;
+        tracing::info!("refresh_tokens_internal: complete, user={:?}", user_info.preferred_username);
         Ok(AuthState::logged_in(user_info))
     } else {
+        tracing::info!("refresh_tokens_internal: calling OIDC refresh");
         let token_result = OidcClient::refresh_tokens(token).await?;
 
         TokenStorage::store_tokens(

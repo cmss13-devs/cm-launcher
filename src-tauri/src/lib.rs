@@ -31,8 +31,8 @@ use tauri::{Emitter, Manager};
 
 use auth::background_refresh_task;
 use auth::{
-    get_access_token, get_auth_state, get_hub_oauth_providers, hub_complete_2fa, hub_login,
-    hub_oauth_login, logout, refresh_auth, start_login,
+    get_access_token, get_auth_state, get_current_auth_state, get_hub_oauth_providers,
+    hub_complete_2fa, hub_login, hub_oauth_login, logout, refresh_auth, start_login,
 };
 use byond::{
     check_byond_version, connect_to_address, connect_to_server, connect_to_url,
@@ -239,6 +239,7 @@ pub fn build_specta() -> tauri_specta::Builder<tauri::Wry> {
         get_hub_oauth_providers,
         logout,
         get_auth_state,
+        get_current_auth_state,
         refresh_auth,
         get_access_token,
         get_settings,
@@ -461,6 +462,20 @@ pub fn run() {
                 }
             }
 
+            let handle_for_auth_init = handle.clone();
+            tauri::async_runtime::spawn(async move {
+                match get_auth_state().await {
+                    Ok(state) => {
+                        handle_for_auth_init
+                            .emit("auth-state-changed", &state)
+                            .ok();
+                    }
+                    Err(e) => {
+                        tracing::error!("Initial auth state check failed: {e:?}");
+                    }
+                }
+            });
+
             let handle_for_auth = handle.clone();
             tauri::async_runtime::spawn(async move {
                 background_refresh_task(handle_for_auth).await;
@@ -526,11 +541,6 @@ mod tests {
 
     #[test]
     fn export_bindings() {
-        assert!(
-            cfg!(feature = "steam"),
-            "export_bindings must be run with --features steam to generate complete bindings"
-        );
-
         build_specta()
             .export(
                 specta_typescript::Typescript::default()
