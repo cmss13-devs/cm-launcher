@@ -23,6 +23,7 @@
     "copyright": "Copyright 2026 CM-SS13",
     "shortDescription": "Game launcher for CM-SS13",
     "longDescription": "Official launcher for CM-SS13. Manages BYOND game client installations and server authentication.",
+    "createUpdaterArtifacts": false,
     "resources": [
       "icons/cm/icon.png"
     ],
