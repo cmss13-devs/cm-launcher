@@ -1221,6 +1221,7 @@ pub async fn connect_to_address(
 }
 
 async fn connect_impl(app: AppHandle, req: ConnectionRequest) -> CommandResult<ConnectionResult> {
+    #[allow(unused_variables)]
     let ConnectionRequest {
         version,
         host,
@@ -1229,8 +1230,8 @@ async fn connect_impl(app: AppHandle, req: ConnectionRequest) -> CommandResult<C
         server_name,
         map_name,
         source,
-        server_id: _,
-        players: _,
+        server_id,
+        players,
     } = req;
 
     let version_info = install_byond_version(app.clone(), version.clone()).await?;
