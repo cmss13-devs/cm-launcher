@@ -65,7 +65,7 @@
       }
     },
     "active": true,
-    "createUpdaterArtifacts": "v1Compatible",
+    "createUpdaterArtifacts": true,
     "targets": ["nsis"],
     "icon": [
       "icons/ss13/32x32.png",
