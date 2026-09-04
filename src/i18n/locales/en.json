@@ -86,6 +86,8 @@
     "tguiDescription": "Modern flat interface",
     "crtName": "CRT Terminal",
     "crtDescription": "Classic green CRT terminal",
+    "modernName": "Modern",
+    "modernDescription": "Clean, minimal interface with rounded corners",
     "authMode": "Authentication Mode",
     "authModeDescription": "Choose how you want to authenticate when connecting to servers.",
     "hubAuth": "SS13Hub Authentication",

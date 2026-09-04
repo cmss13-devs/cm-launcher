@@ -1,0 +1,805 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+
+.theme-modern {
+  --primary: #6366f1;
+  --primary-dim: color-mix(in srgb, var(--primary) 70%, transparent);
+  --primary-faint: color-mix(in srgb, var(--primary) 20%, transparent);
+  --bg: #09090b;
+  --bg-dark: #09090b;
+  --bg-darker: #000000;
+  --bg-highlight: rgba(255, 255, 255, 0.06);
+  --bg-highlight-dim: rgba(255, 255, 255, 0.04);
+  --bg-highlight-faint: rgba(255, 255, 255, 0.02);
+  --text: rgba(250, 250, 250, 0.95);
+  --text-dim: rgba(161, 161, 170, 1);
+  --border: rgba(39, 39, 42, 1);
+  --section-bg: rgba(9, 9, 11, 0.8);
+  --error: #ef4444;
+  --warning: #f59e0b;
+  --success: #22c55e;
+  --ring: rgba(99, 102, 241, 0.5);
+  --card: #0a0a0c;
+  --muted: #27272a;
+  --radius: 8px;
+  --transition: all 0.15s ease;
+
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  // ── Base ────────────────────────────────────────────
+  #root,
+  html,
+  body {
+    background-color: var(--bg);
+  }
+
+  * {
+    scrollbar-color: #27272a #09090b;
+  }
+
+  &::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-track {
+    background: #09090b;
+  }
+
+  &::-webkit-scrollbar-thumb,
+  ::-webkit-scrollbar-thumb {
+    background: #3f3f46;
+    border: 2px solid #09090b;
+    border-radius: 6px;
+
+    &:hover {
+      background: #52525b;
+    }
+  }
+
+  // ── Titlebar ────────────────────────────────────────
+  .titlebar {
+    background-color: #09090b;
+    border-bottom: 1px solid var(--border);
+    box-shadow: none;
+  }
+
+  .titlebar-title {
+    font-weight: 500;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+
+  .titlebar-button {
+    border-radius: 6px;
+    color: var(--text-dim);
+
+    &:hover {
+      background-color: var(--bg-highlight);
+      color: var(--text);
+    }
+  }
+
+  .titlebar-close:hover {
+    background-color: #ef4444;
+  }
+
+  // ── Layout ──────────────────────────────────────────
+  .launcher {
+    padding: 0 16px 8px;
+    gap: 8px;
+  }
+
+  .section {
+    background-color: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+
+  .servers-section {
+    background-color: transparent;
+    border: none;
+    border-radius: 0;
+  }
+
+  // ── View Tabs (top navigation) ──────────────────────
+  .view-tabs {
+    gap: 2px;
+    background-color: var(--muted);
+    padding: 4px;
+    border-radius: var(--radius);
+  }
+
+  .view-tab {
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 6px 14px;
+    background-color: transparent;
+    color: var(--text-dim);
+    letter-spacing: -0.01em;
+
+    &:hover {
+      background-color: var(--bg-highlight);
+      color: var(--text);
+    }
+
+    &.active {
+      background-color: var(--bg);
+      color: var(--text);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+    }
+  }
+
+  // ── Category Tabs ───────────────────────────────────
+  .category-tabs {
+    background-color: transparent;
+    border-bottom: 1px solid var(--border);
+    padding: 0;
+    margin-bottom: 12px;
+  }
+
+  .category-tab {
+    border-radius: 0;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 10px 16px;
+    letter-spacing: -0.01em;
+
+    &:hover {
+      color: var(--text);
+      background-color: transparent;
+    }
+
+    &.active {
+      color: var(--text);
+      background-color: transparent;
+      border-bottom-color: var(--primary);
+    }
+  }
+
+  // ── Stats ───────────────────────────────────────────
+  .stat-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-dim);
+    letter-spacing: -0.01em;
+  }
+
+  .stat-value {
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: -0.02em;
+  }
+
+  // ── Search ──────────────────────────────────────────
+  .search-input {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 13px;
+    width: 180px;
+    color: var(--text);
+
+    &::placeholder {
+      color: var(--text-dim);
+    }
+
+    &:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--ring);
+    }
+  }
+
+  // ── Filters ─────────────────────────────────────────
+  .filters-button {
+    background-color: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    font-weight: 500;
+    font-size: 13px;
+    padding: 6px 14px;
+
+    &:hover {
+      background-color: var(--bg-highlight);
+      filter: none;
+      border-color: #3f3f46;
+    }
+  }
+
+  .filters-menu {
+    background-color: #18181b;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 10px 38px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.4);
+    padding: 12px;
+  }
+
+  .filter-section-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-dim);
+    letter-spacing: 0.05em;
+  }
+
+  .styled-checkbox {
+    font-size: 13px;
+
+    input[type="checkbox"] {
+      border-radius: 4px;
+      border-color: #3f3f46;
+
+      &:checked {
+        background-color: var(--primary);
+        border-color: var(--primary);
+      }
+    }
+  }
+
+  // ── Server List ─────────────────────────────────────
+  .server-list {
+    gap: 4px;
+  }
+
+  .server-item {
+    border-radius: var(--radius);
+    background-color: var(--card);
+    border: 1px solid var(--border);
+
+    &:hover {
+      background-color: #18181b;
+      border-color: #3f3f46;
+    }
+  }
+
+  .server-item-row {
+    padding: 12px 16px;
+  }
+
+  .server-name {
+    font-weight: 500;
+    font-size: 14px;
+    letter-spacing: -0.01em;
+  }
+
+  // ── Badges ──────────────────────────────────────────
+  .badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    letter-spacing: 0.02em;
+  }
+
+  .badge-18plus {
+    background-color: rgba(239, 68, 68, 0.15);
+    color: #fca5a5;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+  }
+
+  .badge-verified {
+    background-color: rgba(34, 197, 94, 0.15);
+    color: #86efac;
+    border: 1px solid rgba(34, 197, 94, 0.2);
+  }
+
+  .badge-whitelisted {
+    background-color: rgba(234, 179, 8, 0.15);
+    color: #fde047;
+    border: 1px solid rgba(234, 179, 8, 0.2);
+  }
+
+  .badge-tag {
+    background-color: var(--bg-highlight);
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    font-weight: 500;
+  }
+
+  // ── Player Count & Ping ─────────────────────────────
+  .player-count {
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: -0.02em;
+  }
+
+  .ping-count {
+    font-weight: 500;
+    font-size: 11px;
+  }
+
+  .admin-count {
+    font-size: 11px;
+  }
+
+  // ── Connect Button Group ────────────────────────────
+  .connect-group {
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .button.connect-button {
+    font-weight: 500;
+    font-size: 13px;
+    letter-spacing: -0.01em;
+    padding: 8px 18px;
+    border-radius: 0;
+
+    &.whitelisted-button {
+      background-color: rgba(234, 179, 8, 0.2);
+      color: #fde047;
+      border: 1px solid rgba(234, 179, 8, 0.3);
+    }
+  }
+
+  .notify-toggle {
+    background-color: var(--muted);
+    border-left: 1px solid var(--border);
+
+    &:hover {
+      background-color: #3f3f46;
+    }
+
+    &.enabled {
+      background-color: var(--primary);
+    }
+
+    &.favorite-toggle {
+      &.favorited {
+        color: #f59e0b;
+      }
+    }
+  }
+
+  // ── Buttons ─────────────────────────────────────────
+  .button,
+  .button-secondary,
+  .relay-dropdown-button {
+    border-radius: 6px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    font-size: 13px;
+  }
+
+  .button {
+    background-color: var(--primary);
+    color: #fff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+
+    &:hover {
+      background-color: #4f46e5;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    }
+
+    &:disabled {
+      background-color: var(--muted);
+      color: var(--text-dim);
+    }
+  }
+
+  .button-secondary,
+  .relay-dropdown-button {
+    background-color: var(--muted);
+    color: var(--text);
+    border: 1px solid var(--border);
+
+    &:hover {
+      background-color: #3f3f46;
+      filter: none;
+    }
+  }
+
+  .button-cancel {
+    border-radius: 6px;
+    border-color: var(--border);
+    font-weight: 500;
+    font-size: 13px;
+
+    &:hover {
+      background-color: var(--muted);
+      border-color: #3f3f46;
+    }
+  }
+
+  // ── Footer ──────────────────────────────────────────
+  .footer {
+    background-color: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 16px;
+  }
+
+  .account-avatar {
+    border-radius: 9999px;
+    border-color: var(--border);
+    background-color: var(--muted);
+  }
+
+  .account-name {
+    font-weight: 500;
+    font-size: 13px;
+  }
+
+  .social-link-button {
+    border-radius: 6px;
+    width: 34px;
+    height: 34px;
+
+    &:hover {
+      background-color: var(--bg-highlight);
+    }
+  }
+
+  .settings-button {
+    font-weight: 500;
+  }
+
+  // ── Refresh Bar ─────────────────────────────────────
+  .refresh-bar {
+    border-radius: 4px;
+    background: var(--muted);
+    margin: 8px 0 -16px;
+    height: 3px;
+  }
+
+  .refresh-bar-fill {
+    border-radius: 4px;
+    background: var(--primary);
+    opacity: 0.8;
+  }
+
+  // ── Modals ──────────────────────────────────────────
+  .auth-modal-overlay {
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+  }
+
+  .auth-modal,
+  .settings-modal {
+    background: #18181b;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+
+    p {
+      font-size: 14px;
+      line-height: 1.6;
+    }
+  }
+
+  .modal-header {
+    border-bottom-color: var(--border);
+    padding: 20px 24px;
+
+    h2 {
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+  }
+
+  .modal-close-button {
+    border-radius: 6px;
+    color: var(--text-dim);
+
+    &:hover {
+      background-color: var(--bg-highlight);
+      color: var(--text);
+    }
+  }
+
+  .modal-footer {
+    border-top-color: var(--border);
+  }
+
+  // ── Settings Options ────────────────────────────────
+  .settings-section {
+    h3 {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      border-left-color: var(--primary);
+    }
+  }
+
+  .auth-mode-option,
+  .theme-option {
+    border-radius: var(--radius);
+    border-color: var(--border);
+    background-color: var(--card);
+
+    &:hover {
+      background-color: #18181b;
+      border-color: #3f3f46;
+    }
+
+    &.selected {
+      border-color: var(--primary);
+      background-color: rgba(99, 102, 241, 0.08);
+      box-shadow: 0 0 0 3px var(--ring);
+    }
+
+    input[type="radio"] {
+      border-color: #3f3f46;
+
+      &:checked {
+        background-color: var(--primary);
+        border-color: var(--primary);
+      }
+    }
+  }
+
+  .auth-mode-name,
+  .theme-name {
+    font-weight: 500;
+    font-size: 14px;
+    letter-spacing: -0.01em;
+  }
+
+  .auth-mode-desc,
+  .theme-desc {
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .toggle-setting {
+    border-radius: var(--radius);
+    border-color: var(--border);
+    background-color: var(--card);
+
+    &:hover {
+      background-color: #18181b;
+      border-color: #3f3f46;
+    }
+
+    input[type="checkbox"] {
+      border-radius: 4px;
+      border-color: #3f3f46;
+
+      &:checked {
+        background-color: var(--primary);
+        border-color: var(--primary);
+      }
+    }
+  }
+
+  // ── Inputs ──────────────────────────────────────────
+  .hub-login-form {
+    input[type="text"],
+    input[type="password"] {
+      border-radius: 6px;
+      background: var(--card);
+      border-color: var(--border);
+      padding: 10px 12px;
+      font-size: 14px;
+
+      &:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px var(--ring);
+      }
+    }
+  }
+
+  .dev-input-group {
+    label {
+      font-weight: 500;
+      font-size: 13px;
+    }
+
+    input {
+      border-radius: 6px;
+      background: var(--card);
+      border-color: var(--border);
+
+      &:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px var(--ring);
+      }
+    }
+  }
+
+  // ── Dropdowns ───────────────────────────────────────
+  .relay-dropdown-menu,
+  .locale-dropdown-menu {
+    background-color: #18181b;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 10px 38px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.4);
+  }
+
+  .relay-option {
+    border-radius: 4px;
+    margin: 2px 4px;
+    padding: 8px;
+
+    &:hover:not(.disabled) {
+      background-color: var(--bg-highlight);
+    }
+  }
+
+  .locale-dropdown-button {
+    border-radius: 6px;
+    background: var(--card);
+    border-color: var(--border);
+
+    &:hover {
+      border-color: #3f3f46;
+    }
+  }
+
+  .locale-dropdown-item {
+    &:hover {
+      background-color: var(--bg-highlight);
+    }
+  }
+
+  // ── Error Notifications ─────────────────────────────
+  .error-popup {
+    background-color: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: var(--radius);
+    box-shadow: 0 10px 38px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(8px);
+  }
+
+  // ── Status Indicator ────────────────────────────────
+  .status-indicator {
+    background-color: var(--success);
+    box-shadow: 0 0 6px rgba(34, 197, 94, 0.4);
+
+    &.offline {
+      background-color: var(--error);
+      box-shadow: 0 0 6px rgba(239, 68, 68, 0.4);
+    }
+  }
+
+  // ── Update Notification ─────────────────────────────
+  .update-notification {
+    background: #18181b;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .update-button {
+    border-radius: 6px;
+    background-color: var(--primary);
+    color: #fff;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: -0.01em;
+  }
+
+  .update-dismiss {
+    border-radius: 6px;
+    border-color: var(--border);
+    color: var(--text-dim);
+  }
+
+  // ── Hub Announcements ───────────────────────────────
+  .hub-announcement {
+    border-radius: 6px;
+  }
+
+  .hub-announcement--maintenance {
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+  }
+
+  .hub-announcement--info {
+    background: rgba(99, 102, 241, 0.08);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    color: #a5b4fc;
+  }
+
+  // ── News ────────────────────────────────────────────
+  .news-item {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+
+    &:hover {
+      border-color: #3f3f46;
+    }
+  }
+
+  .news-item__title {
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: -0.01em;
+  }
+
+  .news-item__toggle {
+    color: var(--primary);
+    font-weight: 500;
+  }
+
+  // ── Home Page ───────────────────────────────────────
+  .home-section-title {
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    color: var(--text-dim);
+  }
+
+  // ── Game Connection ─────────────────────────────────
+  .game-connection-overlay {
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(8px);
+  }
+
+  .game-connection-spinner,
+  .auth-spinner,
+  .singleplayer-spinner {
+    border-color: var(--border);
+    border-top-color: var(--primary);
+  }
+
+  .game-connection-progress,
+  .wine-progress-bar {
+    border-radius: 9999px;
+    background: var(--muted);
+  }
+
+  .game-connection-progress-bar,
+  .wine-progress-fill {
+    border-radius: 9999px;
+    background: var(--primary);
+  }
+
+  // ── Warning box ─────────────────────────────────────
+  .auth-mode-warning {
+    border-radius: 6px;
+    background-color: rgba(245, 158, 11, 0.08);
+    border-color: rgba(245, 158, 11, 0.25);
+  }
+
+  .dev-error {
+    border-radius: 6px;
+  }
+
+  // ── OAuth ───────────────────────────────────────────
+  .oauth-divider {
+    color: var(--text-dim);
+
+    &::before,
+    &::after {
+      border-top-color: var(--border);
+    }
+  }
+
+  .hub-login-toggle,
+  .register-link {
+    color: var(--primary);
+
+    &:hover {
+      color: #818cf8;
+    }
+  }
+
+  // ── Singleplayer ────────────────────────────────────
+  .singleplayer-connect-button {
+    font-size: 16px;
+    font-weight: 600;
+    padding: 16px 48px;
+    border-radius: var(--radius);
+  }
+
+  .singleplayer-error {
+    border-radius: var(--radius);
+  }
+
+  // ── Server Info Panel ───────────────────────────────
+  .server-info-panel {
+    border-top: 1px solid var(--border);
+    margin-top: 0;
+    padding-top: 12px;
+  }
+
+  .button-secondary.server-link-button {
+    border-radius: 6px;
+  }
+
+  .external-link-url {
+    border-radius: 6px;
+    background-color: var(--card);
+    border-color: var(--border);
+  }
+}

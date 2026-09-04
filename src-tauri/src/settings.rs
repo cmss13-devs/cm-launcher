@@ -26,6 +26,7 @@ pub enum Theme {
     Tgui,
     #[serde(alias = "default")]
     Crt,
+    Modern,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default, specta::Type)]

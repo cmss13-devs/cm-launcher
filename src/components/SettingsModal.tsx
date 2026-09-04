@@ -412,6 +412,13 @@ export const SettingsModal = ({
               description={t("settings.crtDescription")}
               onChange={onThemeChange}
             />
+            <ThemeOption
+              theme="modern"
+              currentTheme={theme}
+              name={t("settings.modernName")}
+              description={t("settings.modernDescription")}
+              onChange={onThemeChange}
+            />
           </div>
         </div>
 
