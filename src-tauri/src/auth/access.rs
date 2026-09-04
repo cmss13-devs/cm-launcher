@@ -159,15 +159,34 @@ pub async fn resolve_access_method(
 
     let effective_mode = resolve_auth_mode(settings.auth_mode, auth_methods);
 
+    tracing::info!(
+        preferred = ?settings.auth_mode,
+        ?effective_mode,
+        ?auth_methods,
+        ?server_id,
+        "resolve_access_method"
+    );
+
     match effective_mode {
         AuthMode::Hub => {
             let method = get_session_token()?;
             let has_hub_api = crate::config::get_config().urls.hub_api.is_some();
+            tracing::info!(has_hub_api, has_server_id = server_id.is_some(), "hub auth: checking ticket exchange");
             if let (true, Some(sid), AccessMethod::SessionToken { ref token, .. }) =
                 (has_hub_api, server_id, &method)
             {
-                exchange_hub_ticket(token, sid).await
+                match exchange_hub_ticket(token, sid).await {
+                    Ok(access) => {
+                        tracing::info!("hub auth: ticket exchanged successfully");
+                        Ok(access)
+                    }
+                    Err(e) => {
+                        tracing::error!(?e, "hub auth: ticket exchange failed");
+                        Err(e)
+                    }
+                }
             } else {
+                tracing::info!("hub auth: skipping ticket exchange, using session token directly");
                 Ok(method)
             }
         }

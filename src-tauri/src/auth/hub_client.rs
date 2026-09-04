@@ -155,20 +155,29 @@ impl HubClient {
     pub async fn join(token: &str, server_id: &str) -> Result<String, HubAuthError> {
         let client = Self::from_config()?;
 
+        let url = format!("{}/session/join", client.base_url);
+        tracing::info!(%url, server_id, "HubClient::join request");
+
         let response = client
             .http
-            .post(format!("{}/session/join", client.base_url))
+            .post(&url)
             .header("Authorization", format!("SS13Auth {token}"))
             .json(&serde_json::json!({
                 "server_id": server_id,
             }))
             .send()
             .await
-            .map_err(|e| HubAuthError::Network(format!("Failed to connect: {e}")))?;
+            .map_err(|e| {
+                tracing::error!(%url, %e, "HubClient::join network error");
+                HubAuthError::Network(format!("Failed to connect: {e}"))
+            })?;
+
+        tracing::info!(%url, status = %response.status(), "HubClient::join response");
 
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
+            tracing::error!(%url, %status, %body, "HubClient::join failed");
             return Err(HubAuthError::Server(format!(
                 "Join failed (HTTP {status}): {body}"
             )));
@@ -197,9 +206,12 @@ impl HubClient {
     ) -> Result<String, HubAuthError> {
         let client = Self::from_config()?;
 
+        let url = format!("{}/session/join/complete", client.base_url);
+        tracing::info!(%url, "HubClient::join_complete request");
+
         let response = client
             .http
-            .post(format!("{}/session/join/complete", client.base_url))
+            .post(&url)
             .header("Authorization", format!("SS13Auth {token}"))
             .json(&serde_json::json!({
                 "nonce": nonce,
@@ -209,11 +221,17 @@ impl HubClient {
             }))
             .send()
             .await
-            .map_err(|e| HubAuthError::Network(format!("Failed to connect: {e}")))?;
+            .map_err(|e| {
+                tracing::error!(%url, %e, "HubClient::join_complete network error");
+                HubAuthError::Network(format!("Failed to connect: {e}"))
+            })?;
+
+        tracing::info!(%url, status = %response.status(), "HubClient::join_complete response");
 
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
+            tracing::error!(%url, %status, %body, "HubClient::join_complete failed");
             return Err(HubAuthError::Server(format!(
                 "Join complete failed (HTTP {status}): {body}"
             )));
